@@ -697,7 +697,7 @@ def get_miles_extra_args_provider(add_custom_arguments=None):
                 "--miles-router-middleware-paths",
                 type=str,
                 nargs="+",
-                default=None,
+                default="",
             )
             return parser
 
