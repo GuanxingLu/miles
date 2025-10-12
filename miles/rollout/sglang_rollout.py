@@ -10,6 +10,7 @@ from tqdm import tqdm
 from transformers import AutoTokenizer
 
 from miles.rollout.base_types import RolloutFnCallOutput
+from miles.rollout.filter_hub.base_types import DynamicFilterOutput
 from miles.utils.async_utils import run
 from miles.utils.data import Dataset
 from miles.utils.http_utils import get, post
@@ -352,7 +353,8 @@ async def generate_rollout_async(
                 do_print = False
 
             assert len(group) == args.n_samples_per_prompt
-            if dynamic_filter is not None and not dynamic_filter(args, group):
+            dynamic_filter_output = _call_dynamic_filter(dynamic_filter, args, group)
+            if not dynamic_filter_output.keep:
                 state.remaining_batch_size -= 1
                 continue
 
@@ -378,6 +380,19 @@ async def generate_rollout_async(
     # reset the global state to prevent effects on the next rollout or eval.
     state.reset()
     return RolloutFnCallOutput(samples=data), aborted_samples
+
+
+def _call_dynamic_filter(fn, *args, **kwargs):
+    if fn is None:
+        return DynamicFilterOutput(keep=True)
+
+    output = fn(*args, **kwargs)
+
+    # compatibility for legacy version
+    if not isinstance(output, DynamicFilterOutput):
+        output = DynamicFilterOutput(keep=output)
+
+    return output
 
 
 EVAL_PROMPT_DATASET = {}
