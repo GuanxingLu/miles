@@ -2,6 +2,8 @@
 
 To ensure long-term, stable RL training, miles enables a certain level of fault tolerance by default. This section introduces the design philosophy behind fault tolerance in miles.
 
+To enable the fault tolerance function in miles, please set `--use-fault-tolerance`.
+
 ## Rollout Fault Tolerance
 
 During the rollout process, miles periodically sends heartbeat requests (`/health_generate`) to all SGLang servers. If a heartbeat times out, that SGLang server will be stopped. After the current rollout round is complete, the server will be restarted and its parameters will be correctly updated.

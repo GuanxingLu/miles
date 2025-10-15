@@ -63,7 +63,8 @@ class RolloutManager:
         self.rollout_engine_lock = Lock.options(num_cpus=1, num_gpus=0).remote()
 
         self._metric_checker = MetricChecker.maybe_create(args)
-        self._health_monitor = RolloutHealthMonitor(self, args)
+        if self.args.use_fault_tolerance:
+            self._health_monitor = RolloutHealthMonitor(self, args)
 
     def dispose(self):
         if self._metric_checker is not None:
@@ -83,7 +84,7 @@ class RolloutManager:
         return len(self.data_source.dataset) // self.args.rollout_batch_size
 
     def generate(self, rollout_id):
-        monitor_started = self._health_monitor.start()
+        monitor_started = self.args.use_fault_tolerance and self._health_monitor.start()
         start_time = time.time()
         try:
             data, metrics = self._get_rollout_data(rollout_id=rollout_id)
@@ -103,7 +104,7 @@ class RolloutManager:
         # TODO: add fault tolerance to eval
         data = call_rollout_fn(
             self.eval_generate_rollout, self.args, rollout_id, self.data_source, evaluation=True
-        ).metrics
+        ).data
         metrics = _log_eval_rollout_data(rollout_id, self.args, data)
         if self._metric_checker is not None:
             self._metric_checker.on_eval(metrics)
@@ -385,7 +386,8 @@ def _start_router(args):
         return
 
     args.sglang_router_ip = get_host_info()[1]
-    args.sglang_router_port = find_available_port(random.randint(3000, 4000))
+    if args.sglang_router_port is None:
+        args.sglang_router_port = find_available_port(random.randint(3000, 4000))
 
     if args.use_miles_router:
         from miles.router.router import run_router
@@ -396,9 +398,6 @@ def _start_router(args):
         from sglang_router.launch_router import RouterArgs
 
         from miles.utils.http_utils import run_router
-
-        args.sglang_router_ip = get_host_info()[1]
-        args.sglang_router_port = find_available_port(random.randint(3000, 4000))
 
         router_args = RouterArgs(
             host=args.sglang_router_ip,
