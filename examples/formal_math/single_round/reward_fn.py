@@ -55,9 +55,18 @@ def _assemble_code(prompt: str, response: str) -> Tuple[Optional[str], Optional[
         return None, "no_code"
 
     question_code = prompt_code_block[: prompt_code_block.index(":=")]
-    answer_code = response_code_block[response_code_block.index(":=") :]
+    answer_code = _extract_answer_code_from_response_code_block(response_code_block)
 
     return question_code + answer_code, None
+
+
+def _extract_answer_code_from_response_code_block(response_code_block: str):
+    haystack = ":="
+    if haystack in response_code_block:
+        return response_code_block[response_code_block.index(haystack) :]
+    else:
+        # leanabell prover style: only output the proof code
+        return response_code_block
 
 
 def _extract_last_full_code_block(text):

@@ -1,5 +1,6 @@
 import datetime
 import os
+import random
 import sys
 from pathlib import Path
 
@@ -7,26 +8,36 @@ sys.path.append(str(Path(__file__).resolve().parents[3] / "tests"))
 
 import command_utils as U
 
-dataset_transform_id = os.environ["MILES_DATASET_TRANSFORM_ID"]
 
-MODEL_NAME = "Qwen3-4B"
-MODEL_TYPE = "qwen3-4B"
+# TODO unify "arg" prefix
+enable_dynamic_sampling = bool(int(os.environ.get("ARG_ENABLE_DYNAMIC_SAMPLING", "0")))
+ref_load = os.environ.get("ARG_REF_LOAD")
+eval_max_response_len = os.environ.get("ARG_EVAL_MAX_RESPONSE_LEN")
+
+dataset_transform_id = os.environ["MILES_DATASET_TRANSFORM_ID"]
+mode = os.environ.get("MILES_MODE", "train")
+assert mode in {"train", "eval_flc"}
+
+# MODEL_NAME, MODEL_TYPE = "Qwen3-4B", "qwen3-4B"
+MODEL_NAME, MODEL_TYPE = "Qwen3-8B", "qwen3-8B"
+
 NUM_GPUS = 8
 
 
 def prepare():
     U.exec_command("mkdir -p /root/models /root/datasets")
     U.exec_command(f"huggingface-cli download Qwen/{MODEL_NAME} --local-dir /root/models/{MODEL_NAME}")
-    U.hf_download_dataset("zhuzilin/dapo-math-17k")
-    U.hf_download_dataset("zhuzilin/aime-2024")
-    U.convert_checkpoint(model_name=MODEL_NAME, model_type=MODEL_TYPE, num_gpus=NUM_GPUS)
+    if ref_load is None:
+        U.convert_checkpoint(model_name=MODEL_NAME, model_type=MODEL_TYPE, num_gpus=NUM_GPUS)
 
 
 def execute():
-    load_save_path = f"/root/models/{MODEL_NAME}_ckpt__{Path(__file__).stem}/"
+    run_id = f"{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}-{random.randint(0, 1000000)}"
+
+    load_save_path = f"/root/models/{MODEL_NAME}_ckpt__{Path(__file__).stem}_{run_id}/"
     ckpt_args = (
         f"--hf-checkpoint /root/models/{MODEL_NAME}/ "
-        f"--ref-load /root/{MODEL_NAME}_torch_dist "
+        f"--ref-load {ref_load or f'/root/{MODEL_NAME}_torch_dist'} "
         f"--load {load_save_path} "
         f"--save {load_save_path} "
         "--save-interval 20 "
@@ -39,7 +50,6 @@ def execute():
         "--rollout-shuffle "
         "--custom-rm-path examples.formal_math.single_round.reward_fn.reward_fn "
         "--reward-key reward_value "
-        "--num-rollout 3000 "
         "--rollout-batch-size 32 "
         "--n-samples-per-prompt 8 "
         "--rollout-max-response-len 8192 "
@@ -48,15 +58,38 @@ def execute():
         "--balance-data "
     )
 
+    if mode == "eval_flc":
+        rollout_args += "--num-rollout 0 "
+    else:
+        rollout_args += "--num-rollout 3000 "
+
+    if enable_dynamic_sampling:
+        rollout_args += (
+            "--over-sampling-batch-size 64 "
+            "--dynamic-sampling-filter-path miles.rollout.filter_hub.dynamic_sampling_filters.check_reward_nonzero_std "
+        )
+
     eval_args = (
         "--eval-interval 20 "
-        "--eval-prompt-data "
-        f"minif2f /root/datasets/formal_math_single_round/{dataset_transform_id}/minif2f_test.jsonl "
-        f"flc /root/datasets/formal_math_single_round/{dataset_transform_id}/flc_test.jsonl "
         "--n-samples-per-eval-prompt 1 "
-        "--eval-max-response-len 16384 "
+        f"--eval-max-response-len {eval_max_response_len or 16384} "
         "--eval-top-p 0.7 "
     )
+
+    if mode == "eval_flc":
+        flc_chunk = os.environ["MILES_FLC_CHUNK"]
+        eval_args += (
+            "--eval-prompt-data "
+            f"flc /root/datasets/formal_math_single_round/{dataset_transform_id}/flc_train.jsonl@[{flc_chunk}] "
+            # pass@32 is common for formal math
+            "--n-samples-per-eval-prompt 32 "
+        )
+    else:
+        eval_args += (
+            "--eval-prompt-data "
+            f"minif2f /root/datasets/formal_math_single_round/{dataset_transform_id}/minif2f_test.jsonl "
+            f"flc /root/datasets/formal_math_single_round/{dataset_transform_id}/flc_test.jsonl "
+        )
 
     perf_args = (
         "--tensor-model-parallel-size 2 "
@@ -110,15 +143,18 @@ def execute():
         "--actor-num-gpus-per-node 8 "
         "--colocate "
         # for debug
-        f"--save-debug-rollout-data /root/miles_debug_rollout_data/{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}/{{rollout_id}}.pt "
+        f"--save-debug-rollout-data /root/shared_data/{run_id}/{{rollout_id}}.pt "
     )
+
+    if mode == "eval_flc":
+        misc_args += "--debug-rollout-only "
 
     train_args = (
         f"{ckpt_args} "
         f"{rollout_args} "
         f"{optimizer_args} "
         f"{grpo_args} "
-        f"{U.get_default_wandb_args(__file__)} "
+        f"{U.get_default_wandb_args(__file__, run_id=run_id)} "
         f"{perf_args} "
         f"{eval_args} "
         f"{sglang_args} "
