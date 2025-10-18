@@ -1,6 +1,4 @@
-import datetime
 import os
-import random
 import sys
 from pathlib import Path
 
@@ -22,7 +20,7 @@ def prepare():
 
 
 def execute():
-    run_id = f"{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}-{random.randint(0, 1000000)}"
+    run_id = U.create_run_id()
 
     load_save_path = f"/root/models/{MODEL_NAME}_ckpt__{Path(__file__).stem}_{run_id}/"
     ckpt_args = (
@@ -66,7 +64,7 @@ def execute():
 
     optimizer_args = (
         "--optimizer adam "
-        "--lr 1e-5 "
+        f"--lr {os.environ.get('ARG_LR', '2e-4')} "
         "--lr-decay-style cosine "
         "--min-lr 1e-6 "
         "--lr-warmup-fraction 0.1 "

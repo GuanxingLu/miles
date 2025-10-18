@@ -1,6 +1,4 @@
-import datetime
 import os
-import random
 import sys
 from pathlib import Path
 
@@ -11,12 +9,13 @@ import command_utils as U
 
 # TODO unify "arg" prefix
 enable_dynamic_sampling = bool(int(os.environ.get("ARG_ENABLE_DYNAMIC_SAMPLING", "0")))
-ref_load = os.environ.get("ARG_REF_LOAD")
+arg_ref_load = os.environ.get("ARG_REF_LOAD")
+arg_load = os.environ.get("ARG_LOAD")
 eval_max_response_len = os.environ.get("ARG_EVAL_MAX_RESPONSE_LEN")
 
 dataset_transform_id = os.environ["MILES_DATASET_TRANSFORM_ID"]
 mode = os.environ.get("MILES_MODE", "train")
-assert mode in {"train", "eval_flc"}
+assert mode in {"train", "eval_pass_at_k", "eval_flc"}
 
 # MODEL_NAME, MODEL_TYPE = "Qwen3-4B", "qwen3-4B"
 MODEL_NAME, MODEL_TYPE = "Qwen3-8B", "qwen3-8B"
@@ -27,18 +26,24 @@ NUM_GPUS = 8
 def prepare():
     U.exec_command("mkdir -p /root/models /root/datasets")
     U.exec_command(f"huggingface-cli download Qwen/{MODEL_NAME} --local-dir /root/models/{MODEL_NAME}")
-    if ref_load is None:
-        U.convert_checkpoint(model_name=MODEL_NAME, model_type=MODEL_TYPE, num_gpus=NUM_GPUS)
+    if arg_ref_load is None:
+        U.convert_checkpoint(
+            model_name=MODEL_NAME,
+            model_type=MODEL_TYPE,
+            num_gpus=NUM_GPUS,
+            # To support multi-node training, for simplicity, we put model into shared folder
+            dir_dst="/root/models",
+        )
 
 
 def execute():
-    run_id = f"{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}-{random.randint(0, 1000000)}"
+    run_id = U.create_run_id()
 
     load_save_path = f"/root/models/{MODEL_NAME}_ckpt__{Path(__file__).stem}_{run_id}/"
     ckpt_args = (
         f"--hf-checkpoint /root/models/{MODEL_NAME}/ "
-        f"--ref-load {ref_load or f'/root/{MODEL_NAME}_torch_dist'} "
-        f"--load {load_save_path} "
+        f"--ref-load {arg_ref_load or f'/root/models/{MODEL_NAME}_torch_dist'} "
+        f"--load {arg_load or load_save_path} "
         f"--save {load_save_path} "
         "--save-interval 20 "
     )
@@ -50,6 +55,7 @@ def execute():
         "--rollout-shuffle "
         "--custom-rm-path examples.formal_math.single_round.reward_fn.reward_fn "
         "--reward-key reward_value "
+        "--log-reward-category reward_cat "
         "--rollout-batch-size 32 "
         "--n-samples-per-prompt 8 "
         "--rollout-max-response-len 8192 "
@@ -58,7 +64,7 @@ def execute():
         "--balance-data "
     )
 
-    if mode == "eval_flc":
+    if mode in {"eval_pass_at_k", "eval_flc"}:
         rollout_args += "--num-rollout 0 "
     else:
         rollout_args += "--num-rollout 3000 "
@@ -90,6 +96,8 @@ def execute():
             f"minif2f /root/datasets/formal_math_single_round/{dataset_transform_id}/minif2f_test.jsonl "
             f"flc /root/datasets/formal_math_single_round/{dataset_transform_id}/flc_test.jsonl "
         )
+        if mode == "eval_pass_at_k":
+            eval_args += "--n-samples-per-eval-prompt 32 "
 
     perf_args = (
         "--tensor-model-parallel-size 2 "
@@ -102,7 +110,9 @@ def execute():
         "--recompute-method uniform "
         "--recompute-num-layers 1 "
         "--use-dynamic-batch-size "
-        "--max-tokens-per-gpu 9216 "
+        # see OOM when 9216 or 8192
+        # TODO examine why this happens only in e.g. AC6588
+        "--max-tokens-per-gpu 6144 "
     )
 
     grpo_args = (
@@ -139,15 +149,17 @@ def execute():
         "--attention-softmax-in-fp32 "
         # need to comment this when using model with MLA
         "--attention-backend flash "
-        "--actor-num-nodes 1 "
+        f"--actor-num-nodes {os.environ.get('ARG_ACTOR_NUM_NODES', '1')} "
         "--actor-num-gpus-per-node 8 "
         "--colocate "
         # for debug
         f"--save-debug-rollout-data /root/shared_data/{run_id}/{{rollout_id}}.pt "
+        "--log-passrate "
     )
 
-    if mode == "eval_flc":
-        misc_args += "--debug-rollout-only "
+    # should not use debug-rollout-only when doing eval, b/c the weights should be from megatron weights
+    # if mode in {"eval_pass_at_k", "eval_flc"}:
+    #     misc_args += "--debug-rollout-only "
 
     train_args = (
         f"{ckpt_args} "
