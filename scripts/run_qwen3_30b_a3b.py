@@ -1,4 +1,5 @@
 import datetime
+import os
 import sys
 from pathlib import Path
 
@@ -6,9 +7,21 @@ sys.path.append(str(Path(__file__).resolve().parents[1] / "tests"))
 
 import command_utils as U
 
+mode = os.environ.get("MILES_SCRIPT_MODE", "8xh100")
+
 MODEL_NAME = "Qwen3-30B-A3B"
 MODEL_TYPE = "qwen3-30B-A3B"
-NUM_GPUS = 8
+
+match mode:
+    case "8xh100":
+        num_gpus_for_convert = num_gpus = 8
+    case "4xgb300":
+        num_gpus_for_convert = num_gpus = 4
+    case "8xgb300":
+        num_gpus_for_convert = 4
+        num_gpus = 8
+    case _:
+        raise NotImplementedError(f"{mode=}")
 
 
 def prepare():
@@ -16,9 +29,10 @@ def prepare():
     U.exec_command(f"huggingface-cli download Qwen/{MODEL_NAME} --local-dir /root/models/{MODEL_NAME}")
     U.hf_download_dataset("zhuzilin/dapo-math-17k")
     U.hf_download_dataset("zhuzilin/aime-2024")
-    U.convert_checkpoint(model_name=MODEL_NAME, model_type=MODEL_TYPE, num_gpus=NUM_GPUS)
+    U.convert_checkpoint(model_name=MODEL_NAME, model_type=MODEL_TYPE, num_gpus=num_gpus_for_convert)
 
 
+# TODO improve layering: split algorithm vs infra
 def execute():
     load_save_path = (
         f"/root/models/{MODEL_NAME}_ckpt__{Path(__file__).stem}__{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}/"
@@ -41,7 +55,9 @@ def execute():
         "--num-rollout 3000 "
         "--rollout-batch-size 32 "
         "--n-samples-per-prompt 8 "
-        "--rollout-max-response-len 8192 "
+        # TODO temp hack
+        # "--rollout-max-response-len 8192 "
+        "--rollout-max-response-len 100 "
         "--rollout-temperature 0.8 "
         "--global-batch-size 256 "
         "--balance-data "
@@ -51,17 +67,13 @@ def execute():
         "--eval-interval 20 "
         "--eval-prompt-data aime /root/datasets/aime-2024/aime-2024.jsonl "
         "--n-samples-per-eval-prompt 16 "
-        "--eval-max-response-len 16384 "
+        # TODO temp hack
+        # "--eval-max-response-len 16384 "
+        "--eval-max-response-len 100 "
         "--eval-top-p 0.7 "
     )
 
     perf_args = (
-        "--tensor-model-parallel-size 4 "
-        "--sequence-parallel "
-        "--pipeline-model-parallel-size 1 "
-        "--context-parallel-size 1 "
-        "--expert-model-parallel-size 8 "
-        "--expert-tensor-parallel-size 1 "
         "--recompute-granularity full "
         "--recompute-method uniform "
         "--recompute-num-layers 1 "
@@ -87,15 +99,10 @@ def execute():
         "--weight-decay 0.1 "
         "--adam-beta1 0.9 "
         "--adam-beta2 0.98 "
+        # TODO gb300 may not need this
         "--optimizer-cpu-offload "
         "--overlap-cpu-optimizer-d2h-h2d "
         "--use-precision-aware-optimizer "
-    )
-
-    sglang_args = (
-        "--rollout-num-gpus-per-engine 8 "
-        "--sglang-mem-fraction-static 0.7 "
-        "--sglang-cuda-graph-bs 1 2 4 8 " + " ".join(str(x) for x in range(16, 257, 8)) + " "
     )
 
     misc_args = (
@@ -108,9 +115,62 @@ def execute():
         # need to comment this when using model with MLA
         "--attention-backend flash "
         "--actor-num-nodes 1 "
-        "--actor-num-gpus-per-node 8 "
         "--colocate "
     )
+
+    match mode:
+        case "8xh100":
+            perf_args += (
+                "--tensor-model-parallel-size 4 "
+                "--sequence-parallel "
+                "--pipeline-model-parallel-size 1 "
+                "--context-parallel-size 1 "
+                "--expert-model-parallel-size 8 "
+                "--expert-tensor-parallel-size 1 "
+            )
+            sglang_args = (
+                "--rollout-num-gpus-per-engine 8 "
+                "--sglang-mem-fraction-static 0.7 "
+                "--sglang-cuda-graph-bs 1 2 4 8 " + " ".join(str(x) for x in range(16, 257, 8)) + " "
+            )
+            misc_args += "--actor-num-gpus-per-node 8 "
+        case "4xgb300":
+            perf_args += (
+                "--tensor-model-parallel-size 4 "
+                "--sequence-parallel "
+                "--pipeline-model-parallel-size 1 "
+                "--context-parallel-size 1 "
+                "--expert-model-parallel-size 4 "
+                "--expert-tensor-parallel-size 1 "
+            )
+            sglang_args = (
+                "--rollout-num-gpus-per-engine 4 "
+                # fused_moe_kernel triton seems to have issue on GB300
+                "--sglang-ep-size 4 "
+                # TODO examine why it often OOM
+                "--sglang-mem-fraction-static 0.5 "
+                "--sglang-cuda-graph-bs 1 2 4 8 " + " ".join(str(x) for x in range(16, 513, 8)) + " "
+            )
+            misc_args += "--actor-num-gpus-per-node 4 "
+        case "8xgb300":
+            perf_args += (
+                "--tensor-model-parallel-size 4 "
+                "--sequence-parallel "
+                "--pipeline-model-parallel-size 1 "
+                "--context-parallel-size 1 "
+                "--expert-model-parallel-size 8 "
+                "--expert-tensor-parallel-size 1 "
+            )
+            sglang_args = (
+                "--rollout-num-gpus-per-engine 4 "
+                "--sglang-ep-size 4 "
+                # TODO examine why it often OOM
+                "--sglang-mem-fraction-static 0.5 "
+                "--sglang-cuda-graph-bs 1 2 4 8 " + " ".join(str(x) for x in range(16, 513, 8)) + " "
+            )
+            misc_args += "--actor-num-gpus-per-node 4 "
+        case _:
+            raise NotImplementedError(f"{mode=}")
 
     train_args = (
         f"{ckpt_args} "
@@ -126,7 +186,7 @@ def execute():
 
     U.execute_train(
         train_args=train_args,
-        num_gpus=NUM_GPUS,
+        num_gpus=num_gpus,
         model_type=MODEL_TYPE,
     )
 
