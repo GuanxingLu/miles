@@ -20,6 +20,9 @@ match mode:
     case "8xgb300":
         num_gpus_for_convert = 4
         num_gpus = 8
+    case "32xgb300":
+        num_gpus_for_convert = 4
+        num_gpus = 32
     case _:
         raise NotImplementedError(f"{mode=}")
 
@@ -29,7 +32,13 @@ def prepare():
     U.exec_command(f"huggingface-cli download Qwen/{MODEL_NAME} --local-dir /root/models/{MODEL_NAME}")
     U.hf_download_dataset("zhuzilin/dapo-math-17k")
     U.hf_download_dataset("zhuzilin/aime-2024")
-    U.convert_checkpoint(model_name=MODEL_NAME, model_type=MODEL_TYPE, num_gpus=num_gpus_for_convert)
+    U.convert_checkpoint(
+        model_name=MODEL_NAME,
+        model_type=MODEL_TYPE,
+        num_gpus=num_gpus_for_convert,
+        # To support multi-node training, for simplicity, we put model into shared folder
+        dir_dst="/root/models",
+    )
 
 
 # TODO improve layering: split algorithm vs infra
@@ -39,7 +48,7 @@ def execute():
     )
     ckpt_args = (
         f"--hf-checkpoint /root/models/{MODEL_NAME}/ "
-        f"--ref-load /root/{MODEL_NAME}_torch_dist "
+        f"--ref-load /root/models/{MODEL_NAME}_torch_dist "
         f"--load {load_save_path} "
         f"--save {load_save_path} "
         "--save-interval 20 "
@@ -55,9 +64,7 @@ def execute():
         "--num-rollout 3000 "
         "--rollout-batch-size 32 "
         "--n-samples-per-prompt 8 "
-        # TODO temp hack
-        # "--rollout-max-response-len 8192 "
-        "--rollout-max-response-len 100 "
+        "--rollout-max-response-len 8192 "
         "--rollout-temperature 0.8 "
         "--global-batch-size 256 "
         "--balance-data "
@@ -67,9 +74,7 @@ def execute():
         "--eval-interval 20 "
         "--eval-prompt-data aime /root/datasets/aime-2024/aime-2024.jsonl "
         "--n-samples-per-eval-prompt 16 "
-        # TODO temp hack
-        # "--eval-max-response-len 16384 "
-        "--eval-max-response-len 100 "
+        "--eval-max-response-len 16384 "
         "--eval-top-p 0.7 "
     )
 
@@ -99,10 +104,6 @@ def execute():
         "--weight-decay 0.1 "
         "--adam-beta1 0.9 "
         "--adam-beta2 0.98 "
-        # TODO gb300 may not need this
-        "--optimizer-cpu-offload "
-        "--overlap-cpu-optimizer-d2h-h2d "
-        "--use-precision-aware-optimizer "
     )
 
     misc_args = (
@@ -114,7 +115,6 @@ def execute():
         "--attention-softmax-in-fp32 "
         # need to comment this when using model with MLA
         "--attention-backend flash "
-        "--actor-num-nodes 1 "
         "--colocate "
     )
 
@@ -133,7 +133,10 @@ def execute():
                 "--sglang-mem-fraction-static 0.7 "
                 "--sglang-cuda-graph-bs 1 2 4 8 " + " ".join(str(x) for x in range(16, 257, 8)) + " "
             )
-            misc_args += "--actor-num-gpus-per-node 8 "
+            optimizer_args += (
+                "--optimizer-cpu-offload " "--overlap-cpu-optimizer-d2h-h2d " "--use-precision-aware-optimizer "
+            )
+            misc_args += "--actor-num-gpus-per-node 8 " "--actor-num-nodes 1 "
         case "4xgb300":
             perf_args += (
                 "--tensor-model-parallel-size 4 "
@@ -145,13 +148,11 @@ def execute():
             )
             sglang_args = (
                 "--rollout-num-gpus-per-engine 4 "
-                # fused_moe_kernel triton seems to have issue on GB300
                 "--sglang-ep-size 4 "
-                # TODO examine why it often OOM
-                "--sglang-mem-fraction-static 0.5 "
+                "--sglang-mem-fraction-static 0.7 "
                 "--sglang-cuda-graph-bs 1 2 4 8 " + " ".join(str(x) for x in range(16, 513, 8)) + " "
             )
-            misc_args += "--actor-num-gpus-per-node 4 "
+            misc_args += "--actor-num-gpus-per-node 4 " "--actor-num-nodes 1 " "--num-gpus-per-node 4"
         case "8xgb300":
             perf_args += (
                 "--tensor-model-parallel-size 4 "
@@ -164,11 +165,26 @@ def execute():
             sglang_args = (
                 "--rollout-num-gpus-per-engine 4 "
                 "--sglang-ep-size 4 "
-                # TODO examine why it often OOM
-                "--sglang-mem-fraction-static 0.5 "
+                "--sglang-mem-fraction-static 0.7 "
                 "--sglang-cuda-graph-bs 1 2 4 8 " + " ".join(str(x) for x in range(16, 513, 8)) + " "
             )
-            misc_args += "--actor-num-gpus-per-node 4 "
+            misc_args += "--actor-num-gpus-per-node 4 " "--actor-num-nodes 2 " "--num-gpus-per-node 4"
+        case "32xgb300":
+            perf_args += (
+                "--tensor-model-parallel-size 4 "
+                "--sequence-parallel "
+                "--pipeline-model-parallel-size 1 "
+                "--context-parallel-size 1 "
+                "--expert-model-parallel-size 8 "
+                "--expert-tensor-parallel-size 1 "
+            )
+            sglang_args = (
+                "--rollout-num-gpus-per-engine 4 "
+                "--sglang-ep-size 4 "
+                "--sglang-mem-fraction-static 0.7 "
+                "--sglang-cuda-graph-bs 1 2 4 8 " + " ".join(str(x) for x in range(16, 513, 8)) + " "
+            )
+            misc_args += "--actor-num-gpus-per-node 4 " "--actor-num-nodes 8 " "--num-gpus-per-node 4"
         case _:
             raise NotImplementedError(f"{mode=}")
 
