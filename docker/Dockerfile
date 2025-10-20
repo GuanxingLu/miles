@@ -9,6 +9,10 @@ ARG MEGATRON_COMMIT=ca9797e95e88d93623b0f69831529a1b521297ac
 
 ARG ENABLE_BLACKWELL_BUILD=0
 ARG ENABLE_CUDA_13=0
+# Can be 0,1,2, larger value means resource is more limited
+# 0: Large machine
+# 1: Tested on 64 CPU, 432GB RAM
+# 2: Tested on 32 CPU, 64GB RAM
 ARG ENABLE_TIGHT_BUILD_RES=0
 
 RUN apt update
@@ -31,16 +35,23 @@ RUN if [ "${ENABLE_BLACKWELL_BUILD}" = "1" ]; then \
     TORCH_CUDA_ARCH_LIST="$TLIST" pip install git+https://github.com/fanshiqing/grouped_gemm@v1.1.4
 
 # apex
-RUN NVCC_APPEND_FLAGS="--threads 4" \
+RUN if [ "$ENABLE_TIGHT_BUILD_RES" = "2" ]; then \
+          export NVCC_APPEND_FLAGS="--threads 1"; \
+        else \
+          export NVCC_APPEND_FLAGS="--threads 4"; \
+        fi && \
   pip -v install --disable-pip-version-check --no-cache-dir \
   --no-build-isolation \
   --config-settings "--build-option=--cpp_ext --cuda_ext --parallel 8" git+https://github.com/NVIDIA/apex.git
+
 # transformer engine, we install with --no-deps to avoid installing torch and torch-extensions
 RUN pip install pybind11
 
 # flash attn
 # the newest version megatron supports is v2.7.4
-RUN if [ "$ENABLE_TIGHT_BUILD_RES" = "1" ]; then \
+RUN if [ "$ENABLE_TIGHT_BUILD_RES" = "2" ]; then \
+      export MAX_JOBS=4; \
+    elif [ "$ENABLE_TIGHT_BUILD_RES" = "1" ]; then \
       export MAX_JOBS=32; \
     else \
       export MAX_JOBS=64; \
@@ -86,3 +97,13 @@ RUN cd /sgl-workspace/sglang && \
   rm sglang.patch
 
 RUN rm /root/.tmux.conf
+
+# TODO: this fix will be upstreamed later
+RUN (cd /tmp && git clone -b feat/v350_plus_8045 https://github.com/fzyzcjy/triton.git && cd triton && pip install -r python/requirements.txt && pip install -e .)
+
+# TODO: this fix will be upstreamed later
+RUN sed -i '0,/if torch.cuda.is_available() and has_triton_kernels:/s//if 0:/' /sgl-workspace/sglang/python/sglang/srt/layers/quantization/unquant.py && \
+    cat /sgl-workspace/sglang/python/sglang/srt/layers/quantization/unquant.py
+
+# TODO: this fix will be upstreamed later
+RUN curl -L https://github.com/NVIDIA/TransformerEngine/pull/2286.patch -o /tmp/te2286.patch && (cd /usr/local/lib/python3.12/dist-packages/transformer_engine && (patch -p2 < /tmp/te2286.patch))
