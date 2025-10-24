@@ -36,6 +36,9 @@ class FSDPArgs:
     record_memory_history: bool = False
     memory_snapshot_path: str = "snapshot.pickle"
 
+    # Others
+    deterministic_mode: bool = False  # This name must be the same as Megatron's
+
     # YAML bookkeeping
     config: str | None = None
 
