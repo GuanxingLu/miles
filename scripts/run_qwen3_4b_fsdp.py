@@ -49,7 +49,7 @@ def execute():
     if MODE != "debug_minimal":
         rollout_args += (
             "--over-sampling-batch-size 64 "
-            "--dynamic-sampling-filter-path slime.rollout.filter_hub.dynamic_sampling_filters.check_reward_nonzero_std "
+            "--dynamic-sampling-filter-path miles.rollout.filter_hub.dynamic_sampling_filters.check_reward_nonzero_std "
         )
 
     eval_args = ""
