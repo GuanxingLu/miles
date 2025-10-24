@@ -8,7 +8,6 @@ from transformers import AutoConfig
 
 from miles.backends.sglang_utils.arguments import add_sglang_arguments
 from miles.backends.sglang_utils.arguments import validate_args as sglang_validate_args
-from miles.utils.checkpoint_utils import get_latest_checkpointed_iteration
 
 
 def reset_arg(parser, name, **kwargs):
@@ -578,6 +577,12 @@ def get_miles_extra_args_provider(add_custom_arguments=None):
             parser.add_argument("--critic-load", type=str, default=None, help="The checkpoint for critic model.")
             parser.add_argument("--critic-save", type=str, default=None, help="The checkpoint for critic model.")
             parser.add_argument("--critic-lr", type=float, default=None, help="The lr for critic model")
+            parser.add_argument(
+                "--critic-lr-warmup-iters",
+                type=int,
+                default=0,
+                help="number of iterations to linearly warmup for critic model.",
+            )
 
             parser.add_argument("--eps-clip", type=float, default=0.2, help="PPO clip range")
             parser.add_argument("--eps-clip-high", type=float, default=None, help="PPO clip upper range")
@@ -777,15 +782,6 @@ def get_miles_extra_args_provider(add_custom_arguments=None):
                 action="store_true",
                 default=False,
                 help="Whether to turn on passrate logging, which will log the pass@n of the responses in the rollout.",
-            )
-            parser.add_argument(
-                "--log-reward-category",
-                type=str,
-                default=None,
-                help=(
-                    "Log statistics of the category of reward, such as why the reward function considers it as failed. "
-                    "Specify the key in the reward dict using this argument.",
-                ),
             )
             parser.add_argument("--wandb-run-id", type=str, default=None)
             return parser
@@ -1121,8 +1117,12 @@ def miles_validate_args(args):
                 "please make sure it is a valid megatron checkpoint directory."
             )
 
-    load_ckpt_iter = get_latest_checkpointed_iteration(args.load)
-    if load_ckpt_iter is None:
+    # TODO: During loading, we need to set the start_rollout_id here.
+    if (
+        args.load is None
+        or not os.path.exists(args.load)
+        or not os.path.exists(os.path.join(args.load, "latest_checkpointed_iteration.txt"))
+    ):
         args.no_load_optim = True
         args.no_load_rng = True
         args.finetune = True
@@ -1130,8 +1130,6 @@ def miles_validate_args(args):
         if args.ref_ckpt_step is not None:
             args.ckpt_step = args.ref_ckpt_step
         args.start_rollout_id = 0
-    else:
-        args.start_rollout_id = load_ckpt_iter + 1
 
     if args.eval_interval is not None:
         assert args.eval_prompt_data is not None, "eval_prompt_data must be set when eval_interval is set"
