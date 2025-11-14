@@ -5,7 +5,6 @@ import time
 from pathlib import Path
 from typing import List, Union
 
-import numpy as np
 import ray
 import torch
 import wandb
@@ -18,7 +17,7 @@ from miles.utils.health_monitor import RolloutHealthMonitor
 from miles.utils.http_utils import find_available_port, get_host_info, init_http_client
 from miles.utils.iter_utils import group_by
 from miles.utils.metric_checker import MetricChecker
-from miles.utils.metric_utils import compute_pass_rate, compute_statistics, dict_add_prefix, has_repetition
+from miles.utils.metric_utils import compute_pass_rate, compute_statistics, dict_add_prefix
 from miles.utils.misc import load_function
 from miles.utils.ray_utils import Box
 from miles.utils.types import Sample
@@ -130,6 +129,7 @@ class RolloutManager:
         if self.args.load_debug_rollout_data:
             data = torch.load(
                 open(self.args.load_debug_rollout_data.format(rollout_id=rollout_id), "rb"),
+                weights_only=False,
             )["samples"]
             data = [Sample.from_dict(sample) for sample in data]
             if (ratio := self.args.load_debug_rollout_data_subsample) is not None:
@@ -246,8 +246,14 @@ class RolloutManager:
         if samples[0].rollout_log_probs is not None:
             train_data["rollout_log_probs"] = [sample.rollout_log_probs for sample in samples]
 
+        if samples[0].rollout_routed_experts is not None:
+            train_data["rollout_routed_experts"] = [sample.rollout_routed_experts for sample in samples]
+
         if samples[0].train_metadata is not None:
             train_data["metadata"] = [sample.train_metadata for sample in samples]
+
+        if "teacher_log_probs" in samples[0].__dict__:
+            train_data["teacher_log_probs"] = [sample.teacher_log_probs for sample in samples]
 
         return train_data
 
