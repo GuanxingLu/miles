@@ -37,11 +37,21 @@ docker compose up -d
 Logs
 
 ```shell
+# All containers
 docker compose logs -f
+
+# One container
+docker logs -f github_runner-runner-1
 ```
 
 Exec
 
 ```shell
 docker exec -it github_runner-runner-1 /bin/bash
+```
+
+An example of quickly iterate
+
+```shell
+docker compose down -v && docker compose up -d && docker logs -f github_runner-runner-1
 ```
