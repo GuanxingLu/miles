@@ -6,7 +6,7 @@
 
 </div>
 
---------------------------------------------------------------------------------
+
 > A journey of a thousand miles is made one small step at a time.
 
 **Miles** is an enterprise-facing reinforcement learning framework for **large-scale MoE post-training and production workloads**, forked from and co-evolving with **[slime](https://github.com/THUDM/slime)**.
@@ -16,6 +16,10 @@ Miles keeps slime’s lightweight, modular design, but focuses on:
 - New hardware support (e.g., GB300 and beyond)  
 - Stable, controllable RL for large MoE models  
 - Production-grade features  
+
+
+## News
+- [2025/11] Introduce Miles - born after slime towards enterprise RL training ([blog](https://lmsys.org/blog/2025-11-19-miles/)).
 
 
 ---
