@@ -242,6 +242,8 @@ class RolloutManager:
             assert (
                 len(sample.loss_mask) == sample.response_length
             ), f"loss mask length {len(sample.loss_mask)} != response length {sample.response_length}"
+            if sample.remove_sample:
+                sample.loss_mask = [0] * sample.response_length
             loss_masks.append(sample.loss_mask)
         train_data["loss_masks"] = loss_masks
 
@@ -460,7 +462,6 @@ def _start_router(args):
         router_args = RouterArgs.from_cli_args(args, use_router_prefix=True)
         router_args.host = args.sglang_router_ip
         router_args.port = args.sglang_router_port
-        router_args.balance_abs_threshold = 0
         router_args.prometheus_port = find_available_port(random.randint(4000, 5000))
 
         if hasattr(router_args, "log_level"):

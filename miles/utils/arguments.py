@@ -610,7 +610,9 @@ def get_miles_extra_args_provider(add_custom_arguments=None):
             parser.add_argument("--eval-top-p", type=float, default=None)
             parser.add_argument("--eval-top-k", type=int, default=None)
             parser.add_argument("--eval-max-response-len", type=int, default=None)
+            parser.add_argument("--eval-max-prompt-len", type=int, default=None)
             parser.add_argument("--eval-min-new-tokens", type=int, default=None)
+            parser.add_argument("--eval-max-context-len", type=int, default=None)
 
             return parser
 
@@ -1331,6 +1333,7 @@ def miles_validate_args(args):
                 "please make sure it is a valid megatron checkpoint directory."
             )
 
+    # TODO: During loading, we need to set the start_rollout_id here.
     if (
         args.load is None
         or not os.path.exists(args.load)
@@ -1367,7 +1370,7 @@ def miles_validate_args(args):
         ), "custom_tis_function_path must be set when get_mismatch_metrics is set"
 
         if args.use_rollout_logprobs:
-            print(
+            logger.info(
                 "get_mismatch_metrics is set; For metrics calculation, the log probs will still be recomputed by training engine. One more forward pass will be applied."
             )
 
@@ -1501,6 +1504,28 @@ def miles_validate_args(args):
             if hasattr(args, k):
                 logger.info(f"Warning: Argument {k} is already set to {getattr(args, k)}, will override with {v}.")
             setattr(args, k, v)
+
+    if args.rollout_max_context_len is None:
+        logger.info(
+            f"args.rollout_max_context_len is not set. Use args.rollout_max_response_len {args.rollout_max_response_len} as default value."
+        )
+        args.rollout_max_context_len = args.rollout_max_response_len
+
+    if args.eval_max_context_len is None:
+        logger.info(
+            f"args.eval_max_context_len is not set. Use args.rollout_max_context_len {args.rollout_max_context_len} as default value."
+        )
+        args.eval_max_context_len = args.rollout_max_context_len
+
+    if args.rollout_max_prompt_len is None:
+        logger.info(
+            f"args.rollout_max_prompt_len is not set. Use args.rollout_max_context_len - 1 ({args.rollout_max_context_len} - 1) as default value so that there is at least one generated token to compute loss."
+        )
+        args.rollout_max_prompt_len = args.rollout_max_context_len - 1
+
+    assert (
+        args.rollout_max_prompt_len <= args.rollout_max_context_len - 1
+    ), f"args.rollout_max_prompt_len ({args.rollout_max_prompt_len}) must be smaller than args.rollout_max_context_len ({args.rollout_max_context_len}) so that there is at least one generated token to compute loss."
 
 
 def hf_validate_args(args, hf_config):
