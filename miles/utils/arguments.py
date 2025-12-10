@@ -728,6 +728,12 @@ def get_miles_extra_args_provider(add_custom_arguments=None):
                 help="KL penalty coefficient for the loss function. This is added to the final PPO loss.",
             )
             parser.add_argument(
+                "--use-unbiased-kl",
+                action="store_true",
+                default=False,
+                help="Whether to enable unbiased KL estimation.",
+            )
+            parser.add_argument(
                 "--ref-update-interval",
                 type=int,
                 default=None,
@@ -810,6 +816,18 @@ def get_miles_extra_args_provider(add_custom_arguments=None):
                 action="store_true",
                 default=False,
                 help="The rollout routing replay technique from https://arxiv.org/abs/2510.11370",
+            )
+            parser.add_argument(
+                "--use-opsm",
+                action="store_true",
+                default=False,
+                help="Whether to enable Off-Policy Sequence Masking (OPSM).",
+            )
+            parser.add_argument(
+                "--opsm-delta",
+                type=float,
+                default=1e-4,
+                help="The threshold for Off-Policy Sequence Masking (OPSM).",
             )
             return parser
 
@@ -1114,6 +1132,12 @@ def get_miles_extra_args_provider(add_custom_arguments=None):
                     "Note: This attribute does not determine whether the sample participates in advantage normalization."
                 ),
             )
+            parser.add_argument(
+                "--disable-rollout-trim-samples",
+                action="store_true",
+                default=False,
+                help="disable trim samples in rollout buffer when converting samples to train data",
+            )
             return parser
 
         def add_custom_megatron_plugins_arguments(parser):
@@ -1150,6 +1174,15 @@ def get_miles_extra_args_provider(add_custom_arguments=None):
                 help="Enable MTP layer parameter updates during training",
             )
 
+            return parser
+
+        def add_prefill_decode_disaggregation_arguments(parser):
+            parser.add_argument(
+                "--prefill-num-servers",
+                type=int,
+                default=None,
+                help="Number of prefill servers for disaggregation.",
+            )
             return parser
 
         def add_ci_arguments(parser):
@@ -1210,6 +1243,7 @@ def get_miles_extra_args_provider(add_custom_arguments=None):
         parser = add_reward_model_arguments(parser)
         parser = add_rollout_buffer_arguments(parser)
         parser = add_mtp_training_arguments(parser)
+        parser = add_prefill_decode_disaggregation_arguments(parser)
         parser = add_ci_arguments(parser)
         parser.set_defaults(sglang_tensor_parallel_size=add_sglang_tp_size())
 
@@ -1327,7 +1361,7 @@ def _resolve_eval_datasets(args) -> list[EvalDatasetConfig]:
     else:
         datasets_config = []
 
-    eval_datasets = build_eval_dataset_configs(datasets_config, defaults)
+    eval_datasets = build_eval_dataset_configs(args, datasets_config, defaults)
     if eval_datasets:
         args.eval_prompt_data = [item for dataset in eval_datasets for item in (dataset.name, dataset.path)]
     else:
@@ -1542,6 +1576,9 @@ def miles_validate_args(args):
     assert (
         args.rollout_max_prompt_len <= args.rollout_max_context_len - 1
     ), f"args.rollout_max_prompt_len ({args.rollout_max_prompt_len}) must be smaller than args.rollout_max_context_len ({args.rollout_max_context_len}) so that there is at least one generated token to compute loss."
+
+    if args.prefill_num_servers is not None:
+        assert not args.use_fault_tolerance, "fault tolerance is not supported when prefill_num_servers is set."
 
 
 def hf_validate_args(args, hf_config):
