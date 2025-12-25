@@ -17,6 +17,7 @@ except ImportError:
 
 from sglang.srt.utils import MultiprocessingSerializer
 
+from miles.backends.fsdp_utils.lora_utils import is_lora_model
 from miles.utils.distributed_utils import init_process_group
 
 
@@ -34,6 +35,7 @@ class UpdateWeight(abc.ABC):
         self.args = args
         self.model = model
         self.weight_version = 0
+        self._base_synced = False
 
     @abc.abstractmethod
     def connect_rollout_engines(
@@ -45,31 +47,37 @@ class UpdateWeight(abc.ABC):
 
     def update_weights(self) -> None:
         self.weight_version += 1
-        bucket = []
-        bucket_size = 0
-        for name, param in self.model.state_dict().items():
-            param_size = param.numel() * param.element_size()
-            if bucket and bucket_size + param_size >= self.args.update_weight_buffer_size:
+
+        # Update base model if needed
+        if not (is_lora_model(self.model) and self._base_synced and "weight" not in self.args.offload_rollout_level):
+            bucket = []
+            bucket_size = 0
+            for name, param in self.model.state_dict().items():
+                if any(x in name for x in ["_flat_param", "lora_"]):
+                    continue
+                name = name.replace("base_model.model.", "").replace(".base_layer", "")
+                param_size = param.numel() * param.element_size()
+                if bucket and bucket_size + param_size >= self.args.update_weight_buffer_size:
+                    self.wait_and_update_bucket_weights(bucket)
+                    del bucket
+                    bucket = []
+                    bucket_size = 0
+
+                param = param.cuda()
+                if isinstance(param, DTensor):
+                    # async version of param.full_tensor
+                    param = param.redistribute(
+                        placements=[Replicate()] * param.device_mesh.ndim,
+                        async_op=True,
+                    ).to_local()
+                bucket.append((name, param))
+                bucket_size += param_size
+
+            if bucket:
                 self.wait_and_update_bucket_weights(bucket)
                 del bucket
                 bucket = []
                 bucket_size = 0
-
-            param = param.cuda()
-            if isinstance(param, DTensor):
-                # async version of param.full_tensor
-                param = param.redistribute(
-                    placements=[Replicate()] * param.device_mesh.ndim,
-                    async_op=True,
-                ).to_local()
-            bucket.append((name, param))
-            bucket_size += param_size
-
-        if bucket:
-            self.wait_and_update_bucket_weights(bucket)
-            del bucket
-            bucket = []
-            bucket_size = 0
 
     def wait_and_update_bucket_weights(self, bucket):
         bucket = [(name, param.wait()) if hasattr(param, "wait") else (name, param) for name, param in bucket]
