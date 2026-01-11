@@ -545,6 +545,24 @@ class FSDPTrainRayActor(TrainRayActor):
                 torch.tensor([rollout_data["rewards"][i]] * rollout_data["response_lengths"][i])
                 for i in range(len(rollout_data["rewards"]))
             ]
+        elif self.args.advantage_estimator == "on_policy_distillation":
+            teacher_log_probs = rollout_data["teacher_log_probs"]
+            student_log_probs = rollout_data["log_probs"]
+            response_lengths = rollout_data["response_lengths"]
+            advantages = []
+            for t_lp, s_lp, r_len in zip(teacher_log_probs, student_log_probs, response_lengths):
+                if not isinstance(t_lp, torch.Tensor):
+                    t_lp = torch.tensor(t_lp)
+                if not isinstance(s_lp, torch.Tensor):
+                    s_lp = torch.tensor(s_lp)
+
+                # Slice teacher log probs to match response length
+                t_lp = t_lp[-r_len:]
+
+                # Ensure same device
+                t_lp = t_lp.to(s_lp.device)
+                advantages.append(t_lp - s_lp)
+            rollout_data["advantages"] = rollout_data["returns"] = advantages
         else:
             raise NotImplementedError(f"Unsupported advantage_estimator {self.args.advantage_estimator}")
 
