@@ -73,12 +73,13 @@ async def generate_and_rm(
                 evaluation=evaluation,
             )
         )
-        sample = output.sample
+        sample = output.samples
 
     # for the rm that need the whole group, we will not do the rm here
     if args.group_rm:
         return sample
 
+    # TODO: unify the two branches if we decide to use list as output type
     # multi samples
     if isinstance(sample, list):
         samples = sample
