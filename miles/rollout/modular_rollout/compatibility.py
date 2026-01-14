@@ -53,16 +53,11 @@ def call_rollout_function(fn: RolloutFnProtocol, input: RolloutFnInput) -> Rollo
 
 
 def load_generate_function(path: str):
+    # TODO
     fn = load_function(path)
     return fn
 
 
 async def call_generate_function(fn, input: GenerateFnInput) -> GenerateFnOutput:
-    # TODO handle
-    # # if signature has evaluation, pass evaluation
-    # if "evaluation" in inspect.signature(custom_generate_func).parameters:
-    #     return await fn(args, sample, sampling_params, evaluation=evaluation)
-    # else:
-    #     return await fn(args, sample, sampling_params)
-
-    return fn(input)
+    # TODO
+    return await fn(input)
