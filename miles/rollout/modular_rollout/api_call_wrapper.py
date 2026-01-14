@@ -1,5 +1,4 @@
 from argparse import Namespace
-from argparse import Namespace
 from typing import Any
 
 import numpy as np
@@ -19,15 +18,15 @@ async def generate(args: Namespace, sample: Sample, sampling_params: dict[str, A
     url = f"http://{args.sglang_router_ip}:{args.sglang_router_port}/generate"
 
     assert (
-            sample.status == Sample.Status.PENDING or sample.status == Sample.Status.ABORTED
+        sample.status == Sample.Status.PENDING or sample.status == Sample.Status.ABORTED
     ), f"Sample status is {sample.status}"
 
     if state.processor:
         processor_output = state.processor(text=sample.prompt, **sample.multimodal_inputs)
         prompt_ids = processor_output["input_ids"][0]
         sample.multimodal_train_inputs = {
-                                             k: v for k, v in processor_output.items() if k not in ["input_ids", "attention_mask"]
-                                         } or None
+            k: v for k, v in processor_output.items() if k not in ["input_ids", "attention_mask"]
+        } or None
     else:
         prompt_ids = state.tokenizer.encode(sample.prompt, add_special_tokens=False)
 
@@ -35,7 +34,7 @@ async def generate(args: Namespace, sample: Sample, sampling_params: dict[str, A
         sampling_params["max_new_tokens"] -= len(sample.tokens) - len(prompt_ids)
 
     assert (
-            sampling_params["max_new_tokens"] >= 0
+        sampling_params["max_new_tokens"] >= 0
     ), f"max_new_tokens: {sampling_params['max_new_tokens']} should not be less than 0"
     if sampling_params["max_new_tokens"] == 0:
         sample.status = Sample.Status.TRUNCATED
@@ -92,10 +91,8 @@ async def generate(args: Namespace, sample: Sample, sampling_params: dict[str, A
             len(sample.tokens) - 1,
             args.num_layers,
             args.moe_router_topk,
-            )
+        )
 
     sample.update_from_meta_info(args, output["meta_info"])
 
     return sample
-
-

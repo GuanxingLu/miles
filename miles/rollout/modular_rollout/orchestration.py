@@ -8,13 +8,13 @@ from contextlib import contextmanager
 from typing import Any
 
 import numpy as np
-import pybase64
 import sglang_router
 from packaging.version import parse
 from tqdm import tqdm
 
 from miles.rollout.base_types import RolloutFnEvalOutput, RolloutFnTrainOutput
 from miles.rollout.filter_hub.base_types import MetricGatherer, call_dynamic_filter
+from miles.rollout.rm_hub import async_rm, batched_async_rm
 from miles.utils.async_utils import run
 from miles.utils.data import Dataset
 from miles.utils.eval_config import EvalDatasetConfig
@@ -22,7 +22,6 @@ from miles.utils.http_utils import get, post
 from miles.utils.misc import SingletonMeta, load_function
 from miles.utils.processing_utils import load_processor, load_tokenizer
 from miles.utils.types import Sample
-from miles.rollout.rm_hub import async_rm, batched_async_rm
 
 logger = logging.getLogger(__name__)
 
@@ -97,10 +96,10 @@ class GenerateState(metaclass=SingletonMeta):
 
 
 async def generate_and_rm(
-        args: Namespace,
-        sample: Sample | list[Sample],
-        sampling_params: dict[str, Any],
-        evaluation: bool = False,
+    args: Namespace,
+    sample: Sample | list[Sample],
+    sampling_params: dict[str, Any],
+    evaluation: bool = False,
 ) -> Sample | list[Sample]:
     # mask previous off-policy generation for partial rollout
     if args.partial_rollout and args.mask_offpolicy_in_partial_rollout and sample.response_length > 0:
@@ -159,7 +158,7 @@ async def generate_and_rm(
 
 
 async def generate_and_rm_group(
-        args: Namespace, group: list[Sample], sampling_params: dict[str, Any], evaluation: bool = False
+    args: Namespace, group: list[Sample], sampling_params: dict[str, Any], evaluation: bool = False
 ) -> list[Sample]:
     state = GenerateState(args)
 
@@ -228,7 +227,7 @@ async def abort(args: Namespace, rollout_id: int) -> list[list[Sample]]:
 
 
 async def generate_rollout_async(
-        args: Namespace, rollout_id: int, data_source: Callable[[int], list[list[Sample]]]
+    args: Namespace, rollout_id: int, data_source: Callable[[int], list[list[Sample]]]
 ) -> tuple[RolloutFnTrainOutput, list[list[Sample]]]:
     """An example to implement the generate_rollout function for an rule based rm rollout generation.
 
@@ -338,7 +337,7 @@ async def eval_rollout(args: Namespace, rollout_id: int) -> tuple[dict[str, dict
 
 
 async def eval_rollout_single_dataset(
-        args: Namespace, rollout_id: int, dataset_cfg: EvalDatasetConfig
+    args: Namespace, rollout_id: int, dataset_cfg: EvalDatasetConfig
 ) -> dict[str, dict[str, list[Any]]]:
     """An example to implement the eval_rollout function for an rule based rm rollout generation.
 
@@ -439,7 +438,7 @@ async def eval_rollout_single_dataset(
 
 
 def generate_rollout(
-        args: Namespace, rollout_id: int, data_source: Any, evaluation: bool = False
+    args: Namespace, rollout_id: int, data_source: Any, evaluation: bool = False
 ) -> RolloutFnTrainOutput | RolloutFnEvalOutput:
     """An example to implement the generate_rollout function for an rule based rm rollout generation.
 
