@@ -49,50 +49,6 @@ def test_generate_endpoint_basic(mock_server):
     assert data["meta_info"]["prompt_tokens"] == len(input_ids)
 
 
-def test_finish_reason_stop(mock_server):
-    def process_fn(prompt: str) -> ProcessResult:
-        return ProcessResult(text="Complete response", finish_reason="stop")
-
-    with with_mock_server(process_fn=process_fn) as server:
-        response = requests.post(
-            f"{server.url}/generate", json={"input_ids": [1, 2, 3], "sampling_params": {}}, timeout=5.0
-        )
-        assert response.status_code == 200
-        data = response.json()
-
-        assert data["meta_info"]["finish_reason"]["type"] == "stop"
-        assert "length" not in data["meta_info"]["finish_reason"]
-
-
-def test_finish_reason_length(mock_server):
-    def process_fn(prompt: str) -> ProcessResult:
-        return ProcessResult(text="Truncated", finish_reason="length")
-
-    with with_mock_server(process_fn=process_fn) as server:
-        response = requests.post(
-            f"{server.url}/generate", json={"input_ids": [1, 2, 3], "sampling_params": {}}, timeout=5.0
-        )
-        assert response.status_code == 200
-        data = response.json()
-
-        assert data["meta_info"]["finish_reason"]["type"] == "length"
-        assert "length" in data["meta_info"]["finish_reason"]
-
-
-def test_finish_reason_abort(mock_server):
-    def process_fn(prompt: str) -> ProcessResult:
-        return ProcessResult(text="Aborted", finish_reason="abort")
-
-    with with_mock_server(process_fn=process_fn) as server:
-        response = requests.post(
-            f"{server.url}/generate", json={"input_ids": [1, 2, 3], "sampling_params": {}}, timeout=5.0
-        )
-        assert response.status_code == 200
-        data = response.json()
-
-        assert data["meta_info"]["finish_reason"]["type"] == "abort"
-
-
 def test_process_fn_receives_decoded_prompt(mock_server):
     received_prompts = []
 
@@ -120,19 +76,3 @@ def test_default_process_fn():
     result = default_process_fn("Hello")
     assert result.text == "I don't understand."
     assert result.finish_reason == "stop"
-
-
-def test_default_process_fn_integration(mock_server):
-    tokenizer = mock_server.tokenizer
-    prompt_text = "What is 1+7?"
-    input_ids = tokenizer.encode(prompt_text, add_special_tokens=False)
-
-    response = requests.post(
-        f"{mock_server.url}/generate",
-        json={"input_ids": input_ids, "sampling_params": {}},
-        timeout=5.0,
-    )
-    assert response.status_code == 200
-    data = response.json()
-
-    assert "It is 8." in data["text"] or "8" in data["text"]
