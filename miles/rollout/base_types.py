@@ -1,4 +1,4 @@
-from argparse import ArgumentParser, Namespace
+from argparse import Namespace
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -57,6 +57,4 @@ RolloutFnOutput = RolloutFnTrainOutput | RolloutFnEvalOutput
 # TODO: may add save/load if need it to be stateful
 # Duck typing, users do not need to extend this class
 class RolloutFnProtocol(Protocol):
-    def __init__(self, input: RolloutFnConstructorInput): ...
-
     def __call__(self, input: RolloutFnInput) -> RolloutFnOutput: ...
