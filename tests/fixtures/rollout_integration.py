@@ -9,9 +9,11 @@ import pytest
 import requests
 
 from miles.rollout.data_source import RolloutDataSourceWithBuffer
+from miles.rollout.modular_rollout.orchestration_common import GenerateState
 from miles.router.router import MilesRouter
 from miles.utils.arguments import parse_args
 from miles.utils.http_utils import find_available_port, init_http_client
+from miles.utils.misc import SingletonMeta
 from miles.utils.test_utils.mock_sglang_server import with_mock_server
 from miles.utils.test_utils.uvicorn_thread_server import UvicornThreadServer
 
@@ -85,6 +87,8 @@ def rollout_integration_env(tmp_path, request):
     router_port = find_available_port(20000)
     args = _build_args(data_path=data_path, router_port=router_port, extra_argv=extra_argv)
 
+    SingletonMeta._instances.pop(GenerateState, None)
+
     with with_mock_server(model_name=args.hf_checkpoint) as mock_server:
         with _with_miles_router(args) as router_server:
             r = requests.post(
@@ -96,3 +100,5 @@ def rollout_integration_env(tmp_path, request):
 
             data_source = RolloutDataSourceWithBuffer(args)
             yield args, data_source
+
+    SingletonMeta._instances.pop(GenerateState, None)
