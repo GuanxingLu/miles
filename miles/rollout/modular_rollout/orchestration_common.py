@@ -78,15 +78,13 @@ async def generate_and_rm(
         # TODO decide data structure (currently `list[list[Sample | list[Sample]]]`)
         samples = listify(output.samples)
 
-    # for the rm that need the whole group, we will not do the rm here
-    if args.group_rm:
-        return samples
-
     if any([sample.status == Sample.Status.ABORTED for sample in samples]):
         return samples
 
-    samples_need_reward = [sample for sample in samples if sample.reward is None]
-    await batched_async_rm(args, samples_need_reward, inplace_set_reward_field=True)
+    if not args.group_rm:
+        samples_need_reward = [sample for sample in samples if sample.reward is None]
+        await batched_async_rm(args, samples_need_reward, inplace_set_reward_field=True)
+
     return samples
 
 
