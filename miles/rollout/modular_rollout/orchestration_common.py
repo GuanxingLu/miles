@@ -1,10 +1,8 @@
 import asyncio
 import logging
 from argparse import Namespace
-from contextlib import contextmanager
 from typing import Any
 
-import numpy as np
 
 from miles.rollout.base_types import GenerateFnInput
 from miles.rollout.modular_rollout.compatibility import load_generate_function
