@@ -1,6 +1,6 @@
 from argparse import Namespace
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any, Protocol, runtime_checkable
 
 from miles.rollout.data_source import DataSource
 from miles.utils.types import Sample
@@ -56,5 +56,6 @@ RolloutFnOutput = RolloutFnTrainOutput | RolloutFnEvalOutput
 # TODO: may add add_arguments
 # TODO: may add save/load if need it to be stateful
 # Duck typing, users do not need to extend this class
+@runtime_checkable
 class RolloutFnProtocol(Protocol):
     def __call__(self, input: RolloutFnInput) -> RolloutFnOutput: ...
