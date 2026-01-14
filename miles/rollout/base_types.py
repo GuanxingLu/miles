@@ -1,7 +1,14 @@
+from argparse import Namespace
 from dataclasses import dataclass
 from typing import Any
 
 from miles.utils.types import Sample
+
+
+@dataclass(frozen=True)
+class RolloutFnConstructorInput:
+    args: Namespace
+    data_source: Any
 
 
 @dataclass(frozen=True)
