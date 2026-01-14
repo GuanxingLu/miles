@@ -88,7 +88,6 @@ async def generate_and_rm(
     if any([sample.status == Sample.Status.ABORTED for sample in samples]):
         return samples
 
-    # for multi agent system, the reward of some sample is calculated during generation.
     samples_need_reward = [sample for sample in samples if sample.reward is None]
     await batched_async_rm(args, samples_need_reward, inplace_set_reward_field=True)
     return samples
