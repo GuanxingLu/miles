@@ -10,6 +10,7 @@ from miles.rollout.base_types import (
     RolloutFnTrainOutput,
 )
 from miles.utils.misc import load_function
+from miles.utils.async_utils import run
 
 
 class LegacyRolloutFnAdapter:
@@ -38,3 +39,12 @@ def load_rollout_function(input: RolloutFnConstructorInput, path: str):
         return fn(input)
     else:
         return LegacyRolloutFnAdapter(input, fn)
+
+
+def call_rollout_function(fn: RolloutFnProtocol, input: RolloutFnInput) -> RolloutFnOutput:
+    output = fn(input)
+
+    if inspect.iscoroutine(output):
+        output = run(output)
+
+    return output
