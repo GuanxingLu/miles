@@ -18,7 +18,6 @@ def test_basic_server_start_stop(mock_server):
 def test_generate_endpoint_basic(mock_server):
     prompt = "What is 1+7?"
     input_ids = mock_server.tokenizer.encode(prompt, add_special_tokens=False)
-    print(f"{input_ids=}")
     assert input_ids == [3838, 374, 220, 16, 10, 22, 30]
 
     response = requests.post(
@@ -32,7 +31,6 @@ def test_generate_endpoint_basic(mock_server):
     )
     assert response.status_code == 200
     data = response.json()
-    print(f"{data=}")
 
     assert data == {
         "text": "It is 8.",
@@ -40,8 +38,14 @@ def test_generate_endpoint_basic(mock_server):
             "finish_reason": {"type": "stop"},
             "prompt_tokens": len(input_ids),
             "cached_tokens": 0,
-            "completion_tokens": data["meta_info"]["completion_tokens"],
-            "output_token_logprobs": data["meta_info"]["output_token_logprobs"],
+            "completion_tokens": 5,
+            "output_token_logprobs": [
+                [-0.0, 2132],
+                [-0.0078125, 374],
+                [-0.015625, 220],
+                [-0.0234375, 23],
+                [-0.03125, 13],
+            ],
         },
     }
 
