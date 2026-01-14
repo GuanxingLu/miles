@@ -1,5 +1,10 @@
-from miles.rollout.base_types import RolloutFnInput, RolloutFnOutput, RolloutFnConstructorInput, RolloutFnTrainOutput, \
-    RolloutFnEvalOutput
+from miles.rollout.base_types import (
+    RolloutFnConstructorInput,
+    RolloutFnEvalOutput,
+    RolloutFnInput,
+    RolloutFnOutput,
+    RolloutFnTrainOutput,
+)
 
 
 class LegacyRolloutFnAdapter:
