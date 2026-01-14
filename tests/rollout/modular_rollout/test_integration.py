@@ -38,7 +38,7 @@ _ROLLOUT_ARGV_VARIANTS = [
         [
             "--rollout-function-path",
             "miles.rollout.sglang_rollout.generate_rollout",
-            "--eval-rollout-function-path",
+            "--eval-function-path",
             "miles.rollout.sglang_rollout.generate_rollout",
             "--custom-generate-function-path",
             "miles.rollout.sglang_rollout.generate",
@@ -49,7 +49,7 @@ _ROLLOUT_ARGV_VARIANTS = [
         [
             "--rollout-function-path",
             "miles.rollout.modular_rollout.orchestration_train.SimpleTrainRolloutFn",
-            "--eval-rollout-function-path",
+            "--eval-function-path",
             "miles.rollout.modular_rollout.orchestration_eval.SimpleEvalRolloutFn",
             "--custom-generate-function-path",
             "miles.rollout.sglang_rollout.generate",
@@ -60,7 +60,7 @@ _ROLLOUT_ARGV_VARIANTS = [
         [
             "--rollout-function-path",
             "miles.rollout.modular_rollout.orchestration_train.SimpleTrainRolloutFn",
-            "--eval-rollout-function-path",
+            "--eval-function-path",
             "miles.rollout.modular_rollout.orchestration_eval.SimpleEvalRolloutFn",
             "--custom-generate-function-path",
             "miles.rollout.modular_rollout.inference_wrapper.generate",
@@ -88,7 +88,7 @@ def test_simple_train_rollout_fn_integration(rollout_integration_env):
 def test_simple_eval_rollout_fn_integration(rollout_integration_env):
     args, data_source = rollout_integration_env
     fn = load_rollout_function(
-        RolloutFnConstructorInput(args=args, data_source=data_source), args.eval_rollout_function_path
+        RolloutFnConstructorInput(args=args, data_source=data_source), args.eval_function_path
     )
     out = call_rollout_function(fn, RolloutFnEvalInput(rollout_id=0))
 
