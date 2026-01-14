@@ -1,4 +1,4 @@
-from argparse import Namespace
+from argparse import Namespace, ArgumentParser
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -49,6 +49,10 @@ class RolloutFnEvalOutput:
 
 class RolloutFnProtocol(Protocol):
     def __init__(self, input: RolloutFnConstructorInput):
+        ...
+
+    @classmethod
+    def add_arguments(cls, parser: ArgumentParser):
         ...
 
     def __call__(self, input: RolloutFnTrainInput | RolloutFnEvalInput) -> RolloutFnTrainOutput | RolloutFnEvalOutput:
