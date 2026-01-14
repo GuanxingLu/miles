@@ -75,11 +75,12 @@ async def generate_and_rm(
         )
         sample = output.samples
 
+    # TODO change to `if not args.group_rm: do reward model` for more clarity after the refactor below
     # for the rm that need the whole group, we will not do the rm here
     if args.group_rm:
         return sample
 
-    # TODO: unify the two branches if we decide to use list as output type
+    # TODO: unify the two branches into one if we decide to use list as output type
     # multi samples
     if isinstance(sample, list):
         samples = sample
