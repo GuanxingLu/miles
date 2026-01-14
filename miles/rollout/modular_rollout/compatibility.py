@@ -52,12 +52,45 @@ def call_rollout_function(fn: RolloutFnProtocol, input: RolloutFnInput) -> Rollo
     return output
 
 
+class LegacyGenerateFnAdapter:
+    def __init__(self, fn: Callable):
+        self.fn = fn
+        self._has_evaluation_param = "evaluation" in inspect.signature(fn).parameters
+
+    async def __call__(self, input: GenerateFnInput) -> GenerateFnOutput:
+        if self._has_evaluation_param:
+            output = await self.fn(input.args, input.sample, input.sampling_params, evaluation=input.evaluation)
+        else:
+            output = await self.fn(input.args, input.sample, input.sampling_params)
+
+        if not isinstance(output, GenerateFnOutput):
+            output = GenerateFnOutput(sample=output)
+
+        return output
+
+
 def load_generate_function(path: str):
-    # TODO
     fn = load_function(path)
-    return fn
+
+    if inspect.isclass(fn):
+        return fn()
+    elif _is_legacy_generate_fn(fn):
+        return LegacyGenerateFnAdapter(fn)
+    else:
+        return _wrap_new_generate_fn(fn)
 
 
-async def call_generate_function(fn, input: GenerateFnInput) -> GenerateFnOutput:
-    # TODO
-    return await fn(input)
+def _is_legacy_generate_fn(fn: Callable) -> bool:
+    sig = inspect.signature(fn)
+    params = list(sig.parameters.keys())
+    return len(params) >= 3 and params[0] != "input"
+
+
+def _wrap_new_generate_fn(fn: Callable):
+    async def wrapper(input: GenerateFnInput) -> GenerateFnOutput:
+        output = await fn(input)
+        if not isinstance(output, GenerateFnOutput):
+            output = GenerateFnOutput(sample=output)
+        return output
+
+    return wrapper
