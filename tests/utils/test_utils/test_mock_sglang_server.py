@@ -4,7 +4,6 @@ from unittest.mock import MagicMock
 import httpx
 import pytest
 
-from miles.utils.http_utils import post
 from miles.utils.test_utils.mock_sglang_server import MockSGLangServer, start_mock_server
 
 
@@ -280,10 +279,12 @@ def test_async_post():
         return "Async test response"
 
     async def _run():
-        response = await post(url, payload)
-        assert response["text"] == "Async test response"
-        assert response["meta_info"]["finish_reason"]["type"] == "stop"
-        assert len(server.requests) == 1
+        async with httpx.AsyncClient() as client:
+            response = await client.post(url, json=payload)
+            data = response.json()
+            assert data["text"] == "Async test response"
+            assert data["meta_info"]["finish_reason"]["type"] == "stop"
+            assert len(server.requests) == 1
 
     with start_mock_server(tokenizer=tokenizer, process_fn=process_fn, finish_reason="stop") as server:
         url = f"{server.url}/generate"
@@ -296,12 +297,14 @@ def test_async_with_logprob():
     tokenizer.encode = lambda text, **kwargs: [100, 200]
 
     async def _run():
-        response = await post(url, payload)
-        assert "output_token_logprobs" in response["meta_info"]
-        logprobs = response["meta_info"]["output_token_logprobs"]
-        assert len(logprobs) == 2
-        assert logprobs[0][1] == 100
-        assert logprobs[1][1] == 200
+        async with httpx.AsyncClient() as client:
+            response = await client.post(url, json=payload)
+            data = response.json()
+            assert "output_token_logprobs" in data["meta_info"]
+            logprobs = data["meta_info"]["output_token_logprobs"]
+            assert len(logprobs) == 2
+            assert logprobs[0][1] == 100
+            assert logprobs[1][1] == 200
 
     with start_mock_server(tokenizer=tokenizer, finish_reason="stop") as server:
         url = f"{server.url}/generate"
@@ -313,10 +316,12 @@ def test_async_with_routed_experts():
     tokenizer = create_mock_tokenizer()
 
     async def _run():
-        response = await post(url, payload)
-        assert "routed_experts" in response["meta_info"]
-        routed_experts_b64 = response["meta_info"]["routed_experts"]
-        assert isinstance(routed_experts_b64, str)
+        async with httpx.AsyncClient() as client:
+            response = await client.post(url, json=payload)
+            data = response.json()
+            assert "routed_experts" in data["meta_info"]
+            routed_experts_b64 = data["meta_info"]["routed_experts"]
+            assert isinstance(routed_experts_b64, str)
 
     with start_mock_server(tokenizer=tokenizer, finish_reason="stop") as server:
         url = f"{server.url}/generate"
