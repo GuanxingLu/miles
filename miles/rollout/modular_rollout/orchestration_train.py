@@ -25,7 +25,7 @@ async def abort(state: GenerateState, pendings: set, rollout_id: int) -> list[li
     assert not state.aborted
     state.aborted = True
 
-    urls = get_worker_urls(args)
+    urls = await get_worker_urls(args)
     logger.info(f"Abort request for {urls}")
     await asyncio.gather(*[post(f"{url}/abort_request", {"abort_all": True}) for url in urls])
 
