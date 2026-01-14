@@ -1,5 +1,4 @@
 import asyncio
-import inspect
 import logging
 from argparse import Namespace
 from contextlib import contextmanager
@@ -117,7 +116,9 @@ async def generate_and_rm(
                 fn = load_function(args.custom_generate_function_path)
             else:
                 fn = generate
-            sample = await call_generate_function(fn, GenerateFnInput(state=state, sample=sample, sampling_params=sampling_params))
+            sample = await call_generate_function(
+                fn, GenerateFnInput(state=state, sample=sample, sampling_params=sampling_params)
+            )
 
     # for the rm that need the whole group, we will not do the rm here
     if args.group_rm:

@@ -2,12 +2,14 @@ import inspect
 from collections.abc import Callable
 
 from miles.rollout.base_types import (
+    GenerateFnInput,
+    GenerateFnOutput,
     RolloutFnConstructorInput,
     RolloutFnEvalOutput,
     RolloutFnInput,
     RolloutFnOutput,
     RolloutFnProtocol,
-    RolloutFnTrainOutput, GenerateFnInput, GenerateFnOutput,
+    RolloutFnTrainOutput,
 )
 from miles.utils.async_utils import run
 from miles.utils.misc import load_function
@@ -48,6 +50,7 @@ def call_rollout_function(fn: RolloutFnProtocol, input: RolloutFnInput) -> Rollo
         output = run(output)
 
     return output
+
 
 async def call_generate_function(fn, input: GenerateFnInput) -> GenerateFnOutput:
     # TODO handle
