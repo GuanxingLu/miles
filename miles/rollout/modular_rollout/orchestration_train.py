@@ -8,7 +8,8 @@ import sglang_router
 from packaging.version import parse
 from tqdm import tqdm
 
-from miles.rollout.base_types import RolloutFnEvalOutput, RolloutFnTrainOutput
+from miles.rollout.base_types import RolloutFnEvalOutput, RolloutFnTrainOutput, RolloutFnConstructorInput, \
+    RolloutFnTrainInput
 from miles.rollout.filter_hub.base_types import MetricGatherer, call_dynamic_filter
 from miles.rollout.modular_rollout.orchestration_common import GenerateState
 from miles.rollout.modular_rollout.orchestration_eval import eval_rollout
@@ -154,6 +155,16 @@ async def generate_rollout_async(
     return RolloutFnTrainOutput(samples=data, metrics=metric_gatherer.collect()), aborted_samples
 
 
+class SimpleTrainRolloutFn:
+    def __init__(self, input: RolloutFnConstructorInput):
+        self.args = input.args
+        self.data_source = input.data_source
+
+    def __call__(self, input: RolloutFnTrainInput) -> RolloutFnTrainOutput:
+        output, aborted_samples = run(generate_rollout_async(self.args, input.rollout_id, self.data_source.get_samples))
+        self.data_source.add_samples(aborted_samples)
+        return output
+
 def generate_rollout(
     args: Namespace, rollout_id: int, data_source: Any, evaluation: bool = False
 ) -> RolloutFnTrainOutput | RolloutFnEvalOutput:
@@ -172,7 +183,3 @@ def generate_rollout(
     if evaluation:
         output, _ = run(eval_rollout(args, rollout_id))
         return output
-
-    output, aborted_samples = run(generate_rollout_async(args, rollout_id, data_source.get_samples))
-    data_source.add_samples(aborted_samples)
-    return output
