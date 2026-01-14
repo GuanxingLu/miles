@@ -65,21 +65,6 @@ class GenerateState:
         self.pendings = set()
         self.aborted = False
 
-    def submit_generate_tasks(self, samples: list[list[Sample]]) -> None:
-        for group in samples:
-            self.pendings.add(
-                asyncio.create_task(
-                    # submit a group of samples as a single task.
-                    generate_and_rm_group(
-                        self,
-                        group,
-                        sampling_params=self.sampling_params.copy(),
-                        evaluation=False,
-                    )
-                )
-            )
-        self.remaining_batch_size += len(samples)
-
 
 async def generate_and_rm(
     state: GenerateState,

@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 from miles.rollout.base_types import RolloutFnConstructorInput, RolloutFnTrainInput, RolloutFnTrainOutput
 from miles.rollout.filter_hub.base_types import MetricGatherer, call_dynamic_filter
-from miles.rollout.modular_rollout.orchestration_common import GenerateState
+from miles.rollout.modular_rollout.orchestration_common import GenerateState, generate_and_rm_group
 from miles.utils.http_utils import get, post
 from miles.utils.misc import load_function
 from miles.utils.types import Sample
@@ -57,6 +57,22 @@ async def abort(state: GenerateState, rollout_id: int) -> list[list[Sample]]:
     return aborted_samples
 
 
+def submit_generate_tasks(state: GenerateState, samples: list[list[Sample]]) -> None:
+    for group in samples:
+        state.pendings.add(
+            asyncio.create_task(
+                # submit a group of samples as a single task.
+                generate_and_rm_group(
+                    state,
+                    group,
+                    sampling_params=state.sampling_params.copy(),
+                    evaluation=False,
+                )
+            )
+        )
+    state.remaining_batch_size += len(samples)
+
+
 async def generate_rollout_async(
     state: GenerateState, rollout_id: int, data_source: Callable[[int], list[list[Sample]]]
 ) -> tuple[RolloutFnTrainOutput, list[list[Sample]]]:
@@ -81,7 +97,7 @@ async def generate_rollout_async(
         while state.remaining_batch_size < target_data_size:
             # get samples from the buffer and submit the generation requests.
             samples = data_source(args.over_sampling_batch_size)
-            state.submit_generate_tasks(samples)
+            submit_generate_tasks(state, samples)
 
         # wait for the generation to finish
         done, state.pendings = await asyncio.wait(state.pendings, return_when=asyncio.FIRST_COMPLETED)
