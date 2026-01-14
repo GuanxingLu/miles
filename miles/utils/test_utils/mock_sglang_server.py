@@ -39,7 +39,6 @@ class MockSGLangServer:
         self.host = host
         self.port = port or find_available_port(30000)
 
-        self.requests: list[dict[str, Any]] = []
         self.app = FastAPI()
         self.server: uvicorn.Server | None = None
         self.server_thread: threading.Thread | None = None
@@ -50,7 +49,6 @@ class MockSGLangServer:
         @self.app.post("/generate")
         async def generate(request: Request):
             payload = await request.json()
-            self.requests.append(payload)
 
             assert payload.get("return_logprob", True) is True, "MockSGLangServer requires return_logprob=True"
             input_ids = payload.get("input_ids", [])
@@ -119,9 +117,6 @@ class MockSGLangServer:
     @property
     def url(self) -> str:
         return f"http://{self.host}:{self.port}"
-
-    def clear_requests(self):
-        self.requests.clear()
 
 
 def default_process_fn(prompt: str) -> ProcessResult:

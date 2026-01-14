@@ -93,21 +93,6 @@ def test_finish_reason_abort(mock_server):
         assert data["meta_info"]["finish_reason"]["type"] == "abort"
 
 
-def test_request_recording(mock_server):
-    request1 = {"input_ids": [1, 2, 3], "sampling_params": {"temperature": 0.7}}
-    request2 = {"input_ids": [4, 5, 6], "sampling_params": {"temperature": 0.9}, "return_logprob": True}
-
-    requests.post(f"{mock_server.url}/generate", json=request1, timeout=5.0)
-    requests.post(f"{mock_server.url}/generate", json=request2, timeout=5.0)
-
-    assert len(mock_server.requests) >= 2
-    assert mock_server.requests[-2] == request1
-    assert mock_server.requests[-1] == request2
-
-    mock_server.clear_requests()
-    assert len(mock_server.requests) == 0
-
-
 def test_process_fn_receives_decoded_prompt(mock_server):
     received_prompts = []
 
