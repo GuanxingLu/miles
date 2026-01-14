@@ -37,24 +37,39 @@ def _expected_sample(*, group_index: int | None) -> Sample:
 
 
 _ROLLOUT_ARGV_VARIANTS = [
-    pytest.param([
-        "--rollout-function-path", "miles.rollout.sglang_rollout.generate_rollout",
-        "--eval-rollout-function-path", "miles.rollout.sglang_rollout.generate_rollout",
-        "--custom-generate-function-path", "miles.rollout.sglang_rollout.generate",
-    ], id="old_rollout_old_generate"),
     pytest.param(
         [
-            "--rollout-function-path", "miles.rollout.modular_rollout.orchestration_train.SimpleTrainRolloutFn",
-            "--eval-rollout-function-path", "miles.rollout.modular_rollout.orchestration_eval.SimpleEvalRolloutFn",
-            "--custom-generate-function-path", "miles.rollout.sglang_rollout.generate",
+            "--rollout-function-path",
+            "miles.rollout.sglang_rollout.generate_rollout",
+            "--eval-rollout-function-path",
+            "miles.rollout.sglang_rollout.generate_rollout",
+            "--custom-generate-function-path",
+            "miles.rollout.sglang_rollout.generate",
+        ],
+        id="old_rollout_old_generate",
+    ),
+    pytest.param(
+        [
+            "--rollout-function-path",
+            "miles.rollout.modular_rollout.orchestration_train.SimpleTrainRolloutFn",
+            "--eval-rollout-function-path",
+            "miles.rollout.modular_rollout.orchestration_eval.SimpleEvalRolloutFn",
+            "--custom-generate-function-path",
+            "miles.rollout.sglang_rollout.generate",
         ],
         id="new_rollout_old_generate",
     ),
-    pytest.param([
-        "--rollout-function-path", "miles.rollout.modular_rollout.orchestration_train.SimpleTrainRolloutFn",
-        "--eval-rollout-function-path", "miles.rollout.modular_rollout.orchestration_eval.SimpleEvalRolloutFn",
-        "--custom-generate-function-path", "miles.rollout.modular_rollout.inference_wrapper.generate",
-    ], id="new_rollout_new_generate"),
+    pytest.param(
+        [
+            "--rollout-function-path",
+            "miles.rollout.modular_rollout.orchestration_train.SimpleTrainRolloutFn",
+            "--eval-rollout-function-path",
+            "miles.rollout.modular_rollout.orchestration_eval.SimpleEvalRolloutFn",
+            "--custom-generate-function-path",
+            "miles.rollout.modular_rollout.inference_wrapper.generate",
+        ],
+        id="new_rollout_new_generate",
+    ),
 ]
 
 
