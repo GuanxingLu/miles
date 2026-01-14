@@ -7,6 +7,7 @@ from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any
+import random
 
 import uvicorn
 from fastapi import FastAPI, Request
@@ -51,7 +52,8 @@ class MockSGLangServer:
             payload = await request.json()
             self.requests.append(payload)
 
-            return_logprob = payload.get("return_logprob", False)
+            assert payload.get("return_logprob", False)
+
             input_ids = payload.get("input_ids", [])
 
             prompt_str = self.tokenizer.decode(input_ids, skip_special_tokens=False)
@@ -60,6 +62,9 @@ class MockSGLangServer:
 
             prompt_tokens = len(input_ids)
             completion_tokens = len(output_ids)
+            output_token_logprobs = [
+                (random.uniform(-10.0, -0.1), token_id) for token_id in output_ids
+            ]
 
             response = {
                 "text": process_result.text,
@@ -68,16 +73,9 @@ class MockSGLangServer:
                     "prompt_tokens": prompt_tokens,
                     "cached_tokens": 0,
                     "completion_tokens": completion_tokens,
+                    "output_token_logprobs": output_token_logprobs,
                 },
             }
-
-            if return_logprob:
-                import random
-
-                output_token_logprobs = [
-                    (random.uniform(-10.0, -0.1), token_id) for token_id in output_ids
-                ]
-                response["meta_info"]["output_token_logprobs"] = output_token_logprobs
 
             return JSONResponse(content=response)
 
