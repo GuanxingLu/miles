@@ -28,15 +28,19 @@ def constructor_input():
 
 
 @pytest.fixture
-def generate_fn_input():
+def make_generate_fn_input():
     state = MagicMock()
     state.args = MagicMock()
-    return GenerateFnInput(
-        state=state,
-        sample={"text": "test prompt"},
-        sampling_params={"temperature": 0.7},
-        evaluation=False,
-    )
+
+    def _make(evaluation: bool = False):
+        return GenerateFnInput(
+            state=state,
+            sample={"text": "test prompt"},
+            sampling_params={"temperature": 0.7},
+            evaluation=evaluation,
+        )
+
+    return _make
 
 
 class TestSupportedRolloutFormats:
