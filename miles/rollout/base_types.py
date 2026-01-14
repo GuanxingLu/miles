@@ -53,6 +53,7 @@ RolloutFnInput = RolloutFnTrainInput | RolloutFnEvalInput
 RolloutFnOutput = RolloutFnTrainOutput | RolloutFnEvalOutput
 
 
+# TODO: may add save/load if need it to be stateful
 # Duck typing, users do not need to extend this class
 class RolloutFnProtocol(Protocol):
     def __init__(self, input: RolloutFnConstructorInput): ...
