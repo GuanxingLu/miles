@@ -3,9 +3,7 @@ import asyncio
 import pytest
 
 from miles.rollout.base_types import RolloutFnConstructorInput, RolloutFnEvalInput, RolloutFnTrainInput
-from miles.rollout.modular_rollout.compatibility import load_rollout_function
-from miles.rollout.modular_rollout.orchestration_eval import SimpleEvalRolloutFn
-from miles.rollout.modular_rollout.orchestration_train import SimpleTrainRolloutFn
+from miles.rollout.modular_rollout.compatibility import load_rollout_function, call_rollout_function
 from miles.utils.types import Sample
 
 
@@ -77,8 +75,10 @@ _ROLLOUT_ARGV_VARIANTS = [
 @pytest.mark.parametrize("rollout_integration_env", _ROLLOUT_ARGV_VARIANTS, indirect=True)
 def test_simple_train_rollout_fn_integration(rollout_integration_env):
     args, data_source = rollout_integration_env
-    fn = load_rollout_function(RolloutFnConstructorInput(args=args, data_source=data_source), args.rollout_function_path)
-    out = asyncio.run(fn(RolloutFnTrainInput(rollout_id=0)))
+    fn = load_rollout_function(
+        RolloutFnConstructorInput(args=args, data_source=data_source), args.rollout_function_path
+    )
+    out = call_rollout_function(fn, RolloutFnTrainInput(rollout_id=0))
 
     assert len(out.samples) == args.rollout_batch_size
     group = out.samples[0]
@@ -89,8 +89,10 @@ def test_simple_train_rollout_fn_integration(rollout_integration_env):
 @pytest.mark.parametrize("rollout_integration_env", _ROLLOUT_ARGV_VARIANTS, indirect=True)
 def test_simple_eval_rollout_fn_integration(rollout_integration_env):
     args, data_source = rollout_integration_env
-    fn = load_rollout_function(RolloutFnConstructorInput(args=args, data_source=data_source), args.eval_rollout_function_path)
-    out = asyncio.run(fn(RolloutFnEvalInput(rollout_id=0)))
+    fn = load_rollout_function(
+        RolloutFnConstructorInput(args=args, data_source=data_source), args.eval_rollout_function_path
+    )
+    out = call_rollout_function(fn, RolloutFnEvalInput(rollout_id=0))
 
     assert "toy" in out.data
     rewards = out.data["toy"]["rewards"]
