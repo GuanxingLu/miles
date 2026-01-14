@@ -89,18 +89,46 @@ class TestLegacyRolloutFnAdapter:
         assert result is expected_output
 
 
-async def async_mock_fn_train(args, rollout_id, data_source, evaluation):
-    await asyncio.sleep(0.01)
-    return RolloutFnTrainOutput(samples=[[{"text": "async_sample"}]])
+class MockSyncRolloutClass:
+    def __init__(self, input):
+        self.input = input
+
+    def __call__(self, input):
+        return RolloutFnTrainOutput(samples=[[{"text": "sync_class"}]])
+    
+    @classmethod
+    def add_arguments(cls, parser):
+        pass
 
 
-async def async_mock_fn_eval(args, rollout_id, data_source, evaluation):
-    await asyncio.sleep(0.01)
-    return RolloutFnEvalOutput(data={"metric": {"accuracy": 0.95}})
+class MockAsyncRolloutClass:
+    def __init__(self, input):
+        self.input = input
+
+    async def __call__(self, input):
+        await asyncio.sleep(0.01)
+        return RolloutFnTrainOutput(samples=[[{"text": "async_class"}]])
+    
+    @classmethod
+    def add_arguments(cls, parser):
+        pass
+
+
+class MockAsyncRolloutClassEval:
+    def __init__(self, input):
+        self.input = input
+
+    async def __call__(self, input):
+        await asyncio.sleep(0.01)
+        return RolloutFnEvalOutput(data={"metric": {"accuracy": 0.98}})
+    
+    @classmethod
+    def add_arguments(cls, parser):
+        pass
 
 
 class TestCallRolloutFunction:
-    def test_sync_function(self, constructor_input):
+    def test_sync_adapter(self, constructor_input):
         mock_samples = [[{"text": "sample"}]]
         mock_fn = MagicMock(return_value=mock_samples)
         adapter = LegacyRolloutFnAdapter(constructor_input, mock_fn)
@@ -110,18 +138,26 @@ class TestCallRolloutFunction:
         assert isinstance(result, RolloutFnTrainOutput)
         assert result.samples == mock_samples
 
-    def test_async_function_train(self, constructor_input):
-        adapter = LegacyRolloutFnAdapter(constructor_input, async_mock_fn_train)
+    def test_sync_class(self, constructor_input):
+        instance = MockSyncRolloutClass(constructor_input)
 
-        result = call_rollout_function(adapter, RolloutFnTrainInput(rollout_id=1))
+        result = call_rollout_function(instance, RolloutFnTrainInput(rollout_id=1))
 
         assert isinstance(result, RolloutFnTrainOutput)
-        assert result.samples == [[{"text": "async_sample"}]]
+        assert result.samples == [[{"text": "sync_class"}]]
 
-    def test_async_function_eval(self, constructor_input):
-        adapter = LegacyRolloutFnAdapter(constructor_input, async_mock_fn_eval)
+    def test_async_class(self, constructor_input):
+        instance = MockAsyncRolloutClass(constructor_input)
 
-        result = call_rollout_function(adapter, RolloutFnEvalInput(rollout_id=2))
+        result = call_rollout_function(instance, RolloutFnTrainInput(rollout_id=1))
+
+        assert isinstance(result, RolloutFnTrainOutput)
+        assert result.samples == [[{"text": "async_class"}]]
+
+    def test_async_class_eval(self, constructor_input):
+        instance = MockAsyncRolloutClassEval(constructor_input)
+
+        result = call_rollout_function(instance, RolloutFnEvalInput(rollout_id=2))
 
         assert isinstance(result, RolloutFnEvalOutput)
-        assert result.data == {"metric": {"accuracy": 0.95}}
+        assert result.data == {"metric": {"accuracy": 0.98}}
