@@ -21,7 +21,7 @@ class GenerateState:
         self.tokenizer = load_tokenizer(args.hf_checkpoint, trust_remote_code=True)
         self.processor = load_processor(args.hf_checkpoint, trust_remote_code=True)
 
-        self.semaphore = asyncio.Semaphore(
+        self.generate_fn_semaphore = asyncio.Semaphore(
             args.sglang_server_concurrency * args.rollout_num_gpus // args.rollout_num_gpus_per_engine
         )
         self.sampling_params: dict[str, Any] = compute_sampling_params(
@@ -64,7 +64,7 @@ async def generate_and_rm(
         return sample
 
     # generate
-    async with state.semaphore:
+    async with state.generate_fn_semaphore:
         if state.aborted:
             sample.status = Sample.Status.ABORTED
             return sample
