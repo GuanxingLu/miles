@@ -1,4 +1,3 @@
-from argparse import Namespace
 from dataclasses import dataclass
 from typing import Any
 
@@ -7,7 +6,6 @@ from miles.utils.types import Sample
 
 @dataclass(frozen=True)
 class RolloutFnBaseInput:
-    args: Namespace
     rollout_id: int
 
     @property
