@@ -158,7 +158,7 @@ async def generate_and_rm_group(
             seed = state.group_sampling_seeds[idx]
             current_sampling_params["sampling_seed"] = seed
         tasks.append(
-            asyncio.create_task(generate_and_rm(args, sample, current_sampling_params, evaluation=evaluation))
+            asyncio.create_task(generate_and_rm(state, sample, current_sampling_params, evaluation=evaluation))
         )
 
     group = await asyncio.gather(*tasks)

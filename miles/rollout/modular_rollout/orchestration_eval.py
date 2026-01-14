@@ -7,7 +7,7 @@ from typing import Any
 from tqdm import tqdm
 
 from miles.rollout.base_types import RolloutFnConstructorInput, RolloutFnEvalInput, RolloutFnEvalOutput
-from miles.rollout.modular_rollout.orchestration_common import generate_and_rm
+from miles.rollout.modular_rollout.orchestration_common import generate_and_rm, GenerateState
 from miles.utils.data import Dataset
 from miles.utils.eval_config import EvalDatasetConfig
 from miles.utils.processing_utils import load_processor, load_tokenizer
@@ -17,10 +17,11 @@ logger = logging.getLogger(__name__)
 
 
 async def eval_rollout_single_dataset(
-    args: Namespace,
+    state: GenerateState,
     dataset_cfg: EvalDatasetConfig,
     prompt_dataset_cache: dict[Any, Dataset],
 ) -> dict[str, dict[str, list[Any]]]:
+    args = state.args
     assert not args.group_rm, "Group RM is not supported for eval rollout"
 
     cache_key = dataset_cfg.cache_key + (args.hf_checkpoint, args.apply_chat_template)
@@ -118,9 +119,11 @@ class SimpleEvalRolloutFn:
     async def __call__(self, input: RolloutFnEvalInput) -> RolloutFnEvalOutput:
         assert not self.args.group_rm, "Group RM is not supported for eval rollout"
 
+        state = GenerateState(self.args)
+
         coros = []
         for dataset_cfg in getattr(self.args, "eval_datasets", []) or []:
-            coros.append(eval_rollout_single_dataset(self.args, dataset_cfg, self.prompt_dataset_cache))
+            coros.append(eval_rollout_single_dataset(state, dataset_cfg, self.prompt_dataset_cache))
         results_list = await asyncio.gather(*coros)
         results = {}
         for r in results_list:
