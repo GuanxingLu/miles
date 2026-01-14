@@ -9,8 +9,8 @@ from miles.rollout.base_types import (
     RolloutFnProtocol,
     RolloutFnTrainOutput,
 )
-from miles.utils.misc import load_function
 from miles.utils.async_utils import run
+from miles.utils.misc import load_function
 
 
 class LegacyRolloutFnAdapter:

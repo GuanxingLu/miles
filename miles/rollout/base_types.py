@@ -1,6 +1,7 @@
 from argparse import Namespace
+from collections.abc import Awaitable
 from dataclasses import dataclass
-from typing import Any, Protocol, runtime_checkable, Awaitable
+from typing import Any, Protocol, runtime_checkable
 
 from miles.rollout.data_source import DataSource
 from miles.utils.types import Sample

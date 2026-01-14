@@ -14,7 +14,7 @@ from sglang.srt.constants import GPU_MEMORY_TYPE_CUDA_GRAPH, GPU_MEMORY_TYPE_KV_
 
 from miles.backends.sglang_utils.sglang_engine import SGLangEngine
 from miles.rollout.base_types import RolloutFnConstructorInput, RolloutFnEvalInput, RolloutFnTrainInput
-from miles.rollout.modular_rollout.compatibility import load_rollout_function, call_rollout_function
+from miles.rollout.modular_rollout.compatibility import call_rollout_function, load_rollout_function
 from miles.utils import tracking_utils
 from miles.utils.health_monitor import RolloutHealthMonitor
 from miles.utils.http_utils import _wrap_ipv6, find_available_port, get_host_info, init_http_client
