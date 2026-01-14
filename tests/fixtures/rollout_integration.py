@@ -13,7 +13,7 @@ from miles.router.router import MilesRouter
 from miles.utils.arguments import parse_args
 from miles.utils.http_utils import find_available_port, init_http_client
 from miles.utils.test_utils.mock_sglang_server import with_mock_server
-from miles.utils.test_utils.thread_server import UvicornThreadServer
+from miles.utils.test_utils.uvicorn_thread_server import UvicornThreadServer
 
 
 def _build_args(*, train_path: str, eval_path: str, router_port: int) -> Namespace:

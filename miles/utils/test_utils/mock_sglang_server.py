@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 from transformers import AutoTokenizer
 
 from miles.utils.http_utils import find_available_port
-from miles.utils.test_utils.thread_server import UvicornThreadServer
+from miles.utils.test_utils.uvicorn_thread_server import UvicornThreadServer
 
 
 @dataclass(frozen=True)
