@@ -9,6 +9,7 @@ from miles.rollout.base_types import RolloutFnConstructorInput, RolloutFnEvalInp
 from miles.rollout.modular_rollout.orchestration_common import GenerateState, generate_and_rm
 from miles.utils.data import Dataset
 from miles.utils.eval_config import EvalDatasetConfig
+from miles.utils.misc import as_completed_async
 from miles.utils.processing_utils import load_processor, load_tokenizer
 from miles.utils.types import Sample
 
@@ -82,8 +83,7 @@ async def eval_rollout_single_dataset(
     data = []
     do_print = True
     pbar = tqdm(total=len(tasks), desc=f"Eval {dataset_cfg.name}", disable=not do_print)
-    for coro in asyncio.as_completed(tasks):
-        sample = await coro
+    async for sample in as_completed_async(tasks):
         if do_print:
             logger.info(
                 "eval_rollout_single_dataset example data: "
