@@ -9,6 +9,7 @@ from miles.rollout.base_types import (
     RolloutFnProtocol,
     RolloutFnTrainOutput,
 )
+from miles.utils.async_utils import run
 from miles.utils.misc import load_function
 
 
@@ -34,7 +35,16 @@ assert issubclass(LegacyRolloutFnAdapter, RolloutFnProtocol)
 def load_rollout_function(input: RolloutFnConstructorInput, path: str):
     fn = load_function(path)
 
-    if not inspect.isclass(fn):
-        fn = LegacyRolloutFnAdapter(input, fn)
+    if inspect.isclass(fn):
+        return fn(input)
+    else:
+        return LegacyRolloutFnAdapter(input, fn)
 
-    return fn
+
+def call_rollout_function(fn: RolloutFnProtocol, input: RolloutFnInput) -> RolloutFnOutput:
+    output = fn(input)
+
+    if inspect.iscoroutine(output):
+        output = run(output)
+
+    return output

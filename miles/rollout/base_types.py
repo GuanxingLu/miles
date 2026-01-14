@@ -1,4 +1,5 @@
 from argparse import Namespace
+from collections.abc import Awaitable
 from dataclasses import dataclass
 from typing import Any, Protocol, runtime_checkable
 
@@ -58,4 +59,4 @@ RolloutFnOutput = RolloutFnTrainOutput | RolloutFnEvalOutput
 # Duck typing, users do not need to extend this class
 @runtime_checkable
 class RolloutFnProtocol(Protocol):
-    def __call__(self, input: RolloutFnInput) -> RolloutFnOutput: ...
+    def __call__(self, input: RolloutFnInput) -> RolloutFnOutput | Awaitable[RolloutFnOutput]: ...
