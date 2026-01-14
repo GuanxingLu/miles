@@ -2,17 +2,14 @@ import asyncio
 import logging
 from argparse import Namespace
 from collections.abc import Callable
-from typing import Any
 
 import sglang_router
 from packaging.version import parse
 from tqdm import tqdm
 
-from miles.rollout.base_types import RolloutFnEvalOutput, RolloutFnTrainOutput, RolloutFnConstructorInput, \
-    RolloutFnTrainInput
+from miles.rollout.base_types import RolloutFnConstructorInput, RolloutFnTrainInput, RolloutFnTrainOutput
 from miles.rollout.filter_hub.base_types import MetricGatherer, call_dynamic_filter
 from miles.rollout.modular_rollout.orchestration_common import GenerateState
-from miles.rollout.modular_rollout.orchestration_eval import eval_rollout
 from miles.utils.async_utils import run
 from miles.utils.http_utils import get, post
 from miles.utils.misc import load_function
@@ -161,6 +158,8 @@ class SimpleTrainRolloutFn:
         self.data_source = input.data_source
 
     def __call__(self, input: RolloutFnTrainInput) -> RolloutFnTrainOutput:
-        output, aborted_samples = run(generate_rollout_async(self.args, input.rollout_id, self.data_source.get_samples))
+        output, aborted_samples = run(
+            generate_rollout_async(self.args, input.rollout_id, self.data_source.get_samples)
+        )
         self.data_source.add_samples(aborted_samples)
         return output

@@ -6,7 +6,7 @@ from typing import Any
 
 from tqdm import tqdm
 
-from miles.rollout.base_types import RolloutFnEvalOutput, RolloutFnConstructorInput, RolloutFnEvalInput
+from miles.rollout.base_types import RolloutFnConstructorInput, RolloutFnEvalInput, RolloutFnEvalOutput
 from miles.rollout.modular_rollout.orchestration_common import generate_and_rm
 from miles.utils.async_utils import run
 from miles.utils.data import Dataset
@@ -141,4 +141,3 @@ class SimpleEvalRolloutFn:
     def __call__(self, input: RolloutFnEvalInput) -> RolloutFnEvalOutput:
         output, _ = run(eval_rollout(self.args, input.rollout_id))
         return output
-
