@@ -52,6 +52,11 @@ def call_rollout_function(fn: RolloutFnProtocol, input: RolloutFnInput) -> Rollo
     return output
 
 
+def load_generate_function(path: str):
+    fn = load_function(path)
+    return fn
+
+
 async def call_generate_function(fn, input: GenerateFnInput) -> GenerateFnOutput:
     # TODO handle
     # # if signature has evaluation, pass evaluation
