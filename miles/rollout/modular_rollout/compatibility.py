@@ -34,7 +34,7 @@ assert issubclass(LegacyRolloutFnAdapter, RolloutFnProtocol)
 def load_rollout_function(input: RolloutFnConstructorInput, path: str):
     fn = load_function(path)
 
-    if not inspect.isclass(fn):
-        fn = LegacyRolloutFnAdapter(input, fn)
-
-    return fn
+    if inspect.isclass(fn):
+        return fn(input)
+    else:
+        return LegacyRolloutFnAdapter(input, fn)
