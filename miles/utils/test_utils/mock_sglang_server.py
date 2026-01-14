@@ -52,7 +52,6 @@ class MockSGLangServer:
             payload = await request.json()
             self.requests.append(payload)
 
-            return_logprob = payload.get("return_logprob", False)
             input_ids = payload.get("input_ids", [])
 
             prompt_str = self.tokenizer.decode(input_ids, skip_special_tokens=False)
@@ -66,6 +65,11 @@ class MockSGLangServer:
             if process_result.finish_reason == "length":
                 finish_reason_dict["length"] = completion_tokens
 
+            output_token_logprobs = [
+                (-1 / 128 * i, token_id)
+                for i, token_id in enumerate(output_ids)
+            ]
+
             response = {
                 "text": process_result.text,
                 "meta_info": {
@@ -73,15 +77,9 @@ class MockSGLangServer:
                     "prompt_tokens": prompt_tokens,
                     "cached_tokens": min(self.cached_tokens, prompt_tokens),
                     "completion_tokens": completion_tokens,
+                    "output_token_logprobs": output_token_logprobs,
                 },
             }
-
-            if return_logprob:
-                output_token_logprobs = [
-                    (-1 / 128 * i, token_id)
-                    for i, token_id in enumerate(output_ids)
-                ]
-                response["meta_info"]["output_token_logprobs"] = output_token_logprobs
 
             return JSONResponse(content=response)
 
