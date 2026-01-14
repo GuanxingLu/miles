@@ -18,7 +18,6 @@ logger = logging.getLogger(__name__)
 EVAL_PROMPT_DATASET = {}
 
 
-
 async def eval_rollout_single_dataset(
     args: Namespace, rollout_id: int, dataset_cfg: EvalDatasetConfig
 ) -> dict[str, dict[str, list[Any]]]:
