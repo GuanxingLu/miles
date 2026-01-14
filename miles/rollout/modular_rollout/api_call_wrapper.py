@@ -4,6 +4,7 @@ from typing import Any
 import numpy as np
 import pybase64
 
+from miles.rollout.modular_rollout.orchestration_common import GenerateState
 from miles.utils.http_utils import post
 from miles.utils.processing_utils import encode_image_for_rollout_engine
 from miles.utils.types import Sample
@@ -11,7 +12,6 @@ from miles.utils.types import Sample
 
 async def generate(args: Namespace, sample: Sample, sampling_params: dict[str, Any]) -> Sample:
     """Generate using traditional SGLang router with token-based workflow"""
-    from miles.rollout.modular_rollout.orchestration import GenerateState
 
     if args.ci_test:
         assert isinstance(sample.prompt, str)
