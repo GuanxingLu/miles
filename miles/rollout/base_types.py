@@ -49,6 +49,10 @@ class RolloutFnEvalOutput:
     metrics: dict[str, Any] = None
 
 
+RolloutFnInput = RolloutFnTrainInput | RolloutFnEvalInput
+RolloutFnOutput = RolloutFnTrainOutput | RolloutFnEvalOutput
+
+
 # Duck typing, users do not need to extend this class
 class RolloutFnProtocol(Protocol):
     def __init__(self, input: RolloutFnConstructorInput): ...
@@ -56,9 +60,7 @@ class RolloutFnProtocol(Protocol):
     @classmethod
     def add_arguments(cls, parser: ArgumentParser): ...
 
-    def __call__(
-        self, input: RolloutFnTrainInput | RolloutFnEvalInput
-    ) -> RolloutFnTrainOutput | RolloutFnEvalOutput: ...
+    def __call__(self, input: RolloutFnInput) -> RolloutFnOutput: ...
 
 
 # TODO move / refactor
