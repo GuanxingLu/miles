@@ -15,6 +15,7 @@ class RolloutFnBaseInput:
         raise NotImplementedError
 
 
+# subclassing for different data in the future
 @dataclass
 class RolloutFnTrainInput(RolloutFnBaseInput):
     @property
