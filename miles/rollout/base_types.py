@@ -4,6 +4,7 @@ from typing import Any
 
 from miles.utils.types import Sample
 
+
 @dataclass
 class RolloutFnBaseInput:
     args: Namespace
