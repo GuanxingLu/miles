@@ -1,13 +1,12 @@
 import asyncio
 import copy
 import logging
-from argparse import Namespace
 from typing import Any
 
 from tqdm import tqdm
 
 from miles.rollout.base_types import RolloutFnConstructorInput, RolloutFnEvalInput, RolloutFnEvalOutput
-from miles.rollout.modular_rollout.orchestration_common import generate_and_rm, GenerateState
+from miles.rollout.modular_rollout.orchestration_common import GenerateState, generate_and_rm
 from miles.utils.data import Dataset
 from miles.utils.eval_config import EvalDatasetConfig
 from miles.utils.processing_utils import load_processor, load_tokenizer
