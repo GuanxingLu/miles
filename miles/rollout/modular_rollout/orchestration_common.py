@@ -79,6 +79,7 @@ async def generate_and_rm(
             )
         )
         del sample
+        # TODO decide data structure (currently `list[list[Sample | list[Sample]]]`)
         samples = listify(output.sample)
 
     # for the rm that need the whole group, we will not do the rm here
