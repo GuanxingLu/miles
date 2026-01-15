@@ -1,4 +1,5 @@
 import pytest
+from pydantic import TypeAdapter
 
 from sglang.srt.entrypoints.openai.protocol import Tool
 from sglang.srt.function_call.core_types import ToolCallItem
@@ -34,10 +35,6 @@ SAMPLE_TOOLS = [
         },
     },
 ]
-
-
-def to_pydantic_tools(tools: list[dict]) -> list[Tool]:
-    return [Tool.model_validate(t) for t in tools]
 
 
 class TestApplyChatTemplateWithTools:
@@ -95,5 +92,6 @@ class TestSGLangFunctionCallParser:
         ],
     )
     def test_parse_non_stream(self, model_output, expected):
-        parser = FunctionCallParser(tools=to_pydantic_tools(SAMPLE_TOOLS), tool_call_parser="qwen25")
+        tools = TypeAdapter(list[Tool]).validate_python(SAMPLE_TOOLS)
+        parser = FunctionCallParser(tools=tools, tool_call_parser="qwen25")
         assert parser.parse_non_stream(model_output) == expected
