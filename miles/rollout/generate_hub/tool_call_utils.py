@@ -26,31 +26,23 @@ def _build_dummy_assistant(tool_responses: list[dict[str, Any]]) -> dict[str, An
 def tokenize_tool_responses(
     tool_messages: list[dict[str, Any]],
     tokenizer,
-) -> list[list[int]]:
-    """
-    Tokenize multiple tool response tool_messages.
-
-    Returns a list of token ID lists, one for each tool response.
-    """
+) -> list[int]:
+    """Tokenize tool response messages. Returns token IDs for all tool responses combined."""
     dummy_assistant = _build_dummy_assistant(tool_messages)
     base_messages = [DUMMY_USER, dummy_assistant]
 
-    result = []
-    for i, tool_response in enumerate(tool_messages):
-        messages_without = base_messages + tool_messages[:i]
-        messages_with = base_messages + tool_messages[: i + 1]
+    messages_without = base_messages
+    messages_with = base_messages + tool_messages
 
-        tokens_with = tokenizer.apply_chat_template(
-            messages_with, tokenize=True, add_generation_prompt=False
-        )
-        tokens_without = tokenizer.apply_chat_template(
-            messages_without, tokenize=True, add_generation_prompt=False
-        )
+    tokens_with = tokenizer.apply_chat_template(
+        messages_with, tokenize=True, add_generation_prompt=False
+    )
+    tokens_without = tokenizer.apply_chat_template(
+        messages_without, tokenize=True, add_generation_prompt=False
+    )
 
-        assert tokens_with[: len(tokens_without)] == tokens_without, (
-            "Token prefix mismatch: the tokens without tool should be a prefix of tokens with tool"
-        )
+    assert tokens_with[: len(tokens_without)] == tokens_without, (
+        "Token prefix mismatch: the tokens without tool should be a prefix of tokens with tool"
+    )
 
-        result.append(tokens_with[len(tokens_without) :])
-
-    return result
+    return tokens_with[len(tokens_without) :]
