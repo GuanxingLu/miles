@@ -108,27 +108,27 @@ def test_max_concurrent_with_latency():
         assert server.max_concurrent == 3
 
 
-@pytest.mark.asyncio
-async def test_counter_tracks_max():
+def test_counter_tracks_max():
     counter = Counter()
     assert counter.max_value == 0
 
-    async with counter.track():
-        assert counter.max_value == 1
+    async def run_test():
         async with counter.track():
-            assert counter.max_value == 2
+            assert counter.max_value == 1
+            async with counter.track():
+                assert counter.max_value == 2
 
+    asyncio.run(run_test())
     counter.reset()
     assert counter.max_value == 0
 
 
-@pytest.mark.asyncio
-async def test_counter_concurrent_tasks():
+def test_counter_concurrent_tasks():
     counter = Counter()
 
     async def task():
         async with counter.track():
             await asyncio.sleep(0.1)
 
-    await asyncio.gather(task(), task(), task())
+    asyncio.run(asyncio.gather(task(), task(), task()))
     assert counter.max_value == 3
