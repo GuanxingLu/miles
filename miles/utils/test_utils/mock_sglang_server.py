@@ -1,7 +1,7 @@
 import asyncio
 import re
 from collections.abc import Callable
-from contextlib import asynccontextmanager, contextmanager
+from contextlib import contextmanager
 from dataclasses import dataclass
 
 from fastapi import FastAPI, Request
@@ -58,7 +58,7 @@ class MockSGLangServer:
             payload = await request.json()
             self.request_log.append(payload)
 
-            async with self._concurrency.track():
+            with self._concurrency.track():
                 if self.latency > 0:
                     await asyncio.sleep(self.latency)
 
@@ -125,8 +125,8 @@ class Counter:
         self._current = 0
         self._max = 0
 
-    @asynccontextmanager
-    async def track(self):
+    @contextmanager
+    def track(self):
         self._current += 1
         self._max = max(self._max, self._current)
         try:

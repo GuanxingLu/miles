@@ -89,10 +89,15 @@ def test_request_log_and_reset_stats(mock_server):
 
 
 def test_latency():
-    with with_mock_server(latency=0.2) as server:
+    with with_mock_server(latency=0.0) as server:
         start = time.time()
         requests.post(f"{server.url}/generate", json={"input_ids": [1], "sampling_params": {}}, timeout=5.0)
-        assert time.time() - start >= 0.2
+        assert time.time() - start < 0.3
+
+    with with_mock_server(latency=0.5) as server:
+        start = time.time()
+        requests.post(f"{server.url}/generate", json={"input_ids": [1], "sampling_params": {}}, timeout=5.0)
+        assert time.time() - start >= 0.5
 
 
 def test_max_concurrent_with_latency():
@@ -112,13 +117,11 @@ def test_counter_tracks_max():
     counter = Counter()
     assert counter.max_value == 0
 
-    async def run_test():
-        async with counter.track():
-            assert counter.max_value == 1
-            async with counter.track():
-                assert counter.max_value == 2
+    with counter.track():
+        assert counter.max_value == 1
+        with counter.track():
+            assert counter.max_value == 2
 
-    asyncio.run(run_test())
     counter.reset()
     assert counter.max_value == 0
 
@@ -127,7 +130,7 @@ def test_counter_concurrent_tasks():
     counter = Counter()
 
     async def task():
-        async with counter.track():
+        with counter.track():
             await asyncio.sleep(0.1)
 
     asyncio.run(asyncio.gather(task(), task(), task()))
