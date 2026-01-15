@@ -15,6 +15,8 @@ _VARIANTS = [
             extra_argv=[
                 "--rollout-function-path",
                 "miles.rollout.sglang_rollout.generate_rollout",
+                "--eval-function-path",
+                "miles.rollout.sglang_rollout.generate_rollout",
                 "--custom-generate-function-path",
                 "miles.rollout.sglang_rollout.generate",
             ]
@@ -25,7 +27,9 @@ _VARIANTS = [
         IntegrationEnvConfig(
             extra_argv=[
                 "--rollout-function-path",
-                "miles.rollout.modular_rollout.orchestration_entrypoint.SimpleRolloutFn",
+                "miles.rollout.modular_rollout.orchestration_train.SimpleTrainRolloutFn",
+                "--eval-function-path",
+                "miles.rollout.modular_rollout.orchestration_eval.SimpleEvalRolloutFn",
                 "--custom-generate-function-path",
                 "miles.rollout.sglang_rollout.generate",
             ]
