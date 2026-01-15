@@ -42,14 +42,18 @@ class TestSGLangFunctionCallParser:
         "model_output,expected",
         [
             (
-                '<tool_call>\n{"name": "get_weather", "arguments": {"city": "Paris"}}\n</tool_call>',
-                ("", [ToolCallItem(tool_index=0, name="get_weather", parameters='{"city": "Paris"}')]),
+                'Let me check the weather for you.\n<tool_call>\n{"name": "get_weather", "arguments": {"city": "Paris"}}\n</tool_call>',
+                (
+                    "Let me check the weather for you.",
+                    [ToolCallItem(tool_index=0, name="get_weather", parameters='{"city": "Paris"}')],
+                ),
             ),
             (
+                'I will search for weather and restaurants.\n'
                 '<tool_call>\n{"name": "get_weather", "arguments": {"city": "Shanghai"}}\n</tool_call>\n'
                 '<tool_call>\n{"name": "search", "arguments": {"query": "restaurants"}}\n</tool_call>',
                 (
-                    "",
+                    "I will search for weather and restaurants.",
                     [
                         ToolCallItem(tool_index=0, name="get_weather", parameters='{"city": "Shanghai"}'),
                         ToolCallItem(tool_index=1, name="search", parameters='{"query": "restaurants"}'),
