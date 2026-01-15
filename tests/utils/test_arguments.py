@@ -34,9 +34,9 @@ def make_function_without_add_arguments():
     return my_fn
 
 
+@pytest.mark.parametrize("path_arg", PATH_ARGS)
 class TestAddArgumentsSupport:
 
-    @pytest.mark.parametrize("path_arg", PATH_ARGS)
     @pytest.mark.parametrize("fn_factory", [make_class_with_add_arguments, make_function_with_add_arguments])
     def test_add_arguments_is_called_and_arg_is_parsed(self, path_arg, fn_factory):
         fn = fn_factory()
@@ -46,7 +46,6 @@ class TestAddArgumentsSupport:
             args, _ = parser.parse_known_args()
             assert args.my_custom_arg == 100
 
-    @pytest.mark.parametrize("path_arg", PATH_ARGS)
     def test_skips_function_without_add_arguments(self, path_arg):
         fn = make_function_without_add_arguments()
         with function_registry.temporary("test:fn", fn), patch.object(sys, "argv", ["test", path_arg, "test:fn"]):
