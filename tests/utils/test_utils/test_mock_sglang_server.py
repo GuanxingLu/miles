@@ -121,13 +121,21 @@ def test_generate_endpoint_with_meta_info():
         )
         data = response.json()
 
-    assert data["text"] == "ok"
-    assert data["meta_info"]["cached_tokens"] == 5
-    assert data["meta_info"]["weight_version"] == "v2.0"
-    assert data["meta_info"]["routed_experts"] == "encoded_data"
-    assert data["meta_info"]["spec_accept_token_num"] == 10
-    assert data["meta_info"]["spec_draft_token_num"] == 15
-    assert data["meta_info"]["spec_verify_ct"] == 3
+    assert data == {
+        "text": "ok",
+        "meta_info": {
+            "finish_reason": {"type": "stop"},
+            "prompt_tokens": 3,
+            "cached_tokens": 5,
+            "completion_tokens": 1,
+            "output_token_logprobs": [[-0.0, 564]],
+            "weight_version": "v2.0",
+            "routed_experts": "encoded_data",
+            "spec_accept_token_num": 10,
+            "spec_draft_token_num": 15,
+            "spec_verify_ct": 3,
+        },
+    }
 
 
 def test_request_log_and_reset_stats(mock_server):
