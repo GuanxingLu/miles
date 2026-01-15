@@ -45,6 +45,7 @@ class TestLoadFunction:
     def test_load_from_module(self):
         fn = load_function("os.path.join")
         import os.path
+
         assert fn is os.path.join
 
     def test_load_none_returns_none(self):

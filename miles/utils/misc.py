@@ -32,6 +32,7 @@ class FunctionRegistry:
         assert name in self._registry
         self._registry.pop(name)
 
+
 function_registry = FunctionRegistry()
 
 
