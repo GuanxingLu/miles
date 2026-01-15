@@ -5,33 +5,7 @@ from miles.utils.http_utils import post
 from miles.utils.types import Sample
 
 
-TOOL_TEMPLATE = "..."
-
-
-def format_conversation_with_tools(
-    prompt: str, tools: list[dict[str, Any]] = None, system_prompt: str = None, messages: list[dict[str, Any]] = None
-) -> str:
-    return TODO
-
-
-def postprocess_predictions(prediction: str):
-    """Extract action and content from prediction string"""
-    return TODO, TODO
-
-
-def postprocess_responses(resp: str) -> str:
-    return TODO
-
-
-async def execute_predictions(prediction: str) -> str:
-    """Execute predictions and return results"""
-    action, content = postprocess_predictions(prediction)
-    next_obs, done = TODO
-    return next_obs, done
-
-
 async def generate(args, sample: Sample, sampling_params) -> Sample:
-    """Custom generation function supporting tool calls"""
     assert not args.partial_rollout, "Partial rollout is not supported for " "this function at the moment."
 
     state = GenerateState(args)
@@ -137,3 +111,26 @@ async def generate(args, sample: Sample, sampling_params) -> Sample:
             sample.status = Sample.Status.COMPLETED
 
     return sample
+
+
+def format_conversation_with_tools(
+        prompt: str, tools: list[dict[str, Any]] = None, system_prompt: str = None, messages: list[dict[str, Any]] = None
+) -> str:
+    return TODO
+
+
+def postprocess_predictions(prediction: str):
+    """Extract action and content from prediction string"""
+    return TODO, TODO
+
+
+def postprocess_responses(resp: str) -> str:
+    return TODO
+
+
+async def execute_predictions(prediction: str) -> str:
+    """Execute predictions and return results"""
+    action, content = postprocess_predictions(prediction)
+    next_obs, done = TODO
+    return next_obs, done
+
