@@ -118,7 +118,7 @@ async def generate(args, sample: Sample, sampling_params) -> Sample:
 
 
 def format_conversation_with_tools(
-        prompt: str, tools: list[dict[str, Any]] = None, system_prompt: str = None, messages: list[dict[str, Any]] = None
+    prompt: str, tools: list[dict[str, Any]] = None, system_prompt: str = None, messages: list[dict[str, Any]] = None
 ) -> str:
     return TODO
 
@@ -137,4 +137,3 @@ async def execute_predictions(prediction: str) -> str:
     action, content = postprocess_predictions(prediction)
     next_obs, done = TODO
     return next_obs, done
-
