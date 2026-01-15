@@ -5,21 +5,10 @@ from miles.utils.processing_utils import encode_image_for_rollout_engine
 from miles.utils.types import Sample
 
 
-async def compute_prompt_ids(sample, state):
-    if state.processor:
-        processor_output = state.processor(text=sample.prompt, **sample.multimodal_inputs)
-        prompt_ids = processor_output["input_ids"][0]
-        # TODO shall we move it to other places? then can make this function immutable
-        sample.multimodal_train_inputs = {
-            k: v for k, v in processor_output.items() if k not in ["input_ids", "attention_mask"]
-        } or None
-        return prompt_ids
-    else:
-        return state.tokenizer.encode(sample.prompt, add_special_tokens=False)
-
-
-async def compute_request_payload(args, prompt_ids, sample, sampling_params: dict):
+async def compute_request_payload(state, sample, sampling_params: dict):
     assert sample.status in {Sample.Status.PENDING, Sample.Status.ABORTED}, f"{sample.status=}"
+
+    prompt_ids = await _compute_prompt_ids(state, sample)
 
     max_new_tokens = sampling_params.pop("max_new_tokens")
     if len(sample.response) > 0:
@@ -34,7 +23,7 @@ async def compute_request_payload(args, prompt_ids, sample, sampling_params: dic
             "max_new_tokens": max_new_tokens,
         },
         "return_logprob": True,
-        "return_routed_experts": args.use_rollout_routing_replay,
+        "return_routed_experts": state.args.use_rollout_routing_replay,
     }
     if image_data := (sample.multimodal_inputs or {}).get("images"):
         payload["image_data"] = [encode_image_for_rollout_engine(image) for image in image_data]
@@ -45,6 +34,19 @@ async def compute_request_payload(args, prompt_ids, sample, sampling_params: dic
         return None, Sample.Status.TRUNCATED
 
     return payload, None
+
+
+async def _compute_prompt_ids(state, sample):
+    if state.processor:
+        processor_output = state.processor(text=sample.prompt, **sample.multimodal_inputs)
+        prompt_ids = processor_output["input_ids"][0]
+        # TODO shall we move it to other places? then can make this function immutable
+        sample.multimodal_train_inputs = {
+             k: v for k, v in processor_output.items() if k not in ["input_ids", "attention_mask"]
+         } or None
+        return prompt_ids
+    else:
+        return state.tokenizer.encode(sample.prompt, add_special_tokens=False)
 
 
 async def update_sample_from_response(args, sample, payload, output):
