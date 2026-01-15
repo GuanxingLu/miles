@@ -93,31 +93,31 @@ def _load_and_call_train(args, data_source):
     return call_rollout_function(fn, RolloutFnTrainInput(rollout_id=0))
 
 
-@pytest.mark.parametrize("rollout_integration_env", _ROLLOUT_ARGV_VARIANTS, indirect=True)
-def test_simple_train_rollout_fn_integration(rollout_integration_env):
-    env = rollout_integration_env
-    out = _load_and_call_train(env.args, env.data_source)
+class TestSimpleRolloutFnIntegration:
+    @pytest.mark.parametrize("rollout_integration_env", _ROLLOUT_ARGV_VARIANTS, indirect=True)
+    def test_train(self, rollout_integration_env):
+        env = rollout_integration_env
+        out = _load_and_call_train(env.args, env.data_source)
 
-    assert len(out.samples) == env.args.rollout_batch_size
-    group = out.samples[0]
-    assert len(group) == env.args.n_samples_per_prompt
-    assert group[0] == _expected_sample(group_index=0)
+        assert len(out.samples) == env.args.rollout_batch_size
+        group = out.samples[0]
+        assert len(group) == env.args.n_samples_per_prompt
+        assert group[0] == _expected_sample(group_index=0)
 
+    @pytest.mark.parametrize("rollout_integration_env", _ROLLOUT_ARGV_VARIANTS, indirect=True)
+    def test_eval(self, rollout_integration_env):
+        env = rollout_integration_env
+        fn = load_rollout_function(
+            RolloutFnConstructorInput(args=env.args, data_source=env.data_source), env.args.eval_function_path
+        )
+        out = call_rollout_function(fn, RolloutFnEvalInput(rollout_id=0))
 
-@pytest.mark.parametrize("rollout_integration_env", _ROLLOUT_ARGV_VARIANTS, indirect=True)
-def test_simple_eval_rollout_fn_integration(rollout_integration_env):
-    env = rollout_integration_env
-    fn = load_rollout_function(
-        RolloutFnConstructorInput(args=env.args, data_source=env.data_source), env.args.eval_function_path
-    )
-    out = call_rollout_function(fn, RolloutFnEvalInput(rollout_id=0))
-
-    assert "toy" in out.data
-    rewards = out.data["toy"]["rewards"]
-    samples = out.data["toy"]["samples"]
-    assert len(rewards) == len(samples) == env.args.n_samples_per_eval_prompt
-    assert rewards[0] == 1
-    assert samples[0] == _expected_sample(group_index=None)
+        assert "toy" in out.data
+        rewards = out.data["toy"]["rewards"]
+        samples = out.data["toy"]["samples"]
+        assert len(rewards) == len(samples) == env.args.n_samples_per_eval_prompt
+        assert rewards[0] == 1
+        assert samples[0] == _expected_sample(group_index=None)
 
 
 _MULTI_DATA_ROWS = [
