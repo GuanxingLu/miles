@@ -9,11 +9,18 @@ def tokenize_tool_responses(
     tool_messages: list[dict[str, Any]],
     tokenizer,
 ) -> list[int]:
-    dummy_assistant = _build_dummy_assistant(tool_messages)
+    return _tokenize_postfix_messages(tool_messages, tokenizer)
+
+
+def _tokenize_postfix_messages(
+    postfix_messages: list[dict[str, Any]],
+    tokenizer,
+) -> list[int]:
+    dummy_assistant = _build_dummy_assistant(postfix_messages)
     base_messages = [_DUMMY_USER, dummy_assistant]
 
     messages_without = base_messages
-    messages_with = base_messages + tool_messages
+    messages_with = base_messages + postfix_messages
 
     tokens_with = tokenizer.apply_chat_template(messages_with, tokenize=True, add_generation_prompt=False)
     tokens_without = tokenizer.apply_chat_template(messages_without, tokenize=True, add_generation_prompt=False)
