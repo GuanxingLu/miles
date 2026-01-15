@@ -298,7 +298,7 @@ class TestRoutedExperts:
         [
             {
                 "args_kwargs": {"use_rollout_routing_replay": True},
-                "process_fn_kwargs": {"routed_experts": b"placeholder"},
+                "process_fn_kwargs": {"routed_experts": "placeholder"},
             }
         ],
         indirect=True,
