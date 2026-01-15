@@ -104,20 +104,34 @@ def make_process_fn(
 def make_args(*, router_port: int, use_rollout_routing_replay: bool = False) -> Namespace:
     argv = [
         "pytest",
-        "--train-backend", "fsdp",
-        "--rollout-batch-size", "1",
-        "--n-samples-per-prompt", "1",
-        "--num-rollout", "1",
-        "--rollout-num-gpus", "1",
-        "--rollout-num-gpus-per-engine", "1",
-        "--hf-checkpoint", MODEL_NAME,
-        "--prompt-data", "/dev/null",
-        "--input-key", "input",
-        "--label-key", "label",
-        "--rm-type", "math",
-        "--sglang-router-ip", "127.0.0.1",
-        "--sglang-router-port", str(router_port),
-        "--rollout-max-response-len", "16",
+        "--train-backend",
+        "fsdp",
+        "--rollout-batch-size",
+        "1",
+        "--n-samples-per-prompt",
+        "1",
+        "--num-rollout",
+        "1",
+        "--rollout-num-gpus",
+        "1",
+        "--rollout-num-gpus-per-engine",
+        "1",
+        "--hf-checkpoint",
+        MODEL_NAME,
+        "--prompt-data",
+        "/dev/null",
+        "--input-key",
+        "input",
+        "--label-key",
+        "label",
+        "--rm-type",
+        "math",
+        "--sglang-router-ip",
+        "127.0.0.1",
+        "--sglang-router-port",
+        str(router_port),
+        "--rollout-max-response-len",
+        "16",
     ]
     if use_rollout_routing_replay:
         argv.append("--use-rollout-routing-replay")
@@ -231,7 +245,9 @@ class TestMultiTurn:
         run_generate(variant, generate_env, sample, {"max_new_tokens": 10, "temperature": 0.7})
 
         assert generate_env.mock_server.request_log == [
-            expected_request(variant, input_ids=existing_tokens, sampling_params={"max_new_tokens": 7, "temperature": 0.7})
+            expected_request(
+                variant, input_ids=existing_tokens, sampling_params={"max_new_tokens": 7, "temperature": 0.7}
+            )
         ]
 
 
@@ -273,16 +289,21 @@ class TestRoutedExperts:
 
     @pytest.mark.parametrize(
         "generate_env",
-        [{"args_kwargs": {"use_rollout_routing_replay": True}, "process_fn_kwargs": {"routed_experts": b"placeholder"}}],
+        [
+            {
+                "args_kwargs": {"use_rollout_routing_replay": True},
+                "process_fn_kwargs": {"routed_experts": b"placeholder"},
+            }
+        ],
         indirect=True,
     )
     @pytest.mark.parametrize("variant", GENERATE_VARIANTS)
     def test_routed_experts_enabled_and_parsed(self, variant, generate_env, request):
         num_layers, moe_router_topk = 2, 4
         num_tokens = len(PROMPT_TOKENS) + len(RESPONSE_TOKENS)
-        routed_experts_array = np.arange(
-            (num_tokens - 1) * num_layers * moe_router_topk, dtype=np.int32
-        ).reshape(num_tokens - 1, num_layers, moe_router_topk)
+        routed_experts_array = np.arange((num_tokens - 1) * num_layers * moe_router_topk, dtype=np.int32).reshape(
+            num_tokens - 1, num_layers, moe_router_topk
+        )
 
         generate_env.args.num_layers = num_layers
         generate_env.args.moe_router_topk = moe_router_topk
