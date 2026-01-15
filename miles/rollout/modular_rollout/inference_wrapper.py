@@ -85,9 +85,7 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
             sample.rollout_log_probs = []
         sample.rollout_log_probs += new_response_log_probs
 
-    if x := _get_rollout_routed_experts_from_output(args, sample, output):
-        sample.rollout_routed_experts = x
-
+    sample.rollout_routed_experts = _get_rollout_routed_experts_from_output(args, sample, output)
     sample.update_from_meta_info(args, output["meta_info"])
 
     return GenerateFnOutput(samples=sample)
