@@ -128,7 +128,7 @@ def test_generate_endpoint_with_meta_info():
             "prompt_tokens": 3,
             "cached_tokens": 5,
             "completion_tokens": 1,
-            "output_token_logprobs": [[-0.0, 564]],
+            "output_token_logprobs": [[-0.0, 562]],
             "weight_version": "v2.0",
             "routed_experts": "encoded_data",
             "spec_accept_token_num": 10,
