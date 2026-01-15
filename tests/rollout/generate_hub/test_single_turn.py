@@ -169,6 +169,7 @@ class GenerateResult:
 def env(request):
     SingletonMeta.clear_all_instances()
     params = getattr(request, "param", {})
+    model_name = params.get("model_name", MODEL_NAME)
 
     def process_fn(_):
         x = params.get("process_fn_kwargs", {})
@@ -183,8 +184,8 @@ def env(request):
             spec_verify_ct=x.get("spec_verify_ct"),
         )
 
-    with with_mock_server(model_name=MODEL_NAME, process_fn=process_fn) as mock_server:
-        args = make_args(router_port=mock_server.port, **params.get("args_kwargs", {}))
+    with with_mock_server(model_name=model_name, process_fn=process_fn) as mock_server:
+        args = make_args(router_port=mock_server.port, model_name=model_name, **params.get("args_kwargs", {}))
         yield GenerateEnv(args=args, mock_server=mock_server)
 
     SingletonMeta.clear_all_instances()
@@ -384,28 +385,12 @@ VLM_MODEL_NAME = "Qwen/Qwen2-VL-2B-Instruct"
 VLM_PROMPT = "What is in this image?"
 
 
-@pytest.fixture
-def vlm_env(request):
-    SingletonMeta.clear_all_instances()
-    params = getattr(request, "param", {})
-
-    def process_fn(_):
-        x = params.get("process_fn_kwargs", {})
-        return ProcessResult(
-            text=x.get("response_text", RESPONSE_TEXT),
-            finish_reason=x.get("finish_reason", "stop"),
-        )
-
-    with with_mock_server(model_name=VLM_MODEL_NAME, process_fn=process_fn) as mock_server:
-        args = make_args(router_port=mock_server.port, model_name=VLM_MODEL_NAME)
-        yield GenerateEnv(args=args, mock_server=mock_server)
-
-    SingletonMeta.clear_all_instances()
-
-
 class TestMultimodal:
-    def test_multimodal_inputs_processed(self, variant, vlm_env):
-        test_image = np.zeros((64, 64, 3), dtype=np.uint8)
+    @pytest.mark.parametrize("env", [{"model_name": VLM_MODEL_NAME}], indirect=True)
+    def test_multimodal_inputs_processed(self, variant, env):
+        from PIL import Image
+
+        test_image = Image.new("RGB", (64, 64), color="red")
         sample = Sample(
             prompt=VLM_PROMPT,
             tokens=[],
@@ -415,11 +400,9 @@ class TestMultimodal:
             multimodal_inputs={"images": [test_image]},
         )
 
-        vlm_env.mock_server.request_log.clear()
-        result_sample = run(
-            call_generate(variant, vlm_env.args, sample, DEFAULT_SAMPLING_PARAMS.copy())
-        )
-        result = GenerateResult(sample=result_sample, requests=list(vlm_env.mock_server.request_log))
+        env.mock_server.request_log.clear()
+        result_sample = run(call_generate(variant, env.args, sample, DEFAULT_SAMPLING_PARAMS.copy()))
+        result = GenerateResult(sample=result_sample, requests=list(env.mock_server.request_log))
 
         assert len(result.requests) == 1
         assert "image_data" in result.requests[0]
