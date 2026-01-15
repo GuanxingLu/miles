@@ -197,30 +197,26 @@ class TestTokenizeToolResponses:
 
         tool_responses = SINGLE_TOOL_RESPONSES if num_tools == 1 else DOUBLE_TOOL_RESPONSES
 
-        token_ids_list = tokenize_tool_responses(tool_responses, tokenizer)
-
-        assert len(token_ids_list) == len(tool_responses)
+        token_ids = tokenize_tool_responses(tool_responses, tokenizer)
+        decoded_str = tokenizer.decode(token_ids)
 
         dummy_assistant = _build_dummy_assistant(tool_responses)
         base_messages = [DUMMY_USER, dummy_assistant]
 
-        for i, (token_ids, tool_response) in enumerate(zip(token_ids_list, tool_responses)):
-            decoded_str = tokenizer.decode(token_ids)
+        messages_without = base_messages
+        messages_with = base_messages + tool_responses
 
-            messages_without = base_messages + tool_responses[:i]
-            messages_with = base_messages + tool_responses[: i + 1]
+        text_with = tokenizer.apply_chat_template(
+            messages_with, tokenize=False, add_generation_prompt=False
+        )
+        text_without = tokenizer.apply_chat_template(
+            messages_without, tokenize=False, add_generation_prompt=False
+        )
 
-            text_with = tokenizer.apply_chat_template(
-                messages_with, tokenize=False, add_generation_prompt=False
-            )
-            text_without = tokenizer.apply_chat_template(
-                messages_without, tokenize=False, add_generation_prompt=False
-            )
+        expected_str = text_with[len(text_without):]
 
-            expected_str = text_with[len(text_without):]
-
-            assert decoded_str == expected_str, (
-                f"Mismatch for {model_name} tool {i}:\n"
-                f"  decoded  = {repr(decoded_str)}\n"
-                f"  expected = {repr(expected_str)}"
-            )
+        assert decoded_str == expected_str, (
+            f"Mismatch for {model_name}:\n"
+            f"  decoded  = {repr(decoded_str)}\n"
+            f"  expected = {repr(expected_str)}"
+        )
