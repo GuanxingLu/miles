@@ -53,40 +53,40 @@ DEEPSEEKV3_MULTI_TOOL_CALLS = (
 )
 
 
-def test_function_call_parser_single_tool_call():
+class TestSGLangFunctionCallParser:
     """FunctionCallParser supports: deepseekv3, qwen25, llama3, mistral, pythonic, etc."""
-    parser = FunctionCallParser(tools=SAMPLE_TOOLS, tool_call_parser="deepseekv3")
 
-    assert parser.has_tool_call(DEEPSEEKV3_SINGLE_TOOL_CALL)
+    def test_single_tool_call(self):
+        parser = FunctionCallParser(tools=SAMPLE_TOOLS, tool_call_parser="deepseekv3")
 
-    normal_text, tool_calls = parser.parse_non_stream(DEEPSEEKV3_SINGLE_TOOL_CALL)
+        assert parser.has_tool_call(DEEPSEEKV3_SINGLE_TOOL_CALL)
 
-    assert (normal_text, tool_calls) == (
-        "",
-        [ToolCallItem(tool_index=0, name="get_weather", parameters='{"city": "Paris"}')],
-    )
+        normal_text, tool_calls = parser.parse_non_stream(DEEPSEEKV3_SINGLE_TOOL_CALL)
 
+        assert (normal_text, tool_calls) == (
+            "",
+            [ToolCallItem(tool_index=0, name="get_weather", parameters='{"city": "Paris"}')],
+        )
 
-def test_function_call_parser_multi_tool_calls():
-    parser = FunctionCallParser(tools=SAMPLE_TOOLS, tool_call_parser="deepseekv3")
+    def test_multi_tool_calls(self):
+        parser = FunctionCallParser(tools=SAMPLE_TOOLS, tool_call_parser="deepseekv3")
 
-    normal_text, tool_calls = parser.parse_non_stream(DEEPSEEKV3_MULTI_TOOL_CALLS)
+        normal_text, tool_calls = parser.parse_non_stream(DEEPSEEKV3_MULTI_TOOL_CALLS)
 
-    assert (normal_text, tool_calls) == (
-        "",
-        [
-            ToolCallItem(tool_index=0, name="get_weather", parameters='{"city": "Shanghai"}'),
-            ToolCallItem(tool_index=1, name="search", parameters='{"query": "restaurants"}'),
-        ],
-    )
+        assert (normal_text, tool_calls) == (
+            "",
+            [
+                ToolCallItem(tool_index=0, name="get_weather", parameters='{"city": "Shanghai"}'),
+                ToolCallItem(tool_index=1, name="search", parameters='{"query": "restaurants"}'),
+            ],
+        )
 
+    def test_no_tool_call(self):
+        parser = FunctionCallParser(tools=SAMPLE_TOOLS, tool_call_parser="deepseekv3")
+        model_output = "The weather is sunny today."
 
-def test_function_call_parser_no_tool_call():
-    parser = FunctionCallParser(tools=SAMPLE_TOOLS, tool_call_parser="deepseekv3")
-    model_output = "The weather is sunny today."
+        assert not parser.has_tool_call(model_output)
 
-    assert not parser.has_tool_call(model_output)
+        normal_text, tool_calls = parser.parse_non_stream(model_output)
 
-    normal_text, tool_calls = parser.parse_non_stream(model_output)
-
-    assert (normal_text, tool_calls) == ("The weather is sunny today.", [])
+        assert (normal_text, tool_calls) == ("The weather is sunny today.", [])
