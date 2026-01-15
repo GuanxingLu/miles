@@ -10,30 +10,32 @@ from sglang.srt.function_call.function_call_parser import FunctionCallParser
 # TODO add more models
 # Typical models that support tool calling, mapped from sglang tool call parsers.
 TOOL_CALL_MODELS = [
-    # qwen/qwen25: Qwen2.5 family
+    # qwen/qwen25
     "Qwen/Qwen2.5-0.5B-Instruct",
-    "Qwen/Qwen2.5-7B-Instruct",
-    # qwen3_coder: Qwen3 family
     "Qwen/Qwen3-0.6B",
-    "Qwen/Qwen3-8B",
-    # llama3: Llama-3.2 family
+    # qwen3_coder
+    "Qwen/Qwen3-Coder-30B-A3B-Instruct",
+    # llama3
     "meta-llama/Llama-3.2-1B-Instruct",
-    "meta-llama/Llama-3.2-3B-Instruct",
-    # mistral: Mistral family
+    # mistral
     "mistralai/Mistral-7B-Instruct-v0.3",
-    # deepseekv3/v31/v32: DeepSeek-V3 family
+    # deepseekv3
     "deepseek-ai/DeepSeek-V3",
-    # glm/glm45/glm47: GLM-4 family
+    # deepseekv31
+    "deepseek-ai/DeepSeek-V3.1",
+    # deepseekv32
+    "deepseek-ai/DeepSeek-V3.2",
+    # glm/glm45/glm47
     "THUDM/glm-4-9b-chat",
-    # kimi_k2: Kimi-K2
+    # kimi_k2
     "moonshotai/Kimi-K2-Instruct",
-    # mimo: MiMo
+    # mimo
     "XiaomiMiMo/MiMo-7B-RL",
-    # step3: Step-3
+    # step3
     "stepfun-ai/step3",
-    # minimax-m2: MiniMax-M2
+    # minimax-m2
     "MiniMaxAI/MiniMax-M2",
-    # interns1: InternLM
+    # interns1
     "internlm/internlm3-8b-instruct",
 ]
 
