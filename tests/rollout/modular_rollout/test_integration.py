@@ -179,7 +179,7 @@ class TestSemaphoreIntegration:
 
 class TestDeterministicInferenceIntegration:
     @pytest.mark.parametrize(
-        "rollout_integration_env",
+        "rollout_integration_env,expected_seeds",
         [
             pytest.param(
                 _config(
@@ -193,34 +193,23 @@ class TestDeterministicInferenceIntegration:
                         "1",
                     ]
                 ),
-                id="deterministic_enabled",
+                {42, 43, 44},
+                id="enabled",
             ),
-        ],
-        indirect=True,
-    )
-    def test_sampling_seeds_set_correctly(self, rollout_integration_env):
-        env = rollout_integration_env
-        _load_and_call_train(env.args, env.data_source)
-
-        seeds = [req.get("sampling_params", {}).get("sampling_seed") for req in env.mock_server.request_log]
-        assert set(seeds) == {42, 43, 44}
-
-    @pytest.mark.parametrize(
-        "rollout_integration_env",
-        [
             pytest.param(
                 _config(["--n-samples-per-prompt", "2", "--rollout-batch-size", "1"]),
-                id="deterministic_disabled",
+                {None},
+                id="disabled",
             ),
         ],
-        indirect=True,
+        indirect=["rollout_integration_env"],
     )
-    def test_no_sampling_seeds_when_disabled(self, rollout_integration_env):
+    def test_sampling_seeds(self, rollout_integration_env, expected_seeds):
         env = rollout_integration_env
         _load_and_call_train(env.args, env.data_source)
 
-        seeds = [req.get("sampling_params", {}).get("sampling_seed") for req in env.mock_server.request_log]
-        assert all(seed is None for seed in seeds)
+        seeds = {req.get("sampling_params", {}).get("sampling_seed") for req in env.mock_server.request_log}
+        assert seeds == expected_seeds
 
 
 class TestGroupRMIntegration:
