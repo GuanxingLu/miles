@@ -209,24 +209,32 @@ class TestResumedSingleTurn:
     def test_two_consecutive_calls_on_same_sample(self, variant, env):
         partial_text = "\\boxed"
         partial_tokens = [59, 79075]
+        partial_log_probs = [-0.0, -0.0078125]
 
         env.mock_server.process_fn = lambda _: ProcessResult(text=partial_text, finish_reason="abort")
         sample = make_sample()
         result1 = run_generate(variant, env, sample)
         assert result1.requests == [expected_request(variant)]
-        assert result1.sample.status == Sample.Status.ABORTED
-        assert result1.sample.tokens == PROMPT_TOKENS + partial_tokens
-        assert result1.sample.response == partial_text
-        assert result1.sample.response_length == 2
+        assert result1.sample == expected_sample(
+            response=partial_text,
+            response_length=2,
+            tokens=PROMPT_TOKENS + partial_tokens,
+            rollout_log_probs=partial_log_probs,
+            status=Sample.Status.ABORTED,
+        )
 
         env.mock_server.process_fn = lambda _: ProcessResult(text=RESPONSE_TEXT, finish_reason="stop")
         result2 = run_generate(variant, env, result1.sample)
         tokens_after_turn1 = PROMPT_TOKENS + partial_tokens
         assert result2.requests == [expected_request(variant, input_ids=tokens_after_turn1)]
-        assert result2.sample.status == Sample.Status.COMPLETED
-        assert result2.sample.tokens == tokens_after_turn1 + RESPONSE_TOKENS
-        assert result2.sample.response == partial_text + RESPONSE_TEXT
-        assert result2.sample.response_length == 2 + 5
+        assert result2.sample == expected_sample(
+            response=partial_text + RESPONSE_TEXT,
+            response_length=2 + 5,
+            tokens=tokens_after_turn1 + RESPONSE_TOKENS,
+            rollout_log_probs=partial_log_probs + RESPONSE_LOG_PROBS,
+            prompt_tokens=len(tokens_after_turn1),
+            status=Sample.Status.COMPLETED,
+        )
 
 
 class TestBoundaryConditions:
