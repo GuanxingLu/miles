@@ -92,16 +92,16 @@ class MockSGLangServer:
                     "completion_tokens": completion_tokens,
                     "output_token_logprobs": output_token_logprobs,
                 }
-                if process_result.weight_version is not None:
-                    meta_info["weight_version"] = process_result.weight_version
-                if process_result.routed_experts is not None:
-                    meta_info["routed_experts"] = pybase64.b64encode(process_result.routed_experts).decode("ascii")
-                if process_result.spec_accept_token_num is not None:
-                    meta_info["spec_accept_token_num"] = process_result.spec_accept_token_num
-                if process_result.spec_draft_token_num is not None:
-                    meta_info["spec_draft_token_num"] = process_result.spec_draft_token_num
-                if process_result.spec_verify_ct is not None:
-                    meta_info["spec_verify_ct"] = process_result.spec_verify_ct
+                if (x := process_result.weight_version) is not None:
+                    meta_info["weight_version"] = x
+                if (x := process_result.routed_experts) is not None:
+                    meta_info["routed_experts"] = pybase64.b64encode(x).decode("ascii")
+                if (x := process_result.spec_accept_token_num) is not None:
+                    meta_info["spec_accept_token_num"] = x
+                if (x := process_result.spec_draft_token_num) is not None:
+                    meta_info["spec_draft_token_num"] = x
+                if (x := process_result.spec_verify_ct) is not None:
+                    meta_info["spec_verify_ct"] = x
 
                 response = {
                     "text": process_result.text,
