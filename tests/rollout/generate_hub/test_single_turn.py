@@ -241,6 +241,23 @@ class TestResumedSingleTurn:
             prompt_tokens=len(existing_tokens),
         )
 
+    def test_two_consecutive_calls_on_same_sample(self, variant, env):
+        sample = make_sample()
+
+        result1 = run_generate(variant, env, sample)
+        assert result1.requests == [expected_request(variant)]
+        assert result1.sample == expected_sample()
+
+        result2 = run_generate(variant, env, result1.sample)
+        tokens_after_turn1 = PROMPT_TOKENS + RESPONSE_TOKENS
+        assert result2.requests == [expected_request(variant, input_ids=tokens_after_turn1)]
+        assert result2.sample == expected_sample(
+            response=RESPONSE_TEXT + RESPONSE_TEXT,
+            response_length=5 + 5,
+            tokens=tokens_after_turn1 + RESPONSE_TOKENS,
+            prompt_tokens=len(tokens_after_turn1),
+        )
+
 
 class TestBoundaryConditions:
     def test_max_new_tokens_zero_returns_truncated(self, variant, env):
