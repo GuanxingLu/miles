@@ -17,23 +17,22 @@ def mock_args():
 
 
 class TestAsyncRm:
-    def test_math_rm(self, mock_args):
-        mock_args.rm_type = "math"
-        sample = Sample(prompt="", response=r"\boxed{42}", label="42")
+    @pytest.mark.parametrize(
+        "rm_type,response,label,expected",
+        [
+            ("math", r"\boxed{42}", "42", 1),
+            ("math", r"\boxed{wrong}", "42", 0),
+            ("f1", "hello world", "hello world", 1.0),
+            ("deepscaler", r"</think>\boxed{42}", "42", 1),
+            ("gpqa", "Answer: A", "A", 1.0),
+            ("boxed_f1", r"Final answer is \boxed{hello world}", "hello world", 1.0),
+        ],
+    )
+    def test_rm_types(self, mock_args, rm_type, response, label, expected):
+        mock_args.rm_type = rm_type
+        sample = Sample(prompt="", response=response, label=label)
         reward = run(async_rm(mock_args, sample))
-        assert reward == 1
-
-    def test_math_rm_incorrect(self, mock_args):
-        mock_args.rm_type = "math"
-        sample = Sample(prompt="", response=r"\boxed{wrong}", label="42")
-        reward = run(async_rm(mock_args, sample))
-        assert reward == 0
-
-    def test_f1_rm(self, mock_args):
-        mock_args.rm_type = "f1"
-        sample = Sample(prompt="", response="hello world", label="hello world")
-        reward = run(async_rm(mock_args, sample))
-        assert reward == 1.0
+        assert reward == expected
 
     def test_f1_rm_partial(self, mock_args):
         mock_args.rm_type = "f1"
@@ -47,29 +46,11 @@ class TestAsyncRm:
         result = run(async_rm(mock_args, sample))
         assert result["score"] == 1.0
 
-    def test_deepscaler_rm(self, mock_args):
-        mock_args.rm_type = "deepscaler"
-        sample = Sample(prompt="", response=r"</think>\boxed{42}", label="42")
-        reward = run(async_rm(mock_args, sample))
-        assert reward == 1
-
-    def test_gpqa_rm(self, mock_args):
-        mock_args.rm_type = "gpqa"
-        sample = Sample(prompt="", response="Answer: A", label="A")
-        reward = run(async_rm(mock_args, sample))
-        assert reward == 1.0
-
     def test_random_rm(self, mock_args):
         mock_args.rm_type = "random"
         sample = Sample(prompt="", response="anything", label="anything")
         reward = run(async_rm(mock_args, sample))
         assert reward in [0, 1]
-
-    def test_boxed_prefix_preprocessing(self, mock_args):
-        mock_args.rm_type = "boxed_f1"
-        sample = Sample(prompt="", response=r"Final answer is \boxed{hello world}", label="hello world")
-        reward = run(async_rm(mock_args, sample))
-        assert reward == 1.0
 
     def test_rm_type_from_metadata(self, mock_args):
         mock_args.rm_type = None
@@ -77,39 +58,41 @@ class TestAsyncRm:
         reward = run(async_rm(mock_args, sample))
         assert reward == 1
 
-    def test_unknown_rm_type_raises(self, mock_args):
-        mock_args.rm_type = "unknown_type"
+    @pytest.mark.parametrize(
+        "rm_type,match",
+        [
+            ("unknown_type", "not implemented"),
+            ("", "not specified"),
+        ],
+    )
+    def test_invalid_rm_type_raises(self, mock_args, rm_type, match):
+        mock_args.rm_type = rm_type
         sample = Sample(prompt="", response="test", label="test")
-        with pytest.raises(NotImplementedError, match="not implemented"):
-            run(async_rm(mock_args, sample))
-
-    def test_empty_rm_type_raises(self, mock_args):
-        mock_args.rm_type = ""
-        sample = Sample(prompt="", response="test", label="test")
-        with pytest.raises(NotImplementedError, match="not specified"):
+        with pytest.raises(NotImplementedError, match=match):
             run(async_rm(mock_args, sample))
 
 
 class TestBatchedAsyncRm:
-    def test_batched_math_rm(self, mock_args):
-        mock_args.rm_type = "math"
-        samples = [
-            Sample(prompt="", response=r"\boxed{42}", label="42"),
-            Sample(prompt="", response=r"\boxed{100}", label="100"),
-            Sample(prompt="", response=r"\boxed{wrong}", label="42"),
-        ]
+    @pytest.mark.parametrize(
+        "rm_type,samples_data,expected",
+        [
+            (
+                "math",
+                [(r"\boxed{42}", "42"), (r"\boxed{100}", "100"), (r"\boxed{wrong}", "42")],
+                [1, 1, 0],
+            ),
+            (
+                "f1",
+                [("hello world", "hello world"), ("different", "something else")],
+                [1.0, 0],
+            ),
+        ],
+    )
+    def test_batched_rm(self, mock_args, rm_type, samples_data, expected):
+        mock_args.rm_type = rm_type
+        samples = [Sample(prompt="", response=r, label=l) for r, l in samples_data]
         rewards = run(batched_async_rm(mock_args, samples))
-        assert rewards == [1, 1, 0]
-
-    def test_batched_f1_rm(self, mock_args):
-        mock_args.rm_type = "f1"
-        samples = [
-            Sample(prompt="", response="hello world", label="hello world"),
-            Sample(prompt="", response="different", label="something else"),
-        ]
-        rewards = run(batched_async_rm(mock_args, samples))
-        assert rewards[0] == 1.0
-        assert rewards[1] == 0
+        assert rewards == expected
 
     def test_inplace_set_reward_field(self, mock_args):
         mock_args.rm_type = "math"
