@@ -160,55 +160,67 @@ class TestSGLangFunctionCallParser:
         assert parser.parse_non_stream(model_output) == expected
 
 
-SINGLE_TOOL_RESPONSE = {
-    "role": "tool",
-    "tool_call_id": "call_dummy",
-    "content": '{"temperature": 25}',
-    "name": "dummy_func",
-}
+SINGLE_TOOL_RESPONSES = [
+    {
+        "role": "tool",
+        "tool_call_id": "call_0",
+        "content": '{"temperature": 25}',
+        "name": "get_weather",
+    },
+]
 
 DOUBLE_TOOL_RESPONSES = [
     {
         "role": "tool",
-        "tool_call_id": "call_dummy",
+        "tool_call_id": "call_0",
         "content": '{"temperature": 25}',
-        "name": "dummy_func",
+        "name": "get_weather",
     },
     {
         "role": "tool",
-        "tool_call_id": "call_dummy",
+        "tool_call_id": "call_1",
         "content": '{"results": ["A", "B"]}',
-        "name": "dummy_func",
+        "name": "search",
     },
 ]
 
 
-class TestTokenizeToolResponse:
-    """Test tokenize_tool_response across different models and tool call counts."""
+class TestTokenizeToolResponses:
+    """Test tokenize_tool_responses across different models and tool call counts."""
 
     @pytest.mark.parametrize("num_tools", [1, 2])
     @pytest.mark.parametrize("model_name", TOOL_CALL_MODELS)
-    def test_tokenize_tool_response(self, model_name, num_tools):
+    def test_tokenize_tool_responses(self, model_name, num_tools):
         from transformers import AutoTokenizer
 
         tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
 
-        tool_responses = [SINGLE_TOOL_RESPONSE] if num_tools == 1 else DOUBLE_TOOL_RESPONSES
+        tool_responses = SINGLE_TOOL_RESPONSES if num_tools == 1 else DOUBLE_TOOL_RESPONSES
 
-        for tool_response in tool_responses:
-            token_ids = tokenize_tool_response(tool_response, tokenizer)
+        token_ids_list = tokenize_tool_responses(tool_responses, tokenizer)
+
+        assert len(token_ids_list) == len(tool_responses)
+
+        dummy_assistant = _build_dummy_assistant(tool_responses)
+        base_messages = [DUMMY_USER, dummy_assistant]
+
+        for i, (token_ids, tool_response) in enumerate(zip(token_ids_list, tool_responses)):
             decoded_str = tokenizer.decode(token_ids)
 
-            messages_without_tool = [DUMMY_USER, DUMMY_ASSISTANT]
-            messages_with_tool = [DUMMY_USER, DUMMY_ASSISTANT, tool_response]
+            messages_without = base_messages + tool_responses[:i]
+            messages_with = base_messages + tool_responses[: i + 1]
 
-            text_with_tool = tokenizer.apply_chat_template(
-                messages_with_tool, tokenize=False, add_generation_prompt=False
+            text_with = tokenizer.apply_chat_template(
+                messages_with, tokenize=False, add_generation_prompt=False
             )
-            text_without_tool = tokenizer.apply_chat_template(
-                messages_without_tool, tokenize=False, add_generation_prompt=False
+            text_without = tokenizer.apply_chat_template(
+                messages_without, tokenize=False, add_generation_prompt=False
             )
 
-            expected_str = text_with_tool[len(text_without_tool):]
+            expected_str = text_with[len(text_without):]
 
-            assert decoded_str == expected_str
+            assert decoded_str == expected_str, (
+                f"Mismatch for {model_name} tool {i}:\n"
+                f"  decoded  = {repr(decoded_str)}\n"
+                f"  expected = {repr(expected_str)}"
+            )
