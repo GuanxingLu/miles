@@ -2,9 +2,9 @@ import pytest
 from pydantic import TypeAdapter
 
 from miles.rollout.generate_hub.tool_call_utils import (
-    DUMMY_ASSISTANT,
     DUMMY_USER,
-    tokenize_tool_response,
+    _build_dummy_assistant,
+    tokenize_tool_responses,
 )
 from sglang.srt.entrypoints.openai.protocol import Tool
 from sglang.srt.function_call.core_types import ToolCallItem
