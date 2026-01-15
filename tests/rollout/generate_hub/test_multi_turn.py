@@ -1,6 +1,6 @@
 import pytest
 
-from sglang.srt.entrypoints.openai.protocol import Function, Tool
+from sglang.srt.entrypoints.openai.protocol import Tool
 from sglang.srt.function_call.core_types import ToolCallItem
 from sglang.srt.function_call.function_call_parser import FunctionCallParser
 
@@ -37,12 +37,11 @@ SAMPLE_TOOLS = [
 
 
 def to_pydantic_tools(tools: list[dict]) -> list[Tool]:
-    return [Tool(type=t["type"], function=Function(**t["function"])) for t in tools]
+    return [Tool.model_validate(t) for t in tools]
 
 
 class TestApplyChatTemplateWithTools:
     def test_apply_chat_template_includes_tools(self):
-        """Verify that apply_chat_template with tools produces a prompt containing tool info."""
         from transformers import AutoTokenizer
 
         tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3-0.6B", trust_remote_code=True)
