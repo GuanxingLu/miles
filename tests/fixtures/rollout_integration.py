@@ -2,6 +2,7 @@ import json
 from argparse import Namespace
 from collections.abc import Iterator
 from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 from unittest.mock import patch
 
@@ -14,8 +15,15 @@ from miles.router.router import MilesRouter
 from miles.utils.arguments import parse_args
 from miles.utils.http_utils import find_available_port, init_http_client
 from miles.utils.misc import SingletonMeta
-from miles.utils.test_utils.mock_sglang_server import with_mock_server
+from miles.utils.test_utils.mock_sglang_server import MockSGLangServer, with_mock_server
 from miles.utils.test_utils.uvicorn_thread_server import UvicornThreadServer
+
+
+@dataclass
+class IntegrationEnvConfig:
+    extra_argv: list[str] | None = None
+    data_rows: list[dict] | None = None
+    latency: float = 0.0
 
 
 def _build_args(*, data_path: str, router_port: int, extra_argv: list[str] | None = None) -> Namespace:
@@ -80,48 +88,34 @@ def _cleanup_legacy_singleton():
     SingletonMeta._instances.pop(GenerateState, None)
 
 
-@pytest.fixture
-def rollout_integration_env(tmp_path, request):
-    extra_argv = request.param
-    assert isinstance(extra_argv, list)
+_DEFAULT_DATA_ROWS = [{"input": "What is 1+7?", "label": "8"}]
 
-    data_path = str(tmp_path / "data.jsonl")
-    _write_jsonl(data_path, [{"input": "What is 1+7?", "label": "8"}])
 
-    router_port = find_available_port(20000)
-    args = _build_args(data_path=data_path, router_port=router_port, extra_argv=extra_argv)
-
-    _cleanup_legacy_singleton()
-
-    with with_mock_server(model_name=args.hf_checkpoint) as mock_server:
-        with _with_miles_router(args) as router_server:
-            r = requests.post(
-                f"{router_server.url}/add_worker",
-                params={"url": mock_server.url},
-                timeout=5.0,
-            )
-            r.raise_for_status()
-
-            data_source = RolloutDataSourceWithBuffer(args)
-            yield args, data_source
-
-    _cleanup_legacy_singleton()
+def _parse_fixture_param(param) -> IntegrationEnvConfig:
+    if isinstance(param, IntegrationEnvConfig):
+        return param
+    if isinstance(param, list):
+        return IntegrationEnvConfig(extra_argv=param)
+    if isinstance(param, tuple):
+        extra_argv, data_rows, latency = param
+        return IntegrationEnvConfig(extra_argv=extra_argv, data_rows=data_rows, latency=latency)
+    raise TypeError(f"Unsupported param type: {type(param)}")
 
 
 @pytest.fixture
-def rollout_integration_env_with_server(tmp_path, request):
-    extra_argv, data_rows, latency = request.param
-    assert isinstance(extra_argv, list)
+def rollout_integration_env(tmp_path, request) -> tuple[Namespace, RolloutDataSourceWithBuffer, MockSGLangServer]:
+    config = _parse_fixture_param(request.param)
+    data_rows = config.data_rows or _DEFAULT_DATA_ROWS
 
     data_path = str(tmp_path / "data.jsonl")
     _write_jsonl(data_path, data_rows)
 
     router_port = find_available_port(20000)
-    args = _build_args(data_path=data_path, router_port=router_port, extra_argv=extra_argv)
+    args = _build_args(data_path=data_path, router_port=router_port, extra_argv=config.extra_argv)
 
     _cleanup_legacy_singleton()
 
-    with with_mock_server(model_name=args.hf_checkpoint, latency=latency) as mock_server:
+    with with_mock_server(model_name=args.hf_checkpoint, latency=config.latency) as mock_server:
         with _with_miles_router(args) as router_server:
             r = requests.post(
                 f"{router_server.url}/add_worker",

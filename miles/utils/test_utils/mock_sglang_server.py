@@ -21,6 +21,30 @@ class ProcessResult:
 ProcessFn = Callable[[str], ProcessResult]
 
 
+class ConcurrencyCounter:
+    def __init__(self):
+        self._current = 0
+        self._max = 0
+        self._lock = asyncio.Lock()
+
+    @property
+    def max_value(self) -> int:
+        return self._max
+
+    def reset(self):
+        self._current = 0
+        self._max = 0
+
+    async def increment(self):
+        async with self._lock:
+            self._current += 1
+            self._max = max(self._max, self._current)
+
+    async def decrement(self):
+        async with self._lock:
+            self._current -= 1
+
+
 class MockSGLangServer:
     def __init__(
         self,
@@ -40,20 +64,17 @@ class MockSGLangServer:
         self._server: UvicornThreadServer | None = None
 
         self.request_log: list[dict] = []
-        self._current_concurrent = 0
-        self._max_concurrent = 0
-        self._lock = asyncio.Lock()
+        self._concurrency = ConcurrencyCounter()
 
         self._setup_routes()
 
     @property
     def max_concurrent(self) -> int:
-        return self._max_concurrent
+        return self._concurrency.max_value
 
     def reset_stats(self):
         self.request_log.clear()
-        self._current_concurrent = 0
-        self._max_concurrent = 0
+        self._concurrency.reset()
 
     def _setup_routes(self):
         @self.app.post("/generate")
@@ -61,10 +82,7 @@ class MockSGLangServer:
             payload = await request.json()
             self.request_log.append(payload)
 
-            async with self._lock:
-                self._current_concurrent += 1
-                self._max_concurrent = max(self._max_concurrent, self._current_concurrent)
-
+            await self._concurrency.increment()
             try:
                 if self.latency > 0:
                     await asyncio.sleep(self.latency)
@@ -98,8 +116,7 @@ class MockSGLangServer:
 
                 return JSONResponse(content=response)
             finally:
-                async with self._lock:
-                    self._current_concurrent -= 1
+                await self._concurrency.decrement()
 
         @self.app.get("/health")
         async def health():
