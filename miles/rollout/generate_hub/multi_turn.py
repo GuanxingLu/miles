@@ -1,4 +1,3 @@
-import re
 from typing import Any
 
 from miles.rollout.sglang_rollout import GenerateState
@@ -10,7 +9,7 @@ TOOL_TEMPLATE = "..."
 
 
 def format_conversation_with_tools(
-        prompt: str, tools: list[dict[str, Any]] = None, system_prompt: str = None, messages: list[dict[str, Any]] = None
+    prompt: str, tools: list[dict[str, Any]] = None, system_prompt: str = None, messages: list[dict[str, Any]] = None
 ) -> str:
     return TODO
 
