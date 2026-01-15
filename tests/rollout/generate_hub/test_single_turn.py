@@ -4,6 +4,7 @@ from typing import Any
 from unittest.mock import patch
 
 import numpy as np
+import pybase64
 import pytest
 import torch
 from PIL import Image
@@ -311,8 +312,9 @@ class TestRoutedExperts:
 
         env.args.num_layers = num_layers
         env.args.moe_router_topk = moe_router_topk
+        routed_experts_str = pybase64.b64encode(routed_experts_array.tobytes()).decode("ascii")
         env.mock_server.process_fn = lambda _: ProcessResult(
-            text=RESPONSE_TEXT, finish_reason="stop", routed_experts=routed_experts_array.tobytes()
+            text=RESPONSE_TEXT, finish_reason="stop", meta_info=ProcessResultMetaInfo(routed_experts=routed_experts_str)
         )
 
         result = run_generate(variant, env)
