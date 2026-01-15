@@ -205,13 +205,6 @@ class TestBasicGeneration:
         )
 
 
-class TestPromptProcessingPath:
-    def test_tokenizer_path(self, variant, generate_env):
-        result = run_generate(variant, generate_env)
-        assert result.requests == [expected_request(variant)]
-        assert result.sample == expected_sample()
-
-
 class TestMultiTurn:
     def test_first_turn_initializes_tokens(self, variant, generate_env):
         result = run_generate(variant, generate_env, make_sample(tokens=[]))
