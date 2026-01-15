@@ -65,6 +65,14 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
 
     output = await post(url, payload)
 
+    await _fill_sample_with_response(args, sample, output)
+    sample.rollout_routed_experts = _get_rollout_routed_experts_from_response(args, sample, output)
+    sample.update_from_meta_info(args, output["meta_info"])
+
+    return GenerateFnOutput(samples=sample)
+
+
+async def _fill_sample_with_response(args, sample, output):
     if args.use_miles_router and "RadixTreeMiddleware" in args.miles_router_middleware_paths:
         from miles.router.middleware_hub.radix_tree_middleware import postprocess_sample_with_radix_tree
 
@@ -85,13 +93,8 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
             sample.rollout_log_probs = []
         sample.rollout_log_probs += new_response_log_probs
 
-    sample.rollout_routed_experts = _get_rollout_routed_experts_from_output(args, sample, output)
-    sample.update_from_meta_info(args, output["meta_info"])
 
-    return GenerateFnOutput(samples=sample)
-
-
-def _get_rollout_routed_experts_from_output(args, sample, output):
+def _get_rollout_routed_experts_from_response(args, sample, output):
     info = output["meta_info"].get("routed_experts")
     if info is None:
         return None
