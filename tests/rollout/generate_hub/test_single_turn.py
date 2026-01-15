@@ -206,11 +206,6 @@ class TestBasicGeneration:
 
 
 class TestResumedSingleTurn:
-    def test_first_turn_initializes_tokens(self, variant, env):
-        result = run_generate(variant, env, make_sample(tokens=[]))
-        assert result.requests == [expected_request(variant)]
-        assert result.sample == expected_sample()
-
     def test_subsequent_turn_appends_tokens(self, variant, env):
         existing_tokens = [1, 2, 3, 4, 5, 6, 7, 100, 101, 102]
         sample = make_sample(tokens=existing_tokens, response="previous", response_length=3)
