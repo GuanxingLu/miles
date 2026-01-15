@@ -134,5 +134,8 @@ def test_counter_concurrent_tasks():
         with counter.track():
             await asyncio.sleep(0.1)
 
-    asyncio.run(asyncio.gather(task(), task(), task()))
+    async def run_all():
+        await asyncio.gather(task(), task(), task())
+
+    asyncio.run(run_all())
     assert counter.max_value == 3
