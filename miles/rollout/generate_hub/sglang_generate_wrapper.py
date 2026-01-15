@@ -49,7 +49,7 @@ async def _compute_prompt_ids(state, sample):
         return state.tokenizer.encode(sample.prompt, add_special_tokens=False)
 
 
-async def update_sample_from_response(args, sample, payload, output):
+async def update_sample_from_response(args, sample: Sample, payload: dict, output: dict):
     # Initialize sample.tokens for the first turn
     if (len(sample.response) == 0) and not sample.tokens:
         sample.tokens = payload["input_ids"]
