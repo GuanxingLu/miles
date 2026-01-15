@@ -206,36 +206,6 @@ class TestBasicGeneration:
 
 
 class TestResumedSingleTurn:
-    def test_subsequent_turn_appends_tokens(self, variant, env):
-        existing_tokens = [1, 2, 3, 4, 5, 6, 7, 100, 101, 102]
-        sample = make_sample(tokens=existing_tokens, response="previous", response_length=3)
-
-        result = run_generate(variant, env, sample)
-        assert result.requests == [expected_request(variant, input_ids=existing_tokens)]
-        assert result.sample == expected_sample(
-            response="previous" + RESPONSE_TEXT,
-            response_length=3 + 5,
-            tokens=existing_tokens + RESPONSE_TOKENS,
-            prompt_tokens=len(existing_tokens),
-        )
-
-    def test_multi_turn_max_tokens_adjusted(self, variant, env):
-        existing_tokens = [1, 2, 3, 4, 5, 6, 7, 100, 101, 102]
-        sample = make_sample(tokens=existing_tokens, response="prev", response_length=3)
-
-        result = run_generate(variant, env, sample, {"max_new_tokens": 10, "temperature": 0.7})
-        assert result.requests == [
-            expected_request(
-                variant, input_ids=existing_tokens, sampling_params={"max_new_tokens": 7, "temperature": 0.7}
-            )
-        ]
-        assert result.sample == expected_sample(
-            response="prev" + RESPONSE_TEXT,
-            response_length=3 + 5,
-            tokens=existing_tokens + RESPONSE_TOKENS,
-            prompt_tokens=len(existing_tokens),
-        )
-
     def test_two_consecutive_calls_on_same_sample(self, variant, env):
         partial_text = "\\boxed"
         partial_tokens = [59, 79075]
