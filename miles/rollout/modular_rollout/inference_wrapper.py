@@ -9,7 +9,6 @@ from miles.utils.types import Sample
 
 async def generate(input: GenerateFnInput) -> GenerateFnOutput:
     """Generate using traditional SGLang router with token-based workflow"""
-    state = input.state
     args = input.args
     sample = input.sample
 
@@ -17,7 +16,7 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
 
     assert sample.status in {Sample.Status.PENDING, Sample.Status.ABORTED}, f"{sample.status=}"
 
-    prompt_ids = await _compute_prompt_ids(sample, state)
+    prompt_ids = await _compute_prompt_ids(sample, input.state)
     payload = await _compute_request_payload(args, prompt_ids, sample, input.sampling_params)
 
     if payload["sampling_params"]["max_new_tokens"] == 0:
@@ -41,8 +40,8 @@ async def _compute_prompt_ids(sample, state):
         prompt_ids = processor_output["input_ids"][0]
         # TODO shall we put it here?
         sample.multimodal_train_inputs = {
-                                             k: v for k, v in processor_output.items() if k not in ["input_ids", "attention_mask"]
-                                         } or None
+            k: v for k, v in processor_output.items() if k not in ["input_ids", "attention_mask"]
+        } or None
     else:
         prompt_ids = state.tokenizer.encode(sample.prompt, add_special_tokens=False)
     return prompt_ids
