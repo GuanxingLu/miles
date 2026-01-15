@@ -35,15 +35,19 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
     return GenerateFnOutput(samples=sample)
 
 
-async def _compute_request_payload(args, prompt_ids, sample, sampling_params):
+async def _compute_request_payload(args, prompt_ids, sample, sampling_params: dict):
+    max_new_tokens = sampling_params.pop("max_new_tokens")
     if len(sample.response) > 0:
-        sampling_params["max_new_tokens"] -= len(sample.tokens) - len(prompt_ids)
+        max_new_tokens -= len(sample.tokens) - len(prompt_ids)
 
     # Prepare payload for sglang server
     payload = {
         # Use existing tokens for multi-turn or tokenize the new prompt
         "input_ids": sample.tokens if len(sample.response) > 0 else prompt_ids,
-        "sampling_params": sampling_params,
+        "sampling_params": {
+            **sampling_params,
+            "max_new_tokens": max_new_tokens,
+        },
         "return_logprob": True,
         "return_routed_experts": args.use_rollout_routing_replay,
     }
