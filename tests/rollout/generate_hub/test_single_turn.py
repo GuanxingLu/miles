@@ -152,14 +152,16 @@ class GenerateResult:
 def generate_env(request):
     SingletonMeta.clear_all_instances()
     params = getattr(request, "param", {})
-    pfk = params.get("process_fn_kwargs", {})
-    process_fn = lambda _: ProcessResult(
-        text=pfk.get("response_text", RESPONSE_TEXT),
-        finish_reason=pfk.get("finish_reason", "stop"),
-        cached_tokens=pfk.get("cached_tokens", 0),
-        weight_version=pfk.get("weight_version"),
-        routed_experts=pfk.get("routed_experts"),
-    )
+
+    def process_fn(_):
+        x = params.get("process_fn_kwargs", {})
+        return ProcessResult(
+            text=x.get("response_text", RESPONSE_TEXT),
+            finish_reason=x.get("finish_reason", "stop"),
+            cached_tokens=x.get("cached_tokens", 0),
+            weight_version=x.get("weight_version"),
+            routed_experts=x.get("routed_experts"),
+        )
 
     with with_mock_server(model_name=MODEL_NAME, process_fn=process_fn) as mock_server:
         args = make_args(router_port=mock_server.port, **params.get("args_kwargs", {}))
