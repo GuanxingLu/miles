@@ -263,16 +263,6 @@ class TestResumedSingleTurn:
         )
 
 
-class TestBoundaryConditions:
-    def test_max_new_tokens_zero_returns_truncated(self, variant, env):
-        existing_tokens = [1, 2, 3, 4, 5, 6, 7] + list(range(100, 110))
-        sample = make_sample(tokens=existing_tokens, response="x" * 10, response_length=10)
-
-        result = run_generate(variant, env, sample, {"max_new_tokens": 10, "temperature": 0.7})
-        assert result.requests == []
-        assert result.sample.status == Sample.Status.TRUNCATED
-
-
 class TestFinishReason:
     @pytest.mark.parametrize(
         "env,expected_status",
@@ -347,12 +337,11 @@ class TestMetaInfo:
     def test_spec_info_updated(self, variant, env):
         result = run_generate(variant, env)
         assert result.requests == [expected_request(variant)]
-        expected_spec_info = Sample.SpecInfo()
-        expected_spec_info.spec_accept_token_num = 10
-        expected_spec_info.spec_draft_token_num = 15
-        expected_spec_info.spec_verify_ct = 3
-        expected_spec_info.completion_token_num = 5
-        assert result.sample == expected_sample(spec_info=expected_spec_info)
+        assert result.sample == expected_sample(
+            spec_info=Sample.SpecInfo(
+                spec_accept_token_num=10, spec_draft_token_num=15, spec_verify_ct=3, completion_token_num=5
+            )
+        )
 
 
 class TestInputStatusValidation:
@@ -375,6 +364,16 @@ class TestPayloadStructure:
             expected_request(variant, sampling_params={"max_new_tokens": 16, "temperature": 0.5, "top_p": 0.9})
         ]
         assert result.sample == expected_sample()
+
+
+class TestBoundaryConditions:
+    def test_max_new_tokens_zero_returns_truncated(self, variant, env):
+        existing_tokens = [1, 2, 3, 4, 5, 6, 7] + list(range(100, 110))
+        sample = make_sample(tokens=existing_tokens, response="x" * 10, response_length=10)
+
+        result = run_generate(variant, env, sample, {"max_new_tokens": 10, "temperature": 0.7})
+        assert result.requests == []
+        assert result.sample.status == Sample.Status.TRUNCATED
 
 
 class TestEmptyResponse:
