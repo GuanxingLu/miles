@@ -14,8 +14,8 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
 
     url = f"http://{args.sglang_router_ip}:{args.sglang_router_port}/generate"
 
-    prompt_ids = await _compute_prompt_ids(sample, input.state)
-    payload = await _compute_request_payload(args, prompt_ids, sample, input.sampling_params)
+    prompt_ids = await compute_prompt_ids(sample, input.state)
+    payload = await compute_request_payload(args, prompt_ids, sample, input.sampling_params)
 
     if payload["sampling_params"]["max_new_tokens"] == 0:
         sample.status = Sample.Status.TRUNCATED
@@ -27,12 +27,12 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
 
     output = await post(url, payload)
 
-    await _fill_sample_by_response(args, sample, output)
+    await fill_sample_by_response(args, sample, output)
 
     return GenerateFnOutput(samples=sample)
 
 
-async def _compute_prompt_ids(sample, state):
+async def compute_prompt_ids(sample, state):
     if state.processor:
         processor_output = state.processor(text=sample.prompt, **sample.multimodal_inputs)
         prompt_ids = processor_output["input_ids"][0]
@@ -45,7 +45,7 @@ async def _compute_prompt_ids(sample, state):
     return prompt_ids
 
 
-async def _compute_request_payload(args, prompt_ids, sample, sampling_params: dict):
+async def compute_request_payload(args, prompt_ids, sample, sampling_params: dict):
     assert sample.status in {Sample.Status.PENDING, Sample.Status.ABORTED}, f"{sample.status=}"
 
     max_new_tokens = sampling_params.pop("max_new_tokens")
@@ -71,7 +71,7 @@ async def _compute_request_payload(args, prompt_ids, sample, sampling_params: di
     return payload
 
 
-async def _fill_sample_by_response(args, sample, output):
+async def fill_sample_by_response(args, sample, output):
     if args.use_miles_router and "RadixTreeMiddleware" in args.miles_router_middleware_paths:
         from miles.router.middleware_hub.radix_tree_middleware import postprocess_sample_with_radix_tree
 
