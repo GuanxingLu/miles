@@ -36,7 +36,7 @@ async def _compute_prompt_ids(sample, state):
     if state.processor:
         processor_output = state.processor(text=sample.prompt, **sample.multimodal_inputs)
         prompt_ids = processor_output["input_ids"][0]
-        # TODO shall we put it here?
+        # TODO shall we move it to other places?
         sample.multimodal_train_inputs = {
             k: v for k, v in processor_output.items() if k not in ["input_ids", "attention_mask"]
         } or None
