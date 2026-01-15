@@ -26,10 +26,9 @@ RESPONSE_TEXT = "\\boxed{8}"
 RESPONSE_LOG_PROBS = [-0.0, -0.0078125, -0.015625, -0.0234375, -0.03125]
 DEFAULT_SAMPLING_PARAMS = {"max_new_tokens": 16, "temperature": 0.7}
 
-GENERATE_VARIANTS = [
-    pytest.param("sglang_rollout", id="sglang_rollout"),
-    pytest.param("modular_rollout", id="modular_rollout"),
-]
+@pytest.fixture(params=["sglang_rollout", "modular_rollout"])
+def variant(request):
+    return request.param
 
 
 def expected_request(
@@ -128,7 +127,7 @@ async def call_generate(variant: str, args: Namespace, sample: Sample, sampling_
         from miles.rollout.sglang_rollout import generate
 
         return await generate(args, sample, sampling_params.copy())
-    else:
+    elif variant == "modular_rollout":
         from miles.rollout.generate_hub.single_turn import generate
 
         state = GenerateState(args)
@@ -136,6 +135,8 @@ async def call_generate(variant: str, args: Namespace, sample: Sample, sampling_
             GenerateFnInput(state=state, sample=sample, sampling_params=sampling_params.copy(), evaluation=False)
         )
         return output.samples
+    else:
+        raise NotImplementedError
 
 
 @dataclass
@@ -190,14 +191,12 @@ def run_generate(variant: str, env: GenerateEnv, sample: Sample | None = None, s
 
 
 class TestBasicGeneration:
-    @pytest.mark.parametrize("variant", GENERATE_VARIANTS)
     def test_basic_generation(self, variant, generate_env):
         result = run_generate(variant, generate_env)
         assert result.requests == [expected_request(variant)]
         assert result.sample == expected_sample()
 
     @pytest.mark.parametrize("generate_env", [{"process_fn_kwargs": {"response_text": ""}}], indirect=True)
-    @pytest.mark.parametrize("variant", GENERATE_VARIANTS)
     def test_empty_response(self, variant, generate_env):
         result = run_generate(variant, generate_env)
         assert result.requests == [expected_request(variant)]
@@ -207,7 +206,6 @@ class TestBasicGeneration:
 
 
 class TestPromptProcessingPath:
-    @pytest.mark.parametrize("variant", GENERATE_VARIANTS)
     def test_tokenizer_path(self, variant, generate_env):
         result = run_generate(variant, generate_env)
         assert result.requests == [expected_request(variant)]
@@ -215,13 +213,11 @@ class TestPromptProcessingPath:
 
 
 class TestMultiTurn:
-    @pytest.mark.parametrize("variant", GENERATE_VARIANTS)
     def test_first_turn_initializes_tokens(self, variant, generate_env):
         result = run_generate(variant, generate_env, make_sample(tokens=[]))
         assert result.requests == [expected_request(variant)]
         assert result.sample == expected_sample()
 
-    @pytest.mark.parametrize("variant", GENERATE_VARIANTS)
     def test_subsequent_turn_appends_tokens(self, variant, generate_env):
         existing_tokens = [1, 2, 3, 4, 5, 6, 7, 100, 101, 102]
         sample = make_sample(tokens=existing_tokens, response="previous", response_length=3)
@@ -235,7 +231,6 @@ class TestMultiTurn:
             prompt_tokens=len(existing_tokens),
         )
 
-    @pytest.mark.parametrize("variant", GENERATE_VARIANTS)
     def test_multi_turn_max_tokens_adjusted(self, variant, generate_env):
         existing_tokens = [1, 2, 3, 4, 5, 6, 7, 100, 101, 102]
         sample = make_sample(tokens=existing_tokens, response="prev", response_length=3)
@@ -255,7 +250,6 @@ class TestMultiTurn:
 
 
 class TestBoundaryConditions:
-    @pytest.mark.parametrize("variant", GENERATE_VARIANTS)
     def test_max_new_tokens_zero_returns_truncated(self, variant, generate_env):
         existing_tokens = [1, 2, 3, 4, 5, 6, 7] + list(range(100, 110))
         sample = make_sample(tokens=existing_tokens, response="x" * 10, response_length=10)
@@ -267,21 +261,18 @@ class TestBoundaryConditions:
 
 class TestFinishReason:
     @pytest.mark.parametrize("generate_env", [{"process_fn_kwargs": {"finish_reason": "stop"}}], indirect=True)
-    @pytest.mark.parametrize("variant", GENERATE_VARIANTS)
     def test_finish_stop_sets_completed(self, variant, generate_env):
         result = run_generate(variant, generate_env)
         assert result.requests == [expected_request(variant)]
         assert result.sample == expected_sample(status=Sample.Status.COMPLETED)
 
     @pytest.mark.parametrize("generate_env", [{"process_fn_kwargs": {"finish_reason": "length"}}], indirect=True)
-    @pytest.mark.parametrize("variant", GENERATE_VARIANTS)
     def test_finish_length_sets_truncated(self, variant, generate_env):
         result = run_generate(variant, generate_env)
         assert result.requests == [expected_request(variant)]
         assert result.sample == expected_sample(status=Sample.Status.TRUNCATED)
 
     @pytest.mark.parametrize("generate_env", [{"process_fn_kwargs": {"finish_reason": "abort"}}], indirect=True)
-    @pytest.mark.parametrize("variant", GENERATE_VARIANTS)
     def test_finish_abort_sets_aborted(self, variant, generate_env):
         result = run_generate(variant, generate_env)
         assert result.requests == [expected_request(variant)]
@@ -329,7 +320,6 @@ class TestRoutedExperts:
 
 class TestMetaInfo:
     @pytest.mark.parametrize("generate_env", [{"process_fn_kwargs": {"cached_tokens": 3}}], indirect=True)
-    @pytest.mark.parametrize("variant", GENERATE_VARIANTS)
     def test_prefix_cache_info_updated(self, variant, generate_env):
         result = run_generate(variant, generate_env)
         assert result.requests == [expected_request(variant)]
