@@ -396,6 +396,7 @@ class TestMultimodal:
     def test_multimodal_inputs_processed(self, variant, env):
         import torch
         from PIL import Image
+        from transformers import AutoProcessor
 
         from miles.utils.processing_utils import encode_image_for_rollout_engine
 
@@ -420,13 +421,15 @@ class TestMultimodal:
                 image_data=[encode_image_for_rollout_engine(test_image)],
             )
         ]
+        processor = AutoProcessor.from_pretrained(VLM_MODEL_NAME, trust_remote_code=True)
+        expected_mti = {
+            k: v for k, v in processor(text=PROMPT, **multimodal_inputs).items() if k not in ["input_ids", "attention_mask"]
+        }
         mti = result.sample.multimodal_train_inputs
         assert mti is not None
-        assert set(mti.keys()) == {"pixel_values", "image_grid_thw"}
-        assert mti["pixel_values"].shape == torch.Size([16, 1176])
-        assert mti["pixel_values"].dtype == torch.float32
-        assert mti["image_grid_thw"].shape == torch.Size([1, 3])
-        assert mti["image_grid_thw"].dtype == torch.int64
+        assert set(mti.keys()) == set(expected_mti.keys())
+        assert torch.all(mti["pixel_values"] == expected_mti["pixel_values"])
+        assert torch.all(mti["image_grid_thw"] == expected_mti["image_grid_thw"])
         assert result.sample == expected_sample(
             tokens=PROMPT_TOKENS + RESPONSE_TOKENS,
             multimodal_inputs=multimodal_inputs,
