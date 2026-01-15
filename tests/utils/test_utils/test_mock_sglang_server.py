@@ -1,4 +1,6 @@
 import asyncio
+import concurrent.futures
+import time
 
 import pytest
 import requests
@@ -79,6 +81,64 @@ def test_default_process_fn():
     result = default_process_fn("Hello")
     assert result.text == "I don't understand."
     assert result.finish_reason == "stop"
+
+
+def test_request_log():
+    with with_mock_server() as server:
+        assert len(server.request_log) == 0
+
+        payload1 = {"input_ids": [1, 2, 3], "sampling_params": {"temperature": 0.5}, "return_logprob": True}
+        requests.post(f"{server.url}/generate", json=payload1, timeout=5.0)
+        assert len(server.request_log) == 1
+        assert server.request_log[0] == payload1
+
+        payload2 = {"input_ids": [4, 5, 6], "sampling_params": {"temperature": 0.9}, "return_logprob": True}
+        requests.post(f"{server.url}/generate", json=payload2, timeout=5.0)
+        assert len(server.request_log) == 2
+        assert server.request_log[1] == payload2
+
+
+def test_reset_stats():
+    with with_mock_server() as server:
+        requests.post(
+            f"{server.url}/generate",
+            json={"input_ids": [1], "sampling_params": {}, "return_logprob": True},
+            timeout=5.0,
+        )
+        assert len(server.request_log) == 1
+
+        server.reset_stats()
+        assert len(server.request_log) == 0
+        assert server.max_concurrent == 0
+
+
+def test_latency():
+    latency = 0.2
+    with with_mock_server(latency=latency) as server:
+        start = time.time()
+        requests.post(
+            f"{server.url}/generate",
+            json={"input_ids": [1], "sampling_params": {}, "return_logprob": True},
+            timeout=5.0,
+        )
+        elapsed = time.time() - start
+        assert elapsed >= latency
+
+
+def test_max_concurrent_with_latency():
+    with with_mock_server(latency=0.1) as server:
+        def send_request():
+            requests.post(
+                f"{server.url}/generate",
+                json={"input_ids": [1], "sampling_params": {}, "return_logprob": True},
+                timeout=5.0,
+            )
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+            futures = [executor.submit(send_request) for _ in range(3)]
+            concurrent.futures.wait(futures)
+
+        assert server.max_concurrent == 3
 
 
 @pytest.mark.asyncio
