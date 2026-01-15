@@ -220,9 +220,8 @@ class TestGroupRMIntegration:
         out = _load_and_call_train(env.args, env.data_source)
 
         assert len(out.samples) == env.args.rollout_batch_size
-        for group in out.samples:
-            for sample in group:
-                assert sample.reward is not None
+        rewards = [sample.reward for group in out.samples for sample in group]
+        assert all(r in (0, 1) for r in rewards)
 
 
 def _filter_by_reward(args, samples, **kwargs):
