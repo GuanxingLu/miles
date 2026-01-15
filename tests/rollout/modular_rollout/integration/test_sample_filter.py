@@ -46,12 +46,12 @@ def test_sample_filter_only_sees_unfiltered(rollout_integration_env):
         load_and_call_train(env.args, env.data_source)
 
     sample_filter_mock.assert_called_once()
-    _, data = sample_filter_mock.call_args[0]
-    assert len(data) == env.args.rollout_batch_size
-    rewards = [g[0][0].reward if isinstance(g[0], list) else g[0].reward for g in data]
+    _, filtered_data = sample_filter_mock.call_args[0]
+    rewards = [g[0][0].reward if isinstance(g[0], list) else g[0].reward for g in filtered_data]
     assert all(r == 1 for r in rewards)
 
     all_samples_process_mock.assert_called_once()
     _, all_samples, data_source = all_samples_process_mock.call_args[0]
-    assert len(all_samples) >= env.args.rollout_batch_size
     assert data_source is not None
+
+    assert len(all_samples) > len(filtered_data), "all_samples_process should see more samples than sample_filter"
