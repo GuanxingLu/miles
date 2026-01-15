@@ -92,14 +92,8 @@ _DEFAULT_DATA_ROWS = [{"input": "What is 1+7?", "label": "8"}]
 
 
 def _parse_fixture_param(param) -> IntegrationEnvConfig:
-    if isinstance(param, IntegrationEnvConfig):
-        return param
-    if isinstance(param, list):
-        return IntegrationEnvConfig(extra_argv=param)
-    if isinstance(param, tuple):
-        extra_argv, data_rows, latency = param
-        return IntegrationEnvConfig(extra_argv=extra_argv, data_rows=data_rows, latency=latency)
-    raise TypeError(f"Unsupported param type: {type(param)}")
+    assert isinstance(param, IntegrationEnvConfig), f"Expected IntegrationEnvConfig, got {type(param).__name__}"
+    return param
 
 
 @pytest.fixture
