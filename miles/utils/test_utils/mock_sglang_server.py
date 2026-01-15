@@ -16,6 +16,9 @@ from miles.utils.test_utils.uvicorn_thread_server import UvicornThreadServer
 class ProcessResult:
     text: str
     finish_reason: str
+    cached_tokens: int = 0
+    weight_version: str | None = None
+    routed_experts: bytes | None = None
 
 
 ProcessFn = Callable[[str], ProcessResult]
@@ -78,15 +81,22 @@ class MockSGLangServer:
 
                 output_token_logprobs = [(-1 / 128 * i, token_id) for i, token_id in enumerate(output_ids)]
 
+                meta_info = {
+                    "finish_reason": finish_reason_dict,
+                    "prompt_tokens": prompt_tokens,
+                    "cached_tokens": process_result.cached_tokens,
+                    "completion_tokens": completion_tokens,
+                    "output_token_logprobs": output_token_logprobs,
+                }
+                if process_result.weight_version is not None:
+                    meta_info["weight_version"] = process_result.weight_version
+                if process_result.routed_experts is not None:
+                    import pybase64
+                    meta_info["routed_experts"] = pybase64.b64encode(process_result.routed_experts).decode("ascii")
+
                 response = {
                     "text": process_result.text,
-                    "meta_info": {
-                        "finish_reason": finish_reason_dict,
-                        "prompt_tokens": prompt_tokens,
-                        "cached_tokens": 0,
-                        "completion_tokens": completion_tokens,
-                        "output_token_logprobs": output_token_logprobs,
-                    },
+                    "meta_info": meta_info,
                 }
 
                 return JSONResponse(content=response)
