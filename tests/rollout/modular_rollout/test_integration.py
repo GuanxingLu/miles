@@ -51,40 +51,6 @@ _MODULAR_ROLLOUT_BASE_ARGV = [
     "miles.rollout.modular_rollout.inference_wrapper.generate",
 ]
 
-_ROLLOUT_ARGV_VARIANTS = [
-    pytest.param(
-        IntegrationEnvConfig(
-            extra_argv=[
-                "--rollout-function-path",
-                "miles.rollout.sglang_rollout.generate_rollout",
-                "--eval-function-path",
-                "miles.rollout.sglang_rollout.generate_rollout",
-                "--custom-generate-function-path",
-                "miles.rollout.sglang_rollout.generate",
-            ]
-        ),
-        id="old_rollout_old_generate",
-    ),
-    pytest.param(
-        IntegrationEnvConfig(
-            extra_argv=[
-                "--rollout-function-path",
-                "miles.rollout.modular_rollout.orchestration_train.SimpleTrainRolloutFn",
-                "--eval-function-path",
-                "miles.rollout.modular_rollout.orchestration_eval.SimpleEvalRolloutFn",
-                "--custom-generate-function-path",
-                "miles.rollout.sglang_rollout.generate",
-            ]
-        ),
-        id="new_rollout_old_generate",
-    ),
-    pytest.param(
-        IntegrationEnvConfig(extra_argv=_MODULAR_ROLLOUT_BASE_ARGV),
-        id="new_rollout_new_generate",
-    ),
-]
-
-
 def _load_and_call_train(args, data_source):
     fn = load_rollout_function(
         RolloutFnConstructorInput(args=args, data_source=data_source),
@@ -94,7 +60,40 @@ def _load_and_call_train(args, data_source):
 
 
 class TestSimpleRolloutFnIntegration:
-    @pytest.mark.parametrize("rollout_integration_env", _ROLLOUT_ARGV_VARIANTS, indirect=True)
+    _VARIANTS = [
+        pytest.param(
+            IntegrationEnvConfig(
+                extra_argv=[
+                    "--rollout-function-path",
+                    "miles.rollout.sglang_rollout.generate_rollout",
+                    "--eval-function-path",
+                    "miles.rollout.sglang_rollout.generate_rollout",
+                    "--custom-generate-function-path",
+                    "miles.rollout.sglang_rollout.generate",
+                ]
+            ),
+            id="old_rollout_old_generate",
+        ),
+        pytest.param(
+            IntegrationEnvConfig(
+                extra_argv=[
+                    "--rollout-function-path",
+                    "miles.rollout.modular_rollout.orchestration_train.SimpleTrainRolloutFn",
+                    "--eval-function-path",
+                    "miles.rollout.modular_rollout.orchestration_eval.SimpleEvalRolloutFn",
+                    "--custom-generate-function-path",
+                    "miles.rollout.sglang_rollout.generate",
+                ]
+            ),
+            id="new_rollout_old_generate",
+        ),
+        pytest.param(
+            IntegrationEnvConfig(extra_argv=_MODULAR_ROLLOUT_BASE_ARGV),
+            id="new_rollout_new_generate",
+        ),
+    ]
+
+    @pytest.mark.parametrize("rollout_integration_env", _VARIANTS, indirect=True)
     def test_train(self, rollout_integration_env):
         env = rollout_integration_env
         out = _load_and_call_train(env.args, env.data_source)
@@ -104,7 +103,7 @@ class TestSimpleRolloutFnIntegration:
         assert len(group) == env.args.n_samples_per_prompt
         assert group[0] == _expected_sample(group_index=0)
 
-    @pytest.mark.parametrize("rollout_integration_env", _ROLLOUT_ARGV_VARIANTS, indirect=True)
+    @pytest.mark.parametrize("rollout_integration_env", _VARIANTS, indirect=True)
     def test_eval(self, rollout_integration_env):
         env = rollout_integration_env
         fn = load_rollout_function(
