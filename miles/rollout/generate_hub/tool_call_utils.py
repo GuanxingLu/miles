@@ -1,28 +1,29 @@
 from typing import Any
 
 
+DUMMY_USER = {"role": "user", "content": "dummy"}
+DUMMY_ASSISTANT = {
+    "role": "assistant",
+    "content": None,
+    "tool_calls": [
+        {
+            "id": "call_dummy",
+            "type": "function",
+            "function": {
+                "name": "dummy_func",
+                "arguments": "{}",
+            },
+        }
+    ],
+}
+
+
 def tokenize_tool_response(
     message: dict[str, Any],
     tokenizer,
 ) -> list[int]:
-    dummy_user = {"role": "user", "content": "dummy"}
-    dummy_assistant = {
-        "role": "assistant",
-        "content": None,
-        "tool_calls": [
-            {
-                "id": message.get("tool_call_id", "call_dummy"),
-                "type": "function",
-                "function": {
-                    "name": message.get("name", "dummy_func"),
-                    "arguments": "{}",
-                },
-            }
-        ],
-    }
-
-    messages_with_tool = [dummy_user, dummy_assistant, message]
-    messages_without_tool = [dummy_user, dummy_assistant]
+    messages_with_tool = [DUMMY_USER, DUMMY_ASSISTANT, message]
+    messages_without_tool = [DUMMY_USER, DUMMY_ASSISTANT]
 
     tokens_with_tool = tokenizer.apply_chat_template(
         messages_with_tool, tokenize=True, add_generation_prompt=False

@@ -158,46 +158,42 @@ class TestSGLangFunctionCallParser:
 
 SINGLE_TOOL_RESPONSE = {
     "role": "tool",
-    "tool_call_id": "call_001",
+    "tool_call_id": "call_dummy",
     "content": '{"temperature": 25}',
-    "name": "get_weather",
+    "name": "dummy_func",
 }
 
 DOUBLE_TOOL_RESPONSES = [
     {
         "role": "tool",
-        "tool_call_id": "call_001",
+        "tool_call_id": "call_dummy",
         "content": '{"temperature": 25}',
-        "name": "get_weather",
+        "name": "dummy_func",
     },
     {
         "role": "tool",
-        "tool_call_id": "call_002",
+        "tool_call_id": "call_dummy",
         "content": '{"results": ["A", "B"]}',
-        "name": "search",
+        "name": "dummy_func",
     },
 ]
 
 
-def _build_messages_for_tool_response(tool_response: dict):
-    """Build base messages (user + assistant with tool_calls) for a tool response."""
-    return [
-        {"role": "user", "content": "dummy"},
+DUMMY_USER = {"role": "user", "content": "dummy"}
+DUMMY_ASSISTANT = {
+    "role": "assistant",
+    "content": None,
+    "tool_calls": [
         {
-            "role": "assistant",
-            "content": None,
-            "tool_calls": [
-                {
-                    "id": tool_response.get("tool_call_id", "call_dummy"),
-                    "type": "function",
-                    "function": {
-                        "name": tool_response.get("name", "dummy_func"),
-                        "arguments": "{}",
-                    },
-                }
-            ],
-        },
-    ]
+            "id": "call_dummy",
+            "type": "function",
+            "function": {
+                "name": "dummy_func",
+                "arguments": "{}",
+            },
+        }
+    ],
+}
 
 
 def _get_test_params():
@@ -224,8 +220,8 @@ class TestTokenizeToolResponse:
             token_ids = tokenize_tool_response(tool_response, tokenizer)
             decoded_str = tokenizer.decode(token_ids)
 
-            messages_without_tool = _build_messages_for_tool_response(tool_response)
-            messages_with_tool = messages_without_tool + [tool_response]
+            messages_without_tool = [DUMMY_USER, DUMMY_ASSISTANT]
+            messages_with_tool = [DUMMY_USER, DUMMY_ASSISTANT, tool_response]
 
             text_with_tool = tokenizer.apply_chat_template(
                 messages_with_tool, tokenize=False, add_generation_prompt=False
