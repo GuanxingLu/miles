@@ -5,7 +5,13 @@ import time
 import pytest
 import requests
 
-from miles.utils.test_utils.mock_sglang_server import Counter, ProcessResult, default_process_fn, with_mock_server
+from miles.utils.test_utils.mock_sglang_server import (
+    Counter,
+    ProcessResult,
+    ProcessResultMetaInfo,
+    default_process_fn,
+    with_mock_server,
+)
 
 
 @pytest.fixture(scope="module")
@@ -72,6 +78,24 @@ def test_default_process_fn():
     assert default_process_fn("What is 1+5?") == ProcessResult(text="\\boxed{6}", finish_reason="stop")
     assert default_process_fn("What is 1+10?") == ProcessResult(text="\\boxed{11}", finish_reason="stop")
     assert default_process_fn("Hello") == ProcessResult(text="I don't understand.", finish_reason="stop")
+
+
+def test_process_result_meta_info_to_dict():
+    assert ProcessResultMetaInfo().to_dict() == {}
+    assert ProcessResultMetaInfo(weight_version="v1").to_dict() == {"weight_version": "v1"}
+    assert ProcessResultMetaInfo(weight_version="v1", spec_accept_token_num=10).to_dict() == {
+        "weight_version": "v1",
+        "spec_accept_token_num": 10,
+    }
+    assert ProcessResultMetaInfo(
+        weight_version="v1", routed_experts="abc", spec_accept_token_num=10, spec_draft_token_num=15, spec_verify_ct=3
+    ).to_dict() == {
+        "weight_version": "v1",
+        "routed_experts": "abc",
+        "spec_accept_token_num": 10,
+        "spec_draft_token_num": 15,
+        "spec_verify_ct": 3,
+    }
 
 
 def test_request_log_and_reset_stats(mock_server):
