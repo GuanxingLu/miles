@@ -41,7 +41,10 @@ async def compute_request_payload(args, prompt_ids, sample, sampling_params: dic
 
     assert payload["sampling_params"]["max_new_tokens"] >= 0
 
-    return payload
+    if payload["sampling_params"]["max_new_tokens"] == 0:
+        return None, Sample.Status.TRUNCATED
+
+    return payload, None
 
 
 async def update_sample_from_response(args, sample, prompt_ids, output):

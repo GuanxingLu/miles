@@ -16,10 +16,10 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
     url = f"http://{args.sglang_router_ip}:{args.sglang_router_port}/generate"
 
     prompt_ids = await compute_prompt_ids(sample, input.state)
-    payload = await compute_request_payload(args, prompt_ids, sample, input.sampling_params)
+    payload, status = await compute_request_payload(args, prompt_ids, sample, input.sampling_params)
 
-    if payload["sampling_params"]["max_new_tokens"] == 0:
-        sample.status = Sample.Status.TRUNCATED
+    if payload is None:
+        sample.status = status
         return GenerateFnOutput(samples=sample)
 
     output = await post(url, payload)
