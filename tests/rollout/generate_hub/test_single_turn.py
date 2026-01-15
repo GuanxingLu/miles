@@ -93,6 +93,8 @@ def make_args(*, router_port: int, use_rollout_routing_replay: bool = False) -> 
         "fsdp",
         "--rollout-batch-size",
         "1",
+        "--num-rollout",
+        "1",
         "--hf-checkpoint",
         MODEL_NAME,
         "--prompt-data",
