@@ -60,6 +60,7 @@ def expected_sample(
     prompt_tokens: int = 7,
     weight_versions: list[str] | None = None,
     rollout_routed_experts: np.ndarray | None = None,
+    spec_info: Sample.SpecInfo | None = None,
 ) -> Sample:
     return Sample(
         group_index=None,
@@ -81,7 +82,7 @@ def expected_sample(
         metadata={},
         train_metadata=None,
         non_generation_time=0.0,
-        spec_info=Sample.SpecInfo(),
+        spec_info=spec_info or Sample.SpecInfo(),
         prefix_cache_info=Sample.PrefixCacheInfo(cached_tokens=cached_tokens, total_prompt_tokens=prompt_tokens),
     )
 
@@ -331,7 +332,7 @@ class TestPayloadStructure:
         assert result.sample == expected_sample()
 
 
-class TestEdgeCases:
+class TestEmptyResponse:
     @pytest.mark.parametrize("env", [{"process_fn_kwargs": {"response_text": ""}}], indirect=True)
     def test_empty_response(self, variant, env):
         result = run_generate(variant, env)
