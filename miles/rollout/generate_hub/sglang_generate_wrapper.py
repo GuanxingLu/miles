@@ -1,3 +1,7 @@
+"""
+Wrapper to integrate SGLang's `/generate` endpoint with RL things like Sample.
+"""
+
 import numpy as np
 import pybase64
 
