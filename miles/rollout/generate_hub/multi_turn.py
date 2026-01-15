@@ -59,32 +59,7 @@ def postprocess_responses(resp: str) -> str:
 async def execute_predictions(prediction: str) -> str:
     """Execute predictions and return results"""
     action, content = postprocess_predictions(prediction)
-
-    if action == "code":
-        # Content is already the Python code (extracted by
-        # postprocess_predictions)
-        code = content.strip()
-        if code:
-            async with SEMAPHORE:
-                result = await tool_registry.execute_tool("code_interpreter", {"code": code})
-            next_obs = f"\n\n<interpreter>\n{result}\n</interpreter>\n\n"
-            done = False
-        else:
-            next_obs = "\n\n<interpreter>\nError: No Python code found" "\n</interpreter>\n\n"
-            done = False
-    elif action == "answer":
-        next_obs = ""
-        done = True
-    else:
-        next_obs = (
-            "\nMy previous action is invalid. "
-            "If I want to execute code, I should put the code between "
-            "<code> and </code>. "
-            "If I want to give the final answer, I should use the format "
-            "'Answer: \\boxed{answer}'. Let me try again.\n"
-        )
-        done = False
-
+    next_obs, done = TODO
     return next_obs, done
 
 
