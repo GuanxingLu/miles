@@ -92,6 +92,7 @@ class MockSGLangServer:
                     meta_info["weight_version"] = process_result.weight_version
                 if process_result.routed_experts is not None:
                     import pybase64
+
                     meta_info["routed_experts"] = pybase64.b64encode(process_result.routed_experts).decode("ascii")
 
                 response = {
