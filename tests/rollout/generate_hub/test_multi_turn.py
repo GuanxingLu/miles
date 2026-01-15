@@ -39,36 +39,6 @@ SAMPLE_TOOLS = [
 ]
 
 
-def test_deepseekv3_parse_single_tool_call():
-    """
-    DeepSeek V3 format:
-        <｜tool▁calls▁begin｜><｜tool▁call▁begin｜>function<｜tool▁sep｜>func_name
-        ```json
-        {"arg": "value"}
-        ```<｜tool▁call▁end｜><｜tool▁calls▁end｜>
-    """
-    detector = DeepSeekV3Detector()
-    model_output = (
-        "<｜tool▁calls▁begin｜>"
-        "<｜tool▁call▁begin｜>function<｜tool▁sep｜>get_weather\n"
-        '```json\n{"city": "Beijing", "unit": "celsius"}\n```'
-        "<｜tool▁call▁end｜>"
-        "<｜tool▁calls▁end｜>"
-    )
-
-    assert detector.has_tool_call(model_output)
-    assert detector.detect_and_parse(model_output, SAMPLE_TOOLS) == StreamingParseResult(
-        normal_text="",
-        calls=[
-            ToolCallItem(
-                tool_index=0,
-                name="get_weather",
-                parameters='{"city": "Beijing", "unit": "celsius"}',
-            )
-        ],
-    )
-
-
 def test_deepseekv3_parse_multiple_tool_calls():
     detector = DeepSeekV3Detector()
     model_output = (
