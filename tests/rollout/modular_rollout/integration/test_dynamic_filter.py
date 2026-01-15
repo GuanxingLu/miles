@@ -1,3 +1,5 @@
+from contextlib import nullcontext
+
 import pytest
 
 from miles.utils.misc import function_registry
@@ -33,11 +35,9 @@ from tests.rollout.modular_rollout.integration.utils import (
 )
 def test_filter_effect(rollout_integration_env, use_filter, expect_all_correct):
     env = rollout_integration_env
+    ctx = function_registry.temporary("test:filter_by_reward", filter_by_reward) if use_filter else nullcontext()
 
-    if use_filter:
-        with function_registry.temporary("test:filter_by_reward", filter_by_reward):
-            out = load_and_call_train(env.args, env.data_source)
-    else:
+    with ctx:
         out = load_and_call_train(env.args, env.data_source)
 
     rewards = {group[0].reward for group in out.samples}
