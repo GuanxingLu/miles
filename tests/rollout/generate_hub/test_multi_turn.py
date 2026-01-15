@@ -43,6 +43,11 @@ class TestSGLangFunctionCallParser:
         "model_output,expected",
         [
             pytest.param(
+                "The weather is sunny today.",
+                ("The weather is sunny today.", []),
+                id="no_tool_call",
+            ),
+            pytest.param(
                 'Let me check the weather for you.\n<tool_call>\n{"name": "get_weather", "arguments": {"city": "Paris"}}\n</tool_call>',
                 (
                     "Let me check the weather for you.",
@@ -62,11 +67,6 @@ class TestSGLangFunctionCallParser:
                     ],
                 ),
                 id="multi_tool_calls",
-            ),
-            pytest.param(
-                "The weather is sunny today.",
-                ("The weather is sunny today.", []),
-                id="no_tool_call",
             ),
         ],
     )
