@@ -4,7 +4,7 @@ from sglang.srt.function_call.function_call_parser import FunctionCallParser
 
 
 class TestSGLangFunctionCallParser:
-    """FunctionCallParser supports: deepseekv3, qwen25, llama3, mistral, pythonic, etc."""
+    """Test to ensure SGLang function call parser have features we need without breaking changes."""
 
     SAMPLE_TOOLS = [
         Tool(
