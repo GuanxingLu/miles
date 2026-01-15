@@ -12,8 +12,25 @@ from miles.utils.misc import function_registry
 
 
 @pytest.mark.parametrize(
-    "rollout_integration_env",
+    "rollout_integration_env,expected_all_samples",
     [
+        pytest.param(
+            config(
+                [
+                    "--rollout-batch-size",
+                    "2",
+                    "--over-sampling-batch-size",
+                    "6",
+                    "--dynamic-sampling-filter-path",
+                    "test:filter_by_reward",
+                    "--rollout-all-samples-process-path",
+                    "test:all_samples_process",
+                ],
+                data_rows=MIXED_DATA_ROWS,
+            ),
+            6,
+            id="one_round",
+        ),
         pytest.param(
             config(
                 [
@@ -28,12 +45,13 @@ from miles.utils.misc import function_registry
                 ],
                 data_rows=MIXED_DATA_ROWS,
             ),
-            id="over_sampling_with_filter",
+            12,
+            id="two_rounds",
         ),
     ],
     indirect=["rollout_integration_env"],
 )
-def test_over_sampling_collects_enough_samples(rollout_integration_env):
+def test_over_sampling_rounds(rollout_integration_env, expected_all_samples):
     env = rollout_integration_env
     all_samples_process_mock = Mock()
 
@@ -47,6 +65,6 @@ def test_over_sampling_collects_enough_samples(rollout_integration_env):
     assert all(group[0].reward == 1 for group in out.samples)
 
     _, all_samples, _ = all_samples_process_mock.call_args[0]
-    assert len(all_samples) > len(out.samples), "Over sampling should generate more samples than output"
+    assert len(all_samples) == expected_all_samples
     all_rewards = {g[0].reward for g in all_samples}
     assert 0 in all_rewards, "Some samples should have been filtered out"
