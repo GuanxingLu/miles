@@ -18,15 +18,7 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
 
     assert sample.status in {Sample.Status.PENDING, Sample.Status.ABORTED}, f"{sample.status=}"
 
-    if state.processor:
-        processor_output = state.processor(text=sample.prompt, **sample.multimodal_inputs)
-        prompt_ids = processor_output["input_ids"][0]
-        # TODO shall we put it here?
-        sample.multimodal_train_inputs = {
-            k: v for k, v in processor_output.items() if k not in ["input_ids", "attention_mask"]
-        } or None
-    else:
-        prompt_ids = state.tokenizer.encode(sample.prompt, add_special_tokens=False)
+    prompt_ids = await _compute_prompt_ids(sample, state)
 
     if len(sample.response) > 0:
         sampling_params["max_new_tokens"] -= len(sample.tokens) - len(prompt_ids)
@@ -57,6 +49,20 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
     await _fill_sample_by_response(args, sample, output)
 
     return GenerateFnOutput(samples=sample)
+
+
+async def _compute_prompt_ids(sample, state):
+    if state.processor:
+        processor_output = state.processor(text=sample.prompt, **sample.multimodal_inputs)
+        prompt_ids = processor_output["input_ids"][0]
+        # TODO shall we put it here?
+        sample.multimodal_train_inputs = {
+                                             k: v for k, v in processor_output.items() if
+                                             k not in ["input_ids", "attention_mask"]
+                                         } or None
+    else:
+        prompt_ids = state.tokenizer.encode(sample.prompt, add_special_tokens=False)
+    return prompt_ids
 
 
 async def _fill_sample_by_response(args, sample, output):
