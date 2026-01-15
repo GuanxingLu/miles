@@ -205,7 +205,7 @@ class TestBasicGeneration:
         )
 
 
-class TestMultiTurn:
+class TestResumedSingleTurn:
     def test_first_turn_initializes_tokens(self, variant, env):
         result = run_generate(variant, env, make_sample(tokens=[]))
         assert result.requests == [expected_request(variant)]
