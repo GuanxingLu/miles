@@ -143,7 +143,7 @@ def generate_env(args_kwargs: dict | None = None, process_fn_kwargs: dict | None
 class TestBasicGeneration:
     @pytest.mark.parametrize("variant", GENERATE_VARIANTS)
     def test_basic_generation(self, variant):
-        with generate_env() as (args, mock_server, _):
+        with generate_env() as (args, mock_server):
             sample = make_sample()
             sampling_params = {"max_new_tokens": 16, "temperature": 0.7}
 
@@ -158,7 +158,7 @@ class TestBasicGeneration:
 
     @pytest.mark.parametrize("variant", GENERATE_VARIANTS)
     def test_empty_response(self, variant):
-        with generate_env(process_fn_kwargs={"response_text": ""}) as (args, mock_server, _):
+        with generate_env(process_fn_kwargs={"response_text": ""}) as (args, mock_server):
             sample = make_sample()
             sampling_params = {"max_new_tokens": 16, "temperature": 0.7}
 
@@ -172,7 +172,7 @@ class TestBasicGeneration:
 class TestPromptProcessingPath:
     @pytest.mark.parametrize("variant", GENERATE_VARIANTS)
     def test_tokenizer_path(self, variant):
-        with generate_env() as (args, mock_server, _):
+        with generate_env() as (args, mock_server):
             sample = make_sample(prompt="What is 1+7?")
             sampling_params = {"max_new_tokens": 16, "temperature": 0.7}
 
@@ -187,7 +187,7 @@ class TestPromptProcessingPath:
 class TestMultiTurn:
     @pytest.mark.parametrize("variant", GENERATE_VARIANTS)
     def test_first_turn_initializes_tokens(self, variant):
-        with generate_env() as (args, mock_server, _):
+        with generate_env() as (args, mock_server):
             sample = make_sample(tokens=[])
             sampling_params = {"max_new_tokens": 16, "temperature": 0.7}
 
@@ -198,7 +198,7 @@ class TestMultiTurn:
 
     @pytest.mark.parametrize("variant", GENERATE_VARIANTS)
     def test_subsequent_turn_appends_tokens(self, variant):
-        with generate_env() as (args, mock_server, _):
+        with generate_env() as (args, mock_server):
             existing_tokens = [1, 2, 3, 4, 5, 6, 7, 100, 101, 102]  # prompt + previous response
             sample = make_sample(
                 tokens=existing_tokens,
@@ -215,7 +215,7 @@ class TestMultiTurn:
 
     @pytest.mark.parametrize("variant", GENERATE_VARIANTS)
     def test_multi_turn_max_tokens_adjusted(self, variant):
-        with generate_env() as (args, mock_server, _):
+        with generate_env() as (args, mock_server):
             existing_tokens = [1, 2, 3, 4, 5, 6, 7, 100, 101, 102]
             sample = make_sample(
                 tokens=existing_tokens,
@@ -233,7 +233,7 @@ class TestMultiTurn:
 class TestBoundaryConditions:
     @pytest.mark.parametrize("variant", GENERATE_VARIANTS)
     def test_max_new_tokens_zero_returns_truncated(self, variant):
-        with generate_env() as (args, mock_server, _):
+        with generate_env() as (args, mock_server):
             existing_tokens = [1, 2, 3, 4, 5, 6, 7] + list(range(100, 110))
             sample = make_sample(
                 tokens=existing_tokens,
@@ -251,7 +251,7 @@ class TestBoundaryConditions:
 class TestFinishReason:
     @pytest.mark.parametrize("variant", GENERATE_VARIANTS)
     def test_finish_stop_sets_completed(self, variant):
-        with generate_env(process_fn_kwargs={"meta_info": MockMetaInfo(finish_reason="stop")}) as (args, _, _):
+        with generate_env(process_fn_kwargs={"finish_reason": "stop"}) as (args, mock_server):
             sample = make_sample()
             sampling_params = {"max_new_tokens": 16, "temperature": 0.7}
 
@@ -261,7 +261,7 @@ class TestFinishReason:
 
     @pytest.mark.parametrize("variant", GENERATE_VARIANTS)
     def test_finish_length_sets_truncated(self, variant):
-        with generate_env(process_fn_kwargs={"meta_info": MockMetaInfo(finish_reason="length")}) as (args, _, _):
+        with generate_env(process_fn_kwargs={"finish_reason": "length"}) as (args, mock_server):
             sample = make_sample()
             sampling_params = {"max_new_tokens": 16, "temperature": 0.7}
 
@@ -271,7 +271,7 @@ class TestFinishReason:
 
     @pytest.mark.parametrize("variant", GENERATE_VARIANTS)
     def test_finish_abort_sets_aborted(self, variant):
-        with generate_env(process_fn_kwargs={"meta_info": MockMetaInfo(finish_reason="abort")}) as (args, _, _):
+        with generate_env(process_fn_kwargs={"finish_reason": "abort"}) as (args, mock_server):
             sample = make_sample()
             sampling_params = {"max_new_tokens": 16, "temperature": 0.7}
 
@@ -283,7 +283,7 @@ class TestFinishReason:
 class TestRoutedExperts:
     @pytest.mark.parametrize("variant", GENERATE_VARIANTS)
     def test_routed_experts_disabled(self, variant):
-        with generate_env(args_kwargs={"use_rollout_routing_replay": False}) as (args, mock_server, _):
+        with generate_env(args_kwargs={"use_rollout_routing_replay": False}) as (args, mock_server):
             sample = make_sample()
             sampling_params = {"max_new_tokens": 16, "temperature": 0.7}
 
@@ -297,9 +297,7 @@ class TestRoutedExperts:
 class TestMetaInfo:
     @pytest.mark.parametrize("variant", GENERATE_VARIANTS)
     def test_prefix_cache_info_updated(self, variant):
-        with generate_env(process_fn_kwargs={
-            "meta_info": MockMetaInfo(cached_tokens=3, prompt_tokens=7)
-        }) as (args, _, _):
+        with generate_env(process_fn_kwargs={"cached_tokens": 3}) as (args, mock_server):
             sample = make_sample()
             sampling_params = {"max_new_tokens": 16, "temperature": 0.7}
 
@@ -308,11 +306,21 @@ class TestMetaInfo:
             assert result.prefix_cache_info.cached_tokens == 3
             assert result.prefix_cache_info.total_prompt_tokens == 7
 
+    @pytest.mark.parametrize("variant", GENERATE_VARIANTS)
+    def test_weight_version_collected(self, variant):
+        with generate_env(process_fn_kwargs={"weight_version": "v1.0"}) as (args, mock_server):
+            sample = make_sample()
+            sampling_params = {"max_new_tokens": 16, "temperature": 0.7}
+
+            result = run(call_generate(variant, args, sample, sampling_params))
+
+            assert "v1.0" in result.weight_versions
+
 
 class TestPayloadStructure:
     @pytest.mark.parametrize("variant", GENERATE_VARIANTS)
     def test_payload_has_required_fields(self, variant):
-        with generate_env() as (args, mock_server, _):
+        with generate_env() as (args, mock_server):
             sample = make_sample()
             sampling_params = {"max_new_tokens": 16, "temperature": 0.7, "top_p": 0.9}
 
@@ -326,7 +334,7 @@ class TestPayloadStructure:
 
     @pytest.mark.parametrize("variant", GENERATE_VARIANTS)
     def test_payload_routed_experts_flag_when_enabled(self, variant):
-        with generate_env(args_kwargs={"use_rollout_routing_replay": True}) as (args, mock_server, _):
+        with generate_env(args_kwargs={"use_rollout_routing_replay": True}) as (args, mock_server):
             sample = make_sample()
             sampling_params = {"max_new_tokens": 16, "temperature": 0.7}
 
