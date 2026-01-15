@@ -38,6 +38,7 @@ def expected_request(
     input_ids: list[int] | None = None,
     sampling_params: dict | None = None,
     return_routed_experts: bool = False,
+    image_data: list[str] | None = None,
 ) -> dict:
     result = {
         "input_ids": input_ids or PROMPT_TOKENS,
@@ -46,6 +47,8 @@ def expected_request(
     }
     if variant == "modular_rollout" or return_routed_experts:
         result["return_routed_experts"] = return_routed_experts
+    if image_data is not None:
+        result["image_data"] = image_data
     return result
 
 
