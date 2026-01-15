@@ -348,31 +348,3 @@ async def generate(args, sample: Sample, sampling_params) -> Sample:
             sample.status = Sample.Status.COMPLETED
 
     return sample
-
-
-async def reward_func(args, sample, **kwargs):
-    """Tool call reward function using math_dapo as primary reward model"""
-    if not isinstance(sample, Sample):
-        raise TypeError("Sample must be an instance of Sample class.")
-
-    # Build complete solution string
-    solution_str = sample.prompt + sample.response
-
-    # Get ground truth answer - label is a string, not a dict
-    ground_truth = sample.label if sample.label is not None else ""
-
-    # Get tool call count as num_turns
-    num_turns = getattr(sample, "tool_call_count", 0)
-
-    # use \\boxed{...} answer
-    result = math_dapo_compute_score(solution_str, ground_truth, strict_box_verify=True)
-
-    # encourage model to call tools
-    if result["score"] < 0:
-        tool_call_reward = (num_turns - 2) / 2 * 0.1
-        result["score"] = min(-0.6, result["score"] + tool_call_reward)
-
-    if result["pred"] is None:
-        result["pred"] = ""
-
-    return result
