@@ -32,15 +32,15 @@ def tokenize_tool_responses(
 def _build_dummy_assistant(tool_responses: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "role": "assistant",
-        "content": None,
+        "content": "",
         "reasoning_content": " ",
         "tool_calls": [
             {
-                "id": resp.get("tool_call_id", f"call_dummy_{i}"),
+                "id": resp.get("tool_call_id", f"call0000{i}"),
                 "type": "function",
                 "function": {
                     "name": resp.get("name", "dummy_func"),
-                    "arguments": "{}",
+                    "arguments": {},
                 },
             }
             for i, resp in enumerate(tool_responses)

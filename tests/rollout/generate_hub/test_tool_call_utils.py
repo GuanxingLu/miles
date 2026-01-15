@@ -6,57 +6,36 @@ from sglang.srt.function_call.function_call_parser import FunctionCallParser
 
 from miles.rollout.generate_hub.tool_call_utils import _DUMMY_USER, _build_dummy_assistant, tokenize_tool_responses
 
-# TODO
-# TOOL_CALL_MODELS = [
-#     # qwen/qwen25
-#     "Qwen/Qwen2.5-0.5B-Instruct",
-#     "Qwen/Qwen3-0.6B",
-#     # qwen3_coder
-#     "Qwen/Qwen3-Coder-30B-A3B-Instruct",
-#     # llama3
-#     "meta-llama/Llama-3.2-1B-Instruct",
-#     # mistral
-#     "mistralai/Mistral-7B-Instruct-v0.3",
-#     # deepseekv3
-#     "deepseek-ai/DeepSeek-V3",
-#     # deepseekv31
-#     "deepseek-ai/DeepSeek-V3.1",
-#     # deepseekv32
-#     "deepseek-ai/DeepSeek-V3.2",
-#     # glm/glm45/glm47
-#     "THUDM/glm-4-9b-chat",
-#     # kimi_k2
-#     "moonshotai/Kimi-K2-Instruct",
-#     # mimo
-#     "XiaomiMiMo/MiMo-7B-RL",
-#     # step3
-#     "stepfun-ai/step3",
-#     # minimax-m2
-#     "MiniMaxAI/MiniMax-M2",
-#     # interns1
-#     "internlm/internlm3-8b-instruct",
-# ]
-
 TOOL_CALL_MODELS = [
     "Qwen/Qwen2.5-0.5B-Instruct",
     "Qwen/Qwen3-0.6B",
     "Qwen/Qwen3-4B-Instruct-2507",
+    "Qwen/Qwen3-Coder-30B-A3B-Instruct",
+    "meta-llama/Llama-3.2-1B-Instruct",
+    "mistralai/Mistral-7B-Instruct-v0.3",
     "deepseek-ai/DeepSeek-V3",
+    "stepfun-ai/step3",
+    "MiniMaxAI/MiniMax-M2",
+    "internlm/internlm3-8b-instruct",
     "THUDM/glm-4-9b-chat",
     "moonshotai/Kimi-K2-Instruct",
     "XiaomiMiMo/MiMo-7B-RL",
 ]
 
+SINGLE_TOOL_CALL_ONLY_MODELS = [
+    "meta-llama/Llama-3.2-1B-Instruct",
+]
+
 SAMPLE_TOOL_RESPONSES = [
     {
         "role": "tool",
-        "tool_call_id": "call_0",
+        "tool_call_id": "call00000",
         "content": '{"temperature": 25}',
         "name": "get_weather",
     },
     {
         "role": "tool",
-        "tool_call_id": "call_1",
+        "tool_call_id": "call00001",
         "content": '{"results": ["A", "B"]}',
         "name": "search",
     },
@@ -67,6 +46,9 @@ class TestTokenizeToolResponses:
     @pytest.mark.parametrize("num_tools", [1, 2])
     @pytest.mark.parametrize("model_name", TOOL_CALL_MODELS)
     def test_tokenize_tool_responses(self, model_name, num_tools):
+        if num_tools > 1 and model_name in SINGLE_TOOL_CALL_ONLY_MODELS:
+            pytest.skip(f"{model_name} only supports single tool call")
+
         from transformers import AutoTokenizer
 
         tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
