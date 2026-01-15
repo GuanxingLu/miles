@@ -12,6 +12,7 @@ from miles.backends.sglang_utils.arguments import add_sglang_arguments
 from miles.backends.sglang_utils.arguments import validate_args as sglang_validate_args
 from miles.utils.eval_config import EvalDatasetConfig, build_eval_dataset_configs, ensure_dataset_list
 from miles.utils.logging_utils import configure_logger
+from miles.utils.misc import load_function
 
 logger = logging.getLogger(__name__)
 
@@ -1384,6 +1385,13 @@ def get_miles_extra_args_provider(add_custom_arguments=None):
         reset_arg(parser, "--padded-vocab-size", type=int, default=None)
 
         parser.set_defaults(sglang_tensor_parallel_size=add_sglang_tp_size())
+
+        args_partial, _ = parser.parse_known_args()
+        for path in [args_partial.rollout_function_path, getattr(args_partial, "custom_generate_function_path", None)]:
+            fn = load_function(path)
+            if fn is not None and hasattr(fn, "add_arguments") and callable(fn.add_arguments):
+                fn.add_arguments(parser)
+
         return parser
 
     return add_miles_arguments
