@@ -289,6 +289,8 @@ class TestExitConditions:
             ),
         )
 
+
+class TestRespectMaxContextLen:
     @pytest.mark.parametrize(
         "generation_env", [{"args_kwargs": {"rollout_max_context_len": SINGLE_TURN_PROMPT_TOKEN_LEN}}], indirect=True
     )
