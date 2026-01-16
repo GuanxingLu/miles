@@ -294,6 +294,8 @@ class TestBoundaryConditions:
 
     @pytest.mark.parametrize("generation_env", [{"args_kwargs": {"rollout_max_context_len": 5}}], indirect=True)
     def test_prompt_exceeds_max_context_len_returns_truncated(self, variant, generation_env):
+        if variant == "old_sglang_rollout":
+            pytest.skip("old_sglang_rollout does not support rollout_max_context_len")
         result = _run_generate(variant, generation_env)
         assert result.requests == []
         assert result.sample == expected_sample(
