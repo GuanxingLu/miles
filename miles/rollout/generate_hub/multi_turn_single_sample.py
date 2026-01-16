@@ -58,9 +58,7 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
         # ----------------------- Call inference endpoint -------------------------
 
         payload = compute_request_payload(args, sample.tokens, input.sampling_params)
-
         output = await post(url, payload)
-
         await update_sample_from_response(args, sample, payload=payload, output=output)
 
         if output["meta_info"]["finish_reason"]["type"] in ("abort", "length"):
