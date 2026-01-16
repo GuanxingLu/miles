@@ -85,6 +85,9 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
             break
 
         parsed_tool_call = tool_call_parser.parse_non_stream(cur_response)
+        if len(parsed_tool_call) == 0:
+            break
+
         out = await execute_tool_function(parsed_tool_call)
         tool_messages: list[dict[str, Any]] = out["tool_messages"]
 
