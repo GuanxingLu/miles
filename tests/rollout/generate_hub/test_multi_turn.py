@@ -78,30 +78,22 @@ def verify_sample(
     actual_chunks = parse_sample_into_chunks(actual, TOKENIZER)
     assert actual_chunks == expected_chunks
 
-    expected_other_fields = Sample(
-        group_index=None,
-        index=None,
+    from copy import deepcopy
+    actual_copy = deepcopy(actual)
+    actual_copy.tokens = []
+    actual_copy.response = ""
+    actual_copy.response_length = 0
+    actual_copy.loss_mask = []
+    actual_copy.rollout_log_probs = []
+
+    expected = Sample(
         prompt=prompt,
-        tokens=actual.tokens,
-        multimodal_inputs=None,
-        multimodal_train_inputs=None,
-        response=actual.response,
-        response_length=actual.response_length,
-        label=None,
-        reward=None,
-        loss_mask=actual.loss_mask,
-        weight_versions=[],
-        rollout_log_probs=actual.rollout_log_probs,
-        rollout_routed_experts=None,
-        remove_sample=False,
         status=status,
-        metadata={},
-        train_metadata=None,
-        non_generation_time=0.0,
+        weight_versions=[],
         spec_info=Sample.SpecInfo(),
         prefix_cache_info=Sample.PrefixCacheInfo(cached_tokens=0, total_prompt_tokens=0),
     )
-    assert actual == expected_other_fields
+    assert actual_copy == expected
 
 
 MULTI_TURN_GENERATE_FN_PATH = "miles.rollout.generate_hub.multi_turn_single_sample:generate"
