@@ -42,7 +42,7 @@ def compute_request_payload(
     input_ids: list[int],
     sampling_params: dict,
     multimodal_inputs: dict | None = None,
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any] | None, Sample.Status | None]:
     payload = {
         "input_ids": input_ids,
         "sampling_params": sampling_params,
@@ -52,7 +52,7 @@ def compute_request_payload(
     if image_data := (multimodal_inputs or {}).get("images"):
         payload["image_data"] = [encode_image_for_rollout_engine(image) for image in image_data]
 
-    return payload
+    return payload, None
 
 
 async def update_sample_from_response(

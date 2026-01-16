@@ -51,7 +51,11 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
 
         # ----------------------- Call inference endpoint -------------------------
 
-        payload = compute_request_payload(args, sample.tokens, input.sampling_params)
+        payload, halt_status = compute_request_payload(args, sample.tokens, input.sampling_params)
+        if payload is None:
+            sample.status = halt_status
+            break
+
         output = await post(url, payload)
         await update_sample_from_response(args, sample, payload=payload, output=output)
 
