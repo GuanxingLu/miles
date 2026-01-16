@@ -7,7 +7,7 @@ from miles.utils.test_utils.mock_tools import SAMPLE_TOOLS
 
 from miles.rollout.generate_hub.tool_call_utils import _DUMMY_USER, _build_dummy_assistant, tokenize_tool_responses
 
-from miles.utils.test_utils.mock_tools import execute_tool_call
+from miles.utils.test_utils.mock_tools import MULTI_TURN_FIRST_RESPONSE, execute_tool_call
 
 
 class TestExecuteToolCall:
@@ -92,6 +92,17 @@ class TestSGLangFunctionCallParser:
                 "The weather is sunny today.",
                 ("The weather is sunny today.", []),
                 id="no_tool_call",
+            ),
+            pytest.param(
+                MULTI_TURN_FIRST_RESPONSE,
+                (
+                    "Let me get the year and temperature first.",
+                    [
+                        ToolCallItem(tool_index=0, name="get_year", parameters="{}"),
+                        ToolCallItem(tool_index=1, name="get_temperature", parameters='{"location": "Mars"}'),
+                    ],
+                ),
+                id="multi_turn_first_response",
             ),
         ],
     )
