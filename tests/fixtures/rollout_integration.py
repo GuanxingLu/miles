@@ -1,3 +1,7 @@
+"""
+Fixtures to test rollout-function
+"""
+
 # TODO may rename to rollout_fixutres.py to be aligned
 import json
 from argparse import Namespace
