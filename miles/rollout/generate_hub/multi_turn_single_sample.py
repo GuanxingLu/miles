@@ -1,7 +1,7 @@
 """
 Simple multi-turn generation with tool calling.
 """
-
+import argparse
 from typing import Any
 
 from miles.rollout.base_types import GenerateFnInput, GenerateFnOutput
@@ -28,7 +28,7 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
     loss_masks = []
     tool_call_count = 0  # Track actual tool call rounds
 
-    for turn in range(TOOL_CONFIGS["max_turns"]):
+    for turn in range(args.generate_max_turns):
         # Check if total length exceeds max context length
         total_length = len(prompt_tokens_ids) + len(response_token_ids)
         if args.rollout_max_context_len is not None:
@@ -113,6 +113,12 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
 
     return GenerateFnOutput(samples=sample)
 
+
+def _add_arguments(parser: argparse.ArgumentParser):
+    parser.add_argument("--generate-max-turns", type=int, default=16)
+
+
+generate.add_arguments = _add_arguments
 
 def format_conversation_with_tools(
     prompt: str, tools: list[dict[str, Any]] = None, system_prompt: str = None, messages: list[dict[str, Any]] = None
