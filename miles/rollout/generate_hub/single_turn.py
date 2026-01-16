@@ -14,11 +14,18 @@ from miles.utils.http_utils import post
 async def generate(input: GenerateFnInput) -> GenerateFnOutput:
     args = input.args
     sample = input.sample
+    sampling_params = input.sampling_params
 
     url = f"http://{args.sglang_router_ip}:{args.sglang_router_port}/generate"
 
     prompt_ids = await compute_prompt_ids_from_sample(input.state, sample)
-    payload, halt_status = await compute_request_payload(input.state, sample, prompt_ids, input.sampling_params)
+
+    # Handle partial rollout resuming
+    if len(sample.response) > 0:
+        sampling_params["max_new_tokens"] -= len(sample.tokens) - len(prompt_ids)
+    input_ids = sample.tokens if len(sample.response) > 0 else prompt_ids
+
+    payload, halt_status = await compute_request_payload(input.state, sample, input_ids, sampling_params)
 
     if payload is None:
         sample.status = halt_status
