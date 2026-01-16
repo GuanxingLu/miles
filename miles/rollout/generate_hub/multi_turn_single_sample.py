@@ -87,7 +87,7 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
         if finish_reason_type in ("abort", "length"):
             break
 
-        _, parsed_tool_calls = tool_call_parser.parse_non_stream(cur_response)
+        _, parsed_tool_calls = tool_call_parser.parse_non_stream(output["text"])
         if len(parsed_tool_calls) == 0:
             break
 
