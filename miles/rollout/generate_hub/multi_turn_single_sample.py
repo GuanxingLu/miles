@@ -9,8 +9,7 @@ from sglang.srt.entrypoints.openai.protocol import Tool
 from sglang.srt.function_call.function_call_parser import FunctionCallParser
 
 from miles.rollout.base_types import GenerateFnInput, GenerateFnOutput
-from miles.rollout.generate_hub.tool_call_utils import tokenize_tool_responses, update_sample_with_tool_responses, \
-    execute_tool_calls
+from miles.rollout.generate_hub.tool_call_utils import execute_tool_calls, update_sample_with_tool_responses
 from miles.utils.http_utils import post
 from miles.utils.misc import load_function
 from miles.utils.types import Sample
@@ -47,7 +46,7 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
     sample.loss_mask = []
     sample.tokens = prompt_tokens_ids.copy()
 
-    for turn in range(args.generate_max_turns):
+    for _turn in range(args.generate_max_turns):
         # TODO handle separately
         # Check if total length exceeds max context length
         total_length = len(sample.tokens)

@@ -1,8 +1,10 @@
 import json
 import uuid
-from typing import Callable, Any
+from collections.abc import Callable
+from typing import Any
 
 from sglang.srt.function_call.core_types import ToolCallItem
+
 from miles.utils.types import Sample
 
 _DUMMY_USER = {"role": "user", "content": "dummy"}
