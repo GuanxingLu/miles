@@ -174,7 +174,18 @@ class TestBasicMultiTurn:
             + [(-1 / 128 * i) for i in range(len(second_response_token_ids))]
         )
 
-        assert len(result.requests) == 2
+        assert result.requests == [
+            {
+                "input_ids": prompt_token_ids,
+                "sampling_params": DEFAULT_SAMPLING_PARAMS,
+                "return_logprob": True,
+            },
+            {
+                "input_ids": prompt_token_ids + first_response_token_ids + tool_response_token_ids,
+                "sampling_params": DEFAULT_SAMPLING_PARAMS,
+                "return_logprob": True,
+            },
+        ]
         assert result.sample == expected_sample(
             prompt=prompt,
             response=TOKENIZER.decode(all_response_token_ids),
