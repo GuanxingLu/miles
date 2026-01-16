@@ -120,6 +120,7 @@ def make_args(
     model_name: str = MODEL_NAME,
     extra_argv: list[str] | None = None,
     custom_generate_function_path: str | None = None,
+    multi_turn_config: dict | None = None,
 ) -> Namespace:
     argv = [
         "pytest",
@@ -152,6 +153,10 @@ def make_args(
         argv.extend(["--sglang-speculative-algorithm", sglang_speculative_algorithm])
     if custom_generate_function_path:
         argv.extend(["--custom-generate-function-path", custom_generate_function_path])
+    if multi_turn_config is not None:
+        config = dict(MULTI_TURN_DEFAULT_CONFIG)
+        config.update(multi_turn_config)
+        argv.extend(_config_to_argv(config))
     if extra_argv:
         argv.extend(extra_argv)
 
@@ -172,13 +177,9 @@ def generation_env(request, variant):
     model_name = args_kwargs.get("model_name", MODEL_NAME)
     custom_generate_function_path = VARIANT_TO_GENERATE_FN_PATH[variant]
 
-    extra_argv = list(args_kwargs.get("extra_argv", []))
+    multi_turn_config = None
     if variant == "multi_turn_single_sample":
-        config = dict(MULTI_TURN_DEFAULT_CONFIG)
-        for k in MULTI_TURN_CONFIG_KEYS:
-            if k in args_kwargs:
-                config[k] = args_kwargs[k]
-        extra_argv = _config_to_argv(config) + extra_argv
+        multi_turn_config = {k: args_kwargs[k] for k in MULTI_TURN_CONFIG_KEYS if k in args_kwargs}
 
     def process_fn(_):
         x = params.get("process_fn_kwargs", {})
@@ -202,7 +203,8 @@ def generation_env(request, variant):
             router_port=mock_server.port,
             model_name=model_name,
             custom_generate_function_path=custom_generate_function_path,
-            extra_argv=extra_argv if extra_argv else None,
+            extra_argv=args_kwargs.get("extra_argv"),
+            multi_turn_config=multi_turn_config,
             **other_args_kwargs,
         )
         yield GenerateEnv(args=args, mock_server=mock_server)

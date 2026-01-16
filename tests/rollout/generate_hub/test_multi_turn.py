@@ -259,11 +259,7 @@ class TestExitConditions:
             ),
         )
 
-    @pytest.mark.parametrize(
-        "generation_env",
-        [{"args_kwargs": {"extra_argv": _make_extra_argv(generate_max_turns=1)}}],
-        indirect=True,
-    )
+    @pytest.mark.parametrize("generation_env", [{"args_kwargs": {"generate_max_turns": 1}}], indirect=True)
     def test_max_turns_reached(self, variant, generation_env):
         generation_env.mock_server.process_fn = lambda _: ProcessResult(
             text=MULTI_TURN_FIRST_RESPONSE, finish_reason="stop"
