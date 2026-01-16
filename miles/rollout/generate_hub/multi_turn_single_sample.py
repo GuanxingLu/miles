@@ -36,13 +36,13 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
         tool_call_parser=args.generate_tool_call_parser,
     )
 
-    if isinstance(sample.prompt, str):
-        prompt_tokens_ids = tokenizer(sample.prompt, add_special_tokens=False)["input_ids"]
-    else:
+    prompt = sample.prompt
+    if not isinstance(prompt, str):
         prompt = tokenizer.apply_chat_template(
-            sample.prompt, tokenize=False, add_generation_prompt=True, tools=tool_specs
+            prompt, tokenize=False, add_generation_prompt=True, tools=tool_specs
         )
-        prompt_tokens_ids = tokenizer(prompt, add_special_tokens=False)["input_ids"]
+    prompt_tokens_ids = tokenizer(prompt, add_special_tokens=False)["input_ids"]
+
     response = ""
     response_token_ids = []
     loss_masks = []
