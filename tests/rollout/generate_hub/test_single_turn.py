@@ -282,13 +282,29 @@ class TestBoundaryConditions:
 
         result = _run_generate(variant, generation_env, sample, {"max_new_tokens": 10, "temperature": 0.7})
         assert result.requests == []
-        assert result.sample.status == Sample.Status.TRUNCATED
+        assert result.sample == expected_sample(
+            variant,
+            response="x" * 10,
+            response_length=10,
+            tokens=existing_tokens,
+            rollout_log_probs=[],
+            status=Sample.Status.TRUNCATED,
+            prompt_tokens=0,
+        )
 
     @pytest.mark.parametrize("generation_env", [{"args_kwargs": {"rollout_max_context_len": 5}}], indirect=True)
     def test_prompt_exceeds_max_context_len_returns_truncated(self, variant, generation_env):
         result = _run_generate(variant, generation_env)
         assert result.requests == []
-        assert result.sample.status == Sample.Status.TRUNCATED
+        assert result.sample == expected_sample(
+            variant,
+            response="",
+            response_length=0,
+            tokens=[],
+            rollout_log_probs=[],
+            status=Sample.Status.TRUNCATED,
+            prompt_tokens=0,
+        )
 
 
 class TestEmptyResponse:

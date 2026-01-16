@@ -295,7 +295,16 @@ class TestExitConditions:
     def test_prompt_exceeds_max_context_len_returns_truncated(self, variant, generation_env):
         result = _run_generate(variant, generation_env, make_sample(prompt=SINGLE_TURN_PROMPT))
         assert result.requests == []
-        assert result.sample.status == Sample.Status.TRUNCATED
+        verify_sample(
+            result.sample,
+            expected_chunks=[],
+            expected_partial_sample=expected_partial_sample(
+                prompt=SINGLE_TURN_PROMPT,
+                response="",
+                response_length=0,
+                status=Sample.Status.TRUNCATED,
+            ),
+        )
 
     @pytest.mark.parametrize(
         "generation_env",
