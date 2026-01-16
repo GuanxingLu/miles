@@ -30,14 +30,14 @@ SAMPLE_TOOLS = [
 ]
 
 
-def _get_year(params: dict) -> dict:
+def _get_year(params: dict) -> str:
     assert len(params) == 0
-    return {"year": 2026}
+    return json.dumps({"year": 2026})
 
 
-def _get_temperature(params: dict) -> dict:
+def _get_temperature(params: dict) -> str:
     assert params.get("location") == "Mars"
-    return {"temperature": -60}
+    return json.dumps({"temperature": -60})
 
 
 TOOL_EXECUTORS = {
@@ -46,24 +46,8 @@ TOOL_EXECUTORS = {
 }
 
 
-def execute_tool_call(name: str, params: dict) -> dict:
+def execute_tool_call(name: str, params: dict) -> str:
     return TOOL_EXECUTORS[name](params)
-
-
-async def mock_execute_tool_function(parsed_tool_calls) -> dict:
-    tool_messages = []
-    for call in parsed_tool_calls:
-        params = json.loads(call.parameters) if call.parameters else {}
-        result = execute_tool_call(call.name, params)
-        tool_messages.append(
-            {
-                "role": "tool",
-                "tool_call_id": f"call{call.tool_index:05d}",
-                "content": json.dumps(result),
-                "name": call.name,
-            }
-        )
-    return {"tool_messages": tool_messages}
 
 
 MULTI_TURN_FIRST_PROMPT = (

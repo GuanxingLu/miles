@@ -137,11 +137,12 @@ async def _execute_tool_calls(parsed_tool_calls, execute_one) -> list[dict]:
     for call in parsed_tool_calls:
         params = json.loads(call.parameters) if call.parameters else {}
         result = await execute_one(call.name, params)
+        assert isinstance(result, str)
         tool_messages.append(
             {
                 "role": "tool",
                 "tool_call_id": call.id,
-                "content": json.dumps(result),
+                "content": result,
                 "name": call.name,
             }
         )
