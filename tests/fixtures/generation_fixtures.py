@@ -85,8 +85,7 @@ def run_generate(
     sample: Sample,
     sampling_params: dict[str, Any] | None = None,
     *,
-    variant: str = "modular_rollout",
-    generate_fn_path: str = "miles.rollout.generate_hub.single_turn:generate",
+    variant: str = "single_turn",
 ) -> GenerateResult:
     env.mock_server.request_log.clear()
     result_sample = run(
@@ -95,7 +94,6 @@ def run_generate(
             sample,
             sampling_params or DEFAULT_SAMPLING_PARAMS,
             variant=variant,
-            generate_fn_path=generate_fn_path,
         )
     )
     return GenerateResult(sample=result_sample, requests=list(env.mock_server.request_log))
