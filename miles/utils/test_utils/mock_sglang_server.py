@@ -162,6 +162,7 @@ def default_process_fn(prompt: str) -> ProcessResult:
 
 
 def make_multi_turn_process_fn(i: int, year: int = 2026, temperature: int = -60) -> ProcessFn:
+    expected_first_prompt = f"What is {i} + year + temperature?"
     turn_count = {"value": 0}
 
     def first_turn_response() -> str:
@@ -182,6 +183,7 @@ def make_multi_turn_process_fn(i: int, year: int = 2026, temperature: int = -60)
         turn = turn_count["value"]
         turn_count["value"] += 1
         if turn == 0:
+            assert expected_first_prompt in prompt, f"Expected '{expected_first_prompt}' in prompt, got: {prompt[:200]}"
             return ProcessResult(text=first_turn_response(), finish_reason="stop")
         else:
             return ProcessResult(text=second_turn_response(), finish_reason="stop")

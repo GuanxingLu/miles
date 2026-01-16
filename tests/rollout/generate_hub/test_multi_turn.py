@@ -20,8 +20,9 @@ class TestToolCallParsing:
         return FunctionCallParser(tools=tools, tool_call_parser="qwen25")
 
     def test_parse_multi_tool_calls(self, parser):
-        process_fn = make_multi_turn_process_fn(i=0, year=YEAR, temperature=TEMPERATURE)
-        response = process_fn("first turn").text
+        i = 0
+        process_fn = make_multi_turn_process_fn(i=i, year=YEAR, temperature=TEMPERATURE)
+        response = process_fn(f"What is {i} + year + temperature?").text
         normal_text, calls = parser.parse_non_stream(response)
 
         assert normal_text == "Let me get the year and temperature first."
@@ -32,14 +33,15 @@ class TestToolCallParsing:
         assert json.loads(calls[1].parameters) == {"location": "Mars"}
 
     def test_parse_no_tool_calls(self, parser):
-        process_fn = make_multi_turn_process_fn(i=10, year=YEAR, temperature=TEMPERATURE)
-        process_fn("first turn")
+        i = 10
+        process_fn = make_multi_turn_process_fn(i=i, year=YEAR, temperature=TEMPERATURE)
+        process_fn(f"What is {i} + year + temperature?")
         response = process_fn("second turn").text
         normal_text, calls = parser.parse_non_stream(response)
 
         assert len(calls) == 0
-        expected = 10 + YEAR + TEMPERATURE
-        assert f"The answer is: 10 + {YEAR} + {TEMPERATURE} = {expected}" in normal_text
+        expected = i + YEAR + TEMPERATURE
+        assert f"The answer is: {i} + {YEAR} + {TEMPERATURE} = {expected}" in normal_text
 
 
 class TestMultiTurnProcessFn:
@@ -65,7 +67,7 @@ class TestMultiTurnProcessFn:
     def test_answer_calculation(self):
         for i in [0, 5, 100]:
             process_fn = make_multi_turn_process_fn(i=i, year=YEAR, temperature=TEMPERATURE)
-            process_fn("first turn")
+            process_fn(f"What is {i} + year + temperature?")
             result = process_fn("second turn")
             expected = i + YEAR + TEMPERATURE
             assert f"The answer is: {i} + {YEAR} + {TEMPERATURE} = {expected}" in result.text
