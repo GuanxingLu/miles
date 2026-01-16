@@ -46,7 +46,7 @@ def compute_request_payload(
     return payload
 
 
-async def update_sample_from_response(args, sample: Sample, payload: dict, output: dict):
+async def update_sample_from_response(args, sample: Sample, payload: dict, output: dict, update_loss_mask: bool = False):
     # Initialize sample.tokens for the first turn
     if (len(sample.response) == 0) and not sample.tokens:
         sample.tokens = payload["input_ids"]
@@ -56,6 +56,8 @@ async def update_sample_from_response(args, sample: Sample, payload: dict, outpu
 
         # TODO may rename to match
         await postprocess_sample_with_radix_tree(args, sample, output)
+
+        assert not update_loss_mask, f"This code branch has not implemented update_loss_mask"
     else:
         if x := output["meta_info"].get("output_token_logprobs"):
             new_response_tokens = [item[1] for item in x]
@@ -71,6 +73,9 @@ async def update_sample_from_response(args, sample: Sample, payload: dict, outpu
         if sample.rollout_log_probs is None:
             sample.rollout_log_probs = []
         sample.rollout_log_probs += new_response_log_probs
+
+        if update_loss_mask:
+            sample.loss_mask += [1] * len(new_response_tokens)
 
     # TODO handle multi-turn cases (may need concat instead of assignment)
     sample.rollout_routed_experts = _get_rollout_routed_experts_from_response(args, sample, output)
