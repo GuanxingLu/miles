@@ -161,31 +161,6 @@ def default_process_fn(prompt: str) -> ProcessResult:
     return ProcessResult(text="I don't understand.", finish_reason="stop")
 
 
-MULTI_TURN_FIRST_PROMPT = "What is 42 + year + temperature?"
-MULTI_TURN_FIRST_RESPONSE = (
-    "Let me get the year and temperature first.\n"
-    "<tool_call>\n"
-    '{"name": "get_year", "arguments": {}}\n'
-    "</tool_call>\n"
-    "<tool_call>\n"
-    '{"name": "get_temperature", "arguments": {"location": "Mars"}}\n'
-    "</tool_call>"
-)
-MULTI_TURN_SECOND_RESPONSE = "The answer is: 42 + 2026 + -60 = 2008."
-
-MULTI_TURN_REPLIES = {
-    MULTI_TURN_FIRST_PROMPT: MULTI_TURN_FIRST_RESPONSE,
-    '{"year": 2026}': MULTI_TURN_SECOND_RESPONSE,
-}
-
-
-def multi_turn_tool_call_process_fn(prompt: str) -> ProcessResult:
-    for key, response in MULTI_TURN_REPLIES.items():
-        if key in prompt:
-            return ProcessResult(text=response, finish_reason="stop")
-    raise ValueError(f"Unexpected prompt, no matching key found. Prompt: {prompt[:500]}")
-
-
 @contextmanager
 def with_mock_server(
     model_name: str = "Qwen/Qwen3-0.6B",

@@ -5,13 +5,14 @@ from pydantic import TypeAdapter
 from sglang.srt.entrypoints.openai.protocol import Tool
 from sglang.srt.function_call.function_call_parser import FunctionCallParser
 
-from miles.utils.test_utils.mock_sglang_server import (
+from miles.utils.test_utils.mock_tools import (
     MULTI_TURN_FIRST_PROMPT,
     MULTI_TURN_FIRST_RESPONSE,
     MULTI_TURN_SECOND_RESPONSE,
+    SAMPLE_TOOLS,
+    execute_tool_call,
     multi_turn_tool_call_process_fn,
 )
-from miles.utils.test_utils.mock_tools import SAMPLE_TOOLS, execute_tool_call
 
 
 class TestToolCallParsing:
