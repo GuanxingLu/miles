@@ -9,6 +9,8 @@ from transformers import AutoTokenizer
 from miles.utils.test_utils.mock_sglang_server import ProcessResult
 from miles.utils.test_utils.mock_tools import (
     MULTI_TURN_FIRST_PROMPT,
+    MULTI_TURN_FIRST_RESPONSE,
+    MULTI_TURN_SECOND_RESPONSE,
     SAMPLE_TOOLS,
     mock_execute_tool_function,
     multi_turn_tool_call_process_fn,
@@ -116,20 +118,10 @@ SINGLE_TURN_PROMPT = [{"role": "user", "content": "What is 1+1?"}]
 SINGLE_TURN_RESPONSE = "The answer is 2."
 
 TWO_TURN_PROMPT = [{"role": "user", "content": MULTI_TURN_FIRST_PROMPT}]
-TWO_TURN_FIRST_RESPONSE = (
-    "Let me get the year and temperature first.\n"
-    "<tool_call>\n"
-    '{"name": "get_year", "arguments": {}}\n'
-    "</tool_call>\n"
-    "<tool_call>\n"
-    '{"name": "get_temperature", "arguments": {"location": "Mars"}}\n'
-    "</tool_call>"
-)
 TWO_TURN_TOOL_RESPONSE = (
     '<|im_end|>\n<|im_start|>tool (tool_call_id: call00000)<|im_end|>\n{"year": 2026}'
     '<|im_start|>tool (tool_call_id: call00001)<|im_end|>\n{"temperature": -60}<|im_start|>assistant\n'
 )
-TWO_TURN_SECOND_RESPONSE = "The answer is: 42 + 2026 + -60 = 2008."
 
 
 # ------------------------------------ tests ----------------------------------------
@@ -178,7 +170,7 @@ class TestBasicMultiTurn:
             result.sample,
             expected_chunks=[
                 SampleParsedChunk(
-                    tokens_decoded_str=TWO_TURN_FIRST_RESPONSE,
+                    tokens_decoded_str=MULTI_TURN_FIRST_RESPONSE,
                     loss_mask_value=1,
                     rollout_log_probs=tuple(-1 / 128 * i for i in range(57)),
                 ),
@@ -194,6 +186,6 @@ class TestBasicMultiTurn:
                 ),
             ],
             prompt=TWO_TURN_PROMPT,
-            response=TWO_TURN_FIRST_RESPONSE + TWO_TURN_TOOL_RESPONSE + TWO_TURN_SECOND_RESPONSE,
+            response=MULTI_TURN_FIRST_RESPONSE + TWO_TURN_TOOL_RESPONSE + TWO_TURN_SECOND_RESPONSE,
             response_length=57 + 47 + 25,
         )
