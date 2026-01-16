@@ -161,34 +161,29 @@ def default_process_fn(prompt: str) -> ProcessResult:
     return ProcessResult(text="I don't understand.", finish_reason="stop")
 
 
-def make_multi_turn_process_fn(i: int, year: int = 2026, temperature: int = -60) -> ProcessFn:
-    expected_first_prompt = f"What is {i} + year + temperature?"
-    turn_count = {"value": 0}
+MULTI_TURN_FIRST_PROMPT = "What is 42 + year + temperature?"
+MULTI_TURN_FIRST_RESPONSE = (
+    "Let me get the year and temperature first.\n"
+    "<tool_call>\n"
+    '{"name": "get_year", "arguments": {}}\n'
+    "</tool_call>\n"
+    "<tool_call>\n"
+    '{"name": "get_temperature", "arguments": {"location": "Mars"}}\n'
+    "</tool_call>"
+)
+MULTI_TURN_SECOND_RESPONSE = "The answer is: 42 + 2026 + -60 = 2008."
 
-    def first_turn_response() -> str:
-        return (
-            "Let me get the year and temperature first.\n"
-            "<tool_call>\n"
-            '{"name": "get_year", "arguments": {}}\n'
-            "</tool_call>\n"
-            "<tool_call>\n"
-            '{"name": "get_temperature", "arguments": {"location": "Mars"}}\n'
-            "</tool_call>"
-        )
+MULTI_TURN_REPLIES = {
+    MULTI_TURN_FIRST_PROMPT: MULTI_TURN_FIRST_RESPONSE,
+    '{"year": 2026}': MULTI_TURN_SECOND_RESPONSE,
+}
 
-    def second_turn_response() -> str:
-        return f"The answer is: {i} + {year} + {temperature} = {i + year + temperature}."
 
-    def process_fn(prompt: str) -> ProcessResult:
-        turn = turn_count["value"]
-        turn_count["value"] += 1
-        if turn == 0:
-            assert expected_first_prompt in prompt, f"Expected '{expected_first_prompt}' in prompt, got: {prompt[:200]}"
-            return ProcessResult(text=first_turn_response(), finish_reason="stop")
-        else:
-            return ProcessResult(text=second_turn_response(), finish_reason="stop")
-
-    return process_fn
+def multi_turn_tool_call_process_fn(prompt: str) -> ProcessResult:
+    for key, response in MULTI_TURN_REPLIES.items():
+        if key in prompt:
+            return ProcessResult(text=response, finish_reason="stop")
+    raise ValueError(f"Unexpected prompt, no matching key found. Prompt: {prompt[:500]}")
 
 
 @contextmanager
