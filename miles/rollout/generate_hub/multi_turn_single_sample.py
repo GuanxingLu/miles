@@ -42,6 +42,7 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
         prompt = tokenizer.apply_chat_template(prompt, tokenize=False, add_generation_prompt=True, tools=tool_specs)
     prompt_tokens_ids = tokenizer(prompt, add_special_tokens=False)["input_ids"]
 
+    assert sample.tokens == []
     assert sample.response == ""
     assert sample.loss_masks is None
     sample.loss_masks = []
