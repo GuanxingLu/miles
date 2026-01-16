@@ -68,6 +68,24 @@ def parse_sample_into_chunks(sample: Sample, tokenizer) -> list[SampleParsedChun
     return chunks
 
 
+def expected_partial_sample(
+    *,
+    prompt: list[dict],
+    response_length: int,
+    status: Sample.Status = Sample.Status.COMPLETED,
+    cached_tokens: int = 0,
+    prompt_tokens: int = 0,
+) -> Sample:
+    return Sample(
+        prompt=prompt,
+        response_length=response_length,
+        status=status,
+        weight_versions=[],
+        spec_info=Sample.SpecInfo(),
+        prefix_cache_info=Sample.PrefixCacheInfo(cached_tokens=cached_tokens, total_prompt_tokens=prompt_tokens),
+    )
+
+
 def verify_sample(
     actual: Sample,
     *,
@@ -82,15 +100,7 @@ def verify_sample(
     from copy import deepcopy
     from dataclasses import replace
     actual_copy = replace(deepcopy(actual), tokens=[], response="", loss_mask=[], rollout_log_probs=[])
-
-    expected = Sample(
-        prompt=prompt,
-        response_length=response_length,
-        status=status,
-        weight_versions=[],
-        spec_info=Sample.SpecInfo(),
-        prefix_cache_info=Sample.PrefixCacheInfo(cached_tokens=0, total_prompt_tokens=0),
-    )
+    expected = expected_partial_sample(prompt=prompt, response_length=response_length, status=status)
     assert actual_copy == expected
 
 
