@@ -1,3 +1,5 @@
+import asyncio
+
 import pytest
 from pydantic import TypeAdapter
 from sglang.srt.entrypoints.openai.protocol import Tool
@@ -9,12 +11,12 @@ from miles.utils.test_utils.mock_tools import MULTI_TURN_FIRST_RESPONSE, SAMPLE_
 
 class TestExecuteToolCall:
     def test_execute_get_year(self):
-        result = execute_tool_call("get_year", {})
-        assert result == {"year": 2026}
+        result = asyncio.run(execute_tool_call("get_year", {}))
+        assert result == '{"year": 2026}'
 
     def test_execute_get_temperature(self):
-        result = execute_tool_call("get_temperature", {"location": "Mars"})
-        assert result == {"temperature": -60}
+        result = asyncio.run(execute_tool_call("get_temperature", {"location": "Mars"}))
+        assert result == '{"temperature": -60}'
 
 
 class TestApplyChatTemplateWithTools:
