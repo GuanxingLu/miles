@@ -58,6 +58,8 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
             sample.status = Sample.Status.TRUNCATED
             break
 
+        # ----------------------- Call inference endpoint -------------------------
+
         # Use token IDs instead of text
         payload = {
             "input_ids": sample.tokens,
@@ -86,6 +88,8 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
         finish_reason_type = output["meta_info"]["finish_reason"]["type"]
         if finish_reason_type in ("abort", "length"):
             break
+
+        # ----------------------- Execute tools -------------------------
 
         _, tool_calls = tool_call_parser.parse_non_stream(output["text"])
         if len(tool_calls) == 0:
