@@ -1,7 +1,17 @@
 from typing import Any
 
+from miles.utils.types import Sample
 
 _DUMMY_USER = {"role": "user", "content": "dummy"}
+
+
+def update_sample_with_tool_responses(sample: Sample, tool_messages: list[dict[str, Any]], tokenizer):
+    next_obs_tokens_ids: list[int] = tokenize_tool_responses(tool_messages, tokenizer=tokenizer)
+    sample.response += tokenizer.decode(next_obs_tokens_ids)
+    sample.response_length += len(next_obs_tokens_ids)
+    sample.tokens += next_obs_tokens_ids
+    sample.loss_mask += [0] * len(next_obs_tokens_ids)
+    sample.rollout_log_probs += [0.0] * len(next_obs_tokens_ids)
 
 
 # TODO: very naive implementation, need the to-be-implemented e2e test to validate.

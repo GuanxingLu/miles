@@ -11,7 +11,7 @@ from sglang.srt.entrypoints.openai.protocol import Tool
 from sglang.srt.function_call.function_call_parser import FunctionCallParser
 
 from miles.rollout.base_types import GenerateFnInput, GenerateFnOutput
-from miles.rollout.generate_hub.tool_call_utils import tokenize_tool_responses
+from miles.rollout.generate_hub.tool_call_utils import tokenize_tool_responses, update_sample_with_tool_responses
 from miles.utils.http_utils import post
 from miles.utils.misc import load_function
 from miles.utils.types import Sample
@@ -92,13 +92,7 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
 
         tool_messages = await _execute_tool_calls(parsed_tool_calls, execute_tool_function)
 
-        next_obs_tokens_ids: list[int] = tokenize_tool_responses(tool_messages, tokenizer=tokenizer)
-        sample.response += tokenizer.decode(next_obs_tokens_ids)
-        sample.response_length += len(next_obs_tokens_ids)
-        sample.tokens += next_obs_tokens_ids
-        sample.loss_mask += [0] * len(next_obs_tokens_ids)
-
-        sample.rollout_log_probs += [0.0] * len(next_obs_tokens_ids)
+        update_sample_with_tool_responses(sample, tool_messages, tokenizer=tokenizer)
 
         if turn >= args.generate_max_tool_calls:
             break
