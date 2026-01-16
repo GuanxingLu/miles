@@ -1,7 +1,5 @@
 from argparse import Namespace
-from dataclasses import dataclass
 from typing import Any
-from unittest.mock import patch
 
 import numpy as np
 import pybase64
@@ -13,11 +11,12 @@ from transformers import AutoProcessor
 from miles.rollout.base_types import GenerateFnInput
 from miles.rollout.modular_rollout.orchestration_common import GenerateState
 from miles.utils.async_utils import run
-from miles.utils.http_utils import init_http_client
-from miles.utils.misc import SingletonMeta
 from miles.utils.processing_utils import encode_image_for_rollout_engine
-from miles.utils.test_utils.mock_sglang_server import ProcessResult, ProcessResultMetaInfo, with_mock_server
+from miles.utils.test_utils.mock_sglang_server import ProcessResult, ProcessResultMetaInfo
 from miles.utils.types import Sample
+from tests.fixtures.generate_fixtures import GenerateEnv, generation_env, make_args
+
+_ = generation_env
 
 # ------------------------------------ fixtures and consts ----------------------------------------
 
