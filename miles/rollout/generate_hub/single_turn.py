@@ -23,6 +23,8 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
 
     # Handle partial rollout resuming
     if len(sample.response) > 0:
+        assert sample.status in {Sample.Status.PENDING, Sample.Status.ABORTED}, f"{sample.status=}"
+
         input_ids = sample.tokens
         sampling_params["max_new_tokens"] -= len(sample.tokens) - len(prompt_ids)
 

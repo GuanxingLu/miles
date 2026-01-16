@@ -25,7 +25,6 @@ async def compute_prompt_ids_from_sample(state, sample):
 
 
 async def compute_request_payload(state, sample, input_ids: list[int], sampling_params: dict) -> dict[str, Any]:
-    assert sample.status in {Sample.Status.PENDING, Sample.Status.ABORTED}, f"{sample.status=}"
 
     payload = {
         "input_ids": input_ids,
