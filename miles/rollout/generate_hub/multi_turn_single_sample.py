@@ -70,19 +70,19 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
 
         output = await post(url, payload)
 
-        cur_response_token_ids = [item[1] for item in output["meta_info"]["output_token_logprobs"]]
-        cur_response = tokenizer.decode(cur_response_token_ids)
-        cur_log_probs = [item[0] for item in output["meta_info"]["output_token_logprobs"]]
+        cur_response = tokenizer.decode(new_response_tokens)
+        new_response_tokens = [item[1] for item in output["meta_info"]["output_token_logprobs"]]
+        new_response_logprobs = [item[0] for item in output["meta_info"]["output_token_logprobs"]]
 
-        sample.tokens += cur_response_token_ids
+        sample.tokens += new_response_tokens
         sample.response += cur_response
-        sample.response_length += len(cur_response_token_ids)
+        sample.response_length += len(new_response_tokens)
 
         if sample.rollout_log_probs is None:
             sample.rollout_log_probs = []
-        sample.rollout_log_probs += cur_log_probs
+        sample.rollout_log_probs += new_response_logprobs
 
-        sample.loss_mask += [1] * len(cur_response_token_ids)
+        sample.loss_mask += [1] * len(new_response_tokens)
 
         finish_reason_type = output["meta_info"]["finish_reason"]["type"]
         if finish_reason_type in ("abort", "length"):
