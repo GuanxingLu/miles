@@ -333,26 +333,16 @@ class TestExitConditions:
 
 
 class TestBoundaryConditions:
+    @pytest.mark.parametrize(
+        "generation_env",
+        [{"args_kwargs": {"extra_argv": _make_extra_argv(**{"rollout-max-context-len": str(SINGLE_TURN_PROMPT_TOKEN_LEN)})}}],
+        indirect=True,
+    )
     def test_exact_context_limit(self, variant, generation_env):
-        prompt = SINGLE_TURN_PROMPT
-        prompt_text = TOKENIZER.apply_chat_template(
-            prompt, tokenize=False, add_generation_prompt=True, tools=SAMPLE_TOOLS
-        )
-        prompt_len = len(TOKENIZER(prompt_text, add_special_tokens=False)["input_ids"])
-
-        extra_argv = _make_extra_argv(**{"rollout-max-context-len": str(prompt_len)})
-        generation_env.args.rollout_max_context_len = prompt_len
-
-        result = _run_generate(variant, generation_env, make_sample(prompt=prompt))
+        result = _run_generate(variant, generation_env, make_sample(prompt=SINGLE_TURN_PROMPT))
 
         assert len(result.requests) == 0
         assert result.sample.status == Sample.Status.TRUNCATED
-
-    @pytest.fixture
-    def generation_env(self, request, variant):
-        from tests.fixtures.generation_fixtures import generation_env as base_fixture
-
-        yield from base_fixture(request, variant)
 
     @pytest.mark.parametrize(
         "generation_env",
