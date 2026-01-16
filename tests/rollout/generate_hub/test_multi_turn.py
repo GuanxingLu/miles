@@ -268,19 +268,6 @@ class TestExitConditions:
             ),
         )
 
-    # TODO: This test exposes a bug in multi_turn_single_sample.py where `output` is undefined
-    # when the loop breaks on the first iteration due to context length exceeded.
-    # @pytest.mark.parametrize(
-    #     "generation_env",
-    #     [{"args_kwargs": {"extra_argv": _make_extra_argv(rollout_max_context_len=10)}}],
-    #     indirect=True,
-    # )
-    # def test_context_length_exceeded_truncates(self, variant, generation_env):
-    #     result = _run_generate(variant, generation_env, make_sample(prompt=SINGLE_TURN_PROMPT))
-    #
-    #     assert len(result.requests) == 0
-    #     assert result.sample.status == Sample.Status.TRUNCATED
-
     @pytest.mark.parametrize(
         "generation_env",
         [{"args_kwargs": {"extra_argv": _make_extra_argv(generate_max_turns=1)}}],
@@ -314,19 +301,3 @@ class TestExitConditions:
 
         assert len(result.requests) == 1
         assert result.sample.response_length > 0
-
-
-class TestBoundaryConditions:
-    # TODO: This test exposes a bug in multi_turn_single_sample.py where `output` is undefined
-    # when the loop breaks on the first iteration due to context length exceeded.
-    # @pytest.mark.parametrize(
-    #     "generation_env",
-    #     [{"args_kwargs": {"extra_argv": _make_extra_argv(rollout_max_context_len=SINGLE_TURN_PROMPT_TOKEN_LEN)}}],
-    #     indirect=True,
-    # )
-    # def test_exact_context_limit(self, variant, generation_env):
-    #     result = _run_generate(variant, generation_env, make_sample(prompt=SINGLE_TURN_PROMPT))
-    #
-    #     assert len(result.requests) == 0
-    #     assert result.sample.status == Sample.Status.TRUNCATED
-    pass

@@ -193,7 +193,7 @@ class TestRoutedExperts:
     )
     def test_routed_experts_enabled_and_parsed(self, variant, generation_env):
         if variant == "multi_turn_single_sample":
-            pytest.skip("multi_turn_single_sample does not support routed_experts")
+            pytest.skip("not supported yet")
         num_layers, moe_router_topk = 2, 4
         num_tokens = len(PROMPT_TOKENS) + len(RESPONSE_TOKENS)
         routed_experts_array = np.arange((num_tokens - 1) * num_layers * moe_router_topk, dtype=np.int32).reshape(
@@ -256,7 +256,7 @@ class TestInputStatusValidation:
     @pytest.mark.parametrize("status", [Sample.Status.COMPLETED, Sample.Status.TRUNCATED])
     def test_rejected_statuses(self, variant, generation_env, status):
         if variant == "multi_turn_single_sample":
-            pytest.skip("multi_turn_single_sample does not validate input status")
+            pytest.skip("not supported yet")
         with pytest.raises(AssertionError):
             _run_generate(variant, generation_env, _make_sample(status=status))
 
@@ -275,7 +275,7 @@ class TestPayloadStructure:
 class TestBoundaryConditions:
     def test_max_new_tokens_zero_returns_truncated(self, variant, generation_env):
         if variant == "multi_turn_single_sample":
-            pytest.skip("multi_turn_single_sample does not support resumed generation with existing tokens")
+            pytest.skip("not supported yet")
         existing_tokens = [1, 2, 3, 4, 5, 6, 7] + list(range(100, 110))
         sample = _make_sample(tokens=existing_tokens, response="x" * 10, response_length=10)
 
@@ -301,7 +301,7 @@ class TestMultimodal:
     @pytest.mark.parametrize("generation_env", [{"args_kwargs": {"model_name": VLM_MODEL_NAME}}], indirect=True)
     def test_multimodal_inputs_processed(self, variant, generation_env):
         if variant == "multi_turn_single_sample":
-            pytest.skip("multi_turn_single_sample does not support multimodal inputs")
+            pytest.skip("not supported yet")
         test_image = Image.new("RGB", (64, 64), color="red")
         multimodal_inputs = {"images": [test_image]}
         processor = AutoProcessor.from_pretrained(VLM_MODEL_NAME, trust_remote_code=True)
