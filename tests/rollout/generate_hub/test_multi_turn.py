@@ -79,12 +79,8 @@ def verify_sample(
     assert actual_chunks == expected_chunks
 
     from copy import deepcopy
-    actual_copy = deepcopy(actual)
-    actual_copy.tokens = []
-    actual_copy.response = ""
-    actual_copy.response_length = 0
-    actual_copy.loss_mask = []
-    actual_copy.rollout_log_probs = []
+    from dataclasses import replace
+    actual_copy = replace(deepcopy(actual), tokens=[], response="", response_length=0, loss_mask=[], rollout_log_probs=[])
 
     expected = Sample(
         prompt=prompt,
