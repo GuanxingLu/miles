@@ -47,10 +47,7 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
         # TODO handle separately
         # Check if total length exceeds max context length
         total_length = len(sample.tokens)
-        if args.rollout_max_context_len is not None:
-            max_context_length = args.rollout_max_context_len
-        else:
-            max_context_length = args.context_parallel_size * args.max_tokens_per_gpu
+        max_context_length = args.rollout_max_context_len
         if total_length >= max_context_length:
             sample.status = Sample.Status.TRUNCATED
             break
