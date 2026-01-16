@@ -12,7 +12,7 @@ from miles.utils.types import Sample
 
 
 # Make this an isolated function because users may want to compute their own
-async def compute_prompt_ids_from_sample(state, sample, tools=None):
+def compute_prompt_ids_from_sample(state, sample, tools=None):
     prompt = sample.prompt
 
     if state.processor:

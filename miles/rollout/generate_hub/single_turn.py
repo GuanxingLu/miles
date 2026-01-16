@@ -19,7 +19,7 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
 
     url = f"http://{args.sglang_router_ip}:{args.sglang_router_port}/generate"
 
-    prompt_ids = await compute_prompt_ids_from_sample(input.state, sample)
+    prompt_ids = compute_prompt_ids_from_sample(input.state, sample)
 
     # Handle Partial Rollout resuming
     if len(sample.response) > 0:
