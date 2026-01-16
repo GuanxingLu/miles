@@ -23,7 +23,9 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
     # Handle partial rollout resuming
     if len(sample.response) > 0:
         sampling_params["max_new_tokens"] -= len(sample.tokens) - len(prompt_ids)
-    input_ids = sample.tokens if len(sample.response) > 0 else prompt_ids
+        input_ids = sample.tokens
+    else:
+        input_ids = prompt_ids
 
     payload, halt_status = await compute_request_payload(input.state, sample, input_ids, sampling_params)
 
