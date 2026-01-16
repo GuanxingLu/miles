@@ -142,19 +142,12 @@ def make_args(
         argv.extend(["--custom-generate-function-path", custom_generate_function_path])
 
     if variant == "multi_turn_single_sample":
-        if generate_max_turns is not None:
-            argv.extend(["--generate-max-turns", str(generate_max_turns)])
-        if generate_max_tool_calls is not None:
-            argv.extend(["--generate-max-tool-calls", str(generate_max_tool_calls)])
-        if generate_tool_specs_path:
-            argv.extend(["--generate-tool-specs-path", generate_tool_specs_path])
-        if generate_tool_call_parser:
-            argv.extend(["--generate-tool-call-parser", generate_tool_call_parser])
-        if generate_execute_tool_function_path:
-            argv.extend(["--generate-execute-tool-function-path", generate_execute_tool_function_path])
-        if rollout_max_context_len is not None:
-            argv.extend(["--rollout-max-context-len", str(rollout_max_context_len)])
-
+        argv.extend(["--generate-max-turns", str(generate_max_turns)])
+        argv.extend(["--generate-max-tool-calls", str(generate_max_tool_calls)])
+        argv.extend(["--generate-tool-specs-path", generate_tool_specs_path])
+        argv.extend(["--generate-tool-call-parser", generate_tool_call_parser])
+        argv.extend(["--generate-execute-tool-function-path", generate_execute_tool_function_path])
+        argv.extend(["--rollout-max-context-len", str(rollout_max_context_len)])
     if extra_argv:
         argv.extend(extra_argv)
 

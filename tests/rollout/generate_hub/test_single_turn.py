@@ -121,7 +121,7 @@ class TestBasicGeneration:
 class TestResumedSingleTurn:
     def test_two_consecutive_calls_on_same_sample(self, variant, generation_env):
         if variant == "multi_turn_single_sample":
-            pytest.skip("not supported yet")
+            pytest.skip("not tested yet")
         partial_text = "\\boxed"
         partial_tokens = [59, 79075]
         partial_log_probs = [-0.0, -0.0078125]
@@ -193,7 +193,7 @@ class TestRoutedExperts:
     )
     def test_routed_experts_enabled_and_parsed(self, variant, generation_env):
         if variant == "multi_turn_single_sample":
-            pytest.skip("not supported yet")
+            pytest.skip("TODO: support")
         num_layers, moe_router_topk = 2, 4
         num_tokens = len(PROMPT_TOKENS) + len(RESPONSE_TOKENS)
         routed_experts_array = np.arange((num_tokens - 1) * num_layers * moe_router_topk, dtype=np.int32).reshape(
@@ -256,7 +256,7 @@ class TestInputStatusValidation:
     @pytest.mark.parametrize("status", [Sample.Status.COMPLETED, Sample.Status.TRUNCATED])
     def test_rejected_statuses(self, variant, generation_env, status):
         if variant == "multi_turn_single_sample":
-            pytest.skip("not supported yet")
+            pytest.skip("not tested yet")
         with pytest.raises(AssertionError):
             _run_generate(variant, generation_env, _make_sample(status=status))
 
@@ -275,7 +275,7 @@ class TestPayloadStructure:
 class TestBoundaryConditions:
     def test_max_new_tokens_zero_returns_truncated(self, variant, generation_env):
         if variant == "multi_turn_single_sample":
-            pytest.skip("not supported yet")
+            pytest.skip("not tested yet")
         existing_tokens = [1, 2, 3, 4, 5, 6, 7] + list(range(100, 110))
         sample = _make_sample(tokens=existing_tokens, response="x" * 10, response_length=10)
 
@@ -301,7 +301,7 @@ class TestMultimodal:
     @pytest.mark.parametrize("generation_env", [{"args_kwargs": {"model_name": VLM_MODEL_NAME}}], indirect=True)
     def test_multimodal_inputs_processed(self, variant, generation_env):
         if variant == "multi_turn_single_sample":
-            pytest.skip("not supported yet")
+            pytest.skip("not tested yet")
         test_image = Image.new("RGB", (64, 64), color="red")
         multimodal_inputs = {"images": [test_image]}
         processor = AutoProcessor.from_pretrained(VLM_MODEL_NAME, trust_remote_code=True)
