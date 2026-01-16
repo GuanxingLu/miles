@@ -7,11 +7,17 @@ import torch
 from PIL import Image
 from transformers import AutoProcessor
 
-from miles.utils.async_utils import run
 from miles.utils.processing_utils import encode_image_for_rollout_engine
 from miles.utils.test_utils.mock_sglang_server import ProcessResult, ProcessResultMetaInfo
 from miles.utils.types import Sample
-from tests.fixtures.generation_fixtures import GenerateEnv, call_generate, generation_env
+from tests.fixtures.generation_fixtures import (
+    DEFAULT_SAMPLING_PARAMS,
+    GenerateEnv,
+    GenerateResult,
+    generation_env,
+    make_sample,
+    run_generate,
+)
 
 _ = generation_env
 
@@ -24,7 +30,7 @@ PROMPT_TOKENS = [3838, 374, 220, 16, 10, 22, 30]
 RESPONSE_TOKENS = [59, 79075, 90, 23, 92]
 RESPONSE_TEXT = "\\boxed{8}"
 RESPONSE_LOG_PROBS = [-0.0, -0.0078125, -0.015625, -0.0234375, -0.03125]
-DEFAULT_SAMPLING_PARAMS = {"max_new_tokens": 16, "temperature": 0.7}
+SAMPLING_PARAMS = {"max_new_tokens": 16, "temperature": 0.7}
 
 
 @pytest.fixture(params=["sglang_rollout", "modular_rollout"])
@@ -42,7 +48,7 @@ def expected_request(
 ) -> dict:
     result = {
         "input_ids": input_ids or PROMPT_TOKENS,
-        "sampling_params": sampling_params or DEFAULT_SAMPLING_PARAMS,
+        "sampling_params": sampling_params or SAMPLING_PARAMS,
         "return_logprob": True,
     }
     if variant == "modular_rollout" or return_routed_experts:
@@ -93,16 +99,10 @@ def expected_sample(
     )
 
 
-@dataclass
-class GenerateResult:
-    sample: Sample
-    requests: list[dict]
-
-
-def make_sample(tokens=None, response="", response_length=0, status=Sample.Status.PENDING, multimodal_inputs=None):
-    return Sample(
+def _make_sample(tokens=None, response="", response_length=0, status=Sample.Status.PENDING, multimodal_inputs=None):
+    return make_sample(
         prompt=PROMPT,
-        tokens=tokens or [],
+        tokens=tokens,
         response=response,
         response_length=response_length,
         status=status,
@@ -110,12 +110,8 @@ def make_sample(tokens=None, response="", response_length=0, status=Sample.Statu
     )
 
 
-def run_generate(variant: str, env: GenerateEnv, sample: Sample | None = None, sampling_params: dict | None = None):
-    env.mock_server.request_log.clear()
-    result_sample = run(
-        call_generate(env.args, sample or make_sample(), sampling_params or DEFAULT_SAMPLING_PARAMS, variant=variant)
-    )
-    return GenerateResult(sample=result_sample, requests=list(env.mock_server.request_log))
+def _run_generate(variant: str, env: GenerateEnv, sample: Sample | None = None, sampling_params: dict | None = None):
+    return run_generate(env, sample or _make_sample(), sampling_params or SAMPLING_PARAMS, variant=variant)
 
 
 # ------------------------------------ tests ----------------------------------------
@@ -123,7 +119,7 @@ def run_generate(variant: str, env: GenerateEnv, sample: Sample | None = None, s
 
 class TestBasicGeneration:
     def test_basic_generation(self, variant, generation_env):
-        result = run_generate(variant, generation_env)
+        result = _run_generate(variant, generation_env)
         assert result.requests == [expected_request(variant)]
         assert result.sample == expected_sample()
 
@@ -139,8 +135,8 @@ class TestResumedSingleTurn:
         remaining_log_probs = [-0.0, -0.0078125, -0.015625]
 
         generation_env.mock_server.process_fn = lambda _: ProcessResult(text=partial_text, finish_reason="abort")
-        sample = make_sample()
-        result1 = run_generate(variant, generation_env, sample)
+        sample = _make_sample()
+        result1 = _run_generate(variant, generation_env, sample)
         assert result1.requests == [expected_request(variant)]
         assert result1.sample == expected_sample(
             response=partial_text,
@@ -151,7 +147,7 @@ class TestResumedSingleTurn:
         )
 
         generation_env.mock_server.process_fn = lambda _: ProcessResult(text=remaining_text, finish_reason="stop")
-        result2 = run_generate(variant, generation_env, result1.sample)
+        result2 = _run_generate(variant, generation_env, result1.sample)
         tokens_after_turn1 = PROMPT_TOKENS + partial_tokens
         assert result2.requests == [
             expected_request(
@@ -181,7 +177,7 @@ class TestFinishReason:
         indirect=["generation_env"],
     )
     def test_finish_reason_sets_status(self, variant, generation_env, expected_status):
-        result = run_generate(variant, generation_env)
+        result = _run_generate(variant, generation_env)
         assert result.requests == [expected_request(variant)]
         assert result.sample == expected_sample(status=expected_status)
 
@@ -213,7 +209,7 @@ class TestRoutedExperts:
             meta_info=ProcessResultMetaInfo(routed_experts=routed_experts_str),
         )
 
-        result = run_generate(variant, generation_env)
+        result = _run_generate(variant, generation_env)
         assert result.requests == [expected_request(variant, return_routed_experts=True)]
         assert result.sample.rollout_routed_experts is not None
         assert result.sample.rollout_routed_experts.shape == (num_tokens - 1, num_layers, moe_router_topk)
@@ -225,7 +221,7 @@ class TestMetaInfo:
         "generation_env", [{"process_fn_kwargs": {"cached_tokens": 3, "weight_version": "v1.0"}}], indirect=True
     )
     def test_meta_info_fields_updated(self, variant, generation_env):
-        result = run_generate(variant, generation_env)
+        result = _run_generate(variant, generation_env)
         assert result.requests == [expected_request(variant)]
         assert result.sample == expected_sample(cached_tokens=3, weight_versions=["v1.0"])
 
@@ -240,7 +236,7 @@ class TestMetaInfo:
         indirect=True,
     )
     def test_spec_info_updated(self, variant, generation_env):
-        result = run_generate(variant, generation_env)
+        result = _run_generate(variant, generation_env)
         assert result.requests == [expected_request(variant)]
         assert result.sample == expected_sample(
             spec_info=Sample.SpecInfo(
@@ -252,19 +248,19 @@ class TestMetaInfo:
 class TestInputStatusValidation:
     @pytest.mark.parametrize("status", [Sample.Status.PENDING, Sample.Status.ABORTED])
     def test_allowed_statuses(self, variant, generation_env, status):
-        result = run_generate(variant, generation_env, make_sample(status=status))
+        result = _run_generate(variant, generation_env, _make_sample(status=status))
         assert result.requests == [expected_request(variant)]
         assert result.sample.status == Sample.Status.COMPLETED
 
     @pytest.mark.parametrize("status", [Sample.Status.COMPLETED, Sample.Status.TRUNCATED])
     def test_rejected_statuses(self, variant, generation_env, status):
         with pytest.raises(AssertionError):
-            run_generate(variant, generation_env, make_sample(status=status))
+            _run_generate(variant, generation_env, _make_sample(status=status))
 
 
 class TestPayloadStructure:
     def test_sampling_params_passed_through(self, variant, generation_env):
-        result = run_generate(
+        result = _run_generate(
             variant, generation_env, sampling_params={"max_new_tokens": 16, "temperature": 0.5, "top_p": 0.9}
         )
         assert result.requests == [
@@ -276,9 +272,9 @@ class TestPayloadStructure:
 class TestBoundaryConditions:
     def test_max_new_tokens_zero_returns_truncated(self, variant, generation_env):
         existing_tokens = [1, 2, 3, 4, 5, 6, 7] + list(range(100, 110))
-        sample = make_sample(tokens=existing_tokens, response="x" * 10, response_length=10)
+        sample = _make_sample(tokens=existing_tokens, response="x" * 10, response_length=10)
 
-        result = run_generate(variant, generation_env, sample, {"max_new_tokens": 10, "temperature": 0.7})
+        result = _run_generate(variant, generation_env, sample, {"max_new_tokens": 10, "temperature": 0.7})
         assert result.requests == []
         assert result.sample.status == Sample.Status.TRUNCATED
 
@@ -286,7 +282,7 @@ class TestBoundaryConditions:
 class TestEmptyResponse:
     @pytest.mark.parametrize("generation_env", [{"process_fn_kwargs": {"response_text": ""}}], indirect=True)
     def test_empty_response(self, variant, generation_env):
-        result = run_generate(variant, generation_env)
+        result = _run_generate(variant, generation_env)
         assert result.requests == [expected_request(variant)]
         assert result.sample == expected_sample(
             response="", response_length=0, tokens=PROMPT_TOKENS, rollout_log_probs=[]
