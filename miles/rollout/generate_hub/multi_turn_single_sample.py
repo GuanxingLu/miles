@@ -60,11 +60,10 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
 
         # ----------------------- Call inference endpoint -------------------------
 
-        # Use token IDs instead of text
         payload = {
             "input_ids": sample.tokens,
             "sampling_params": input.sampling_params,
-            "return_logprob": True,  # Request log probabilities for training
+            "return_logprob": True,
         }
 
         output = await post(url, payload)
