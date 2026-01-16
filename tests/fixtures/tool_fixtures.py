@@ -27,7 +27,7 @@ SAMPLE_TOOLS = [
 
 def _get_year(params: dict) -> dict:
     assert len(params) == 0
-    return {"year": 2025}
+    return {"year": 2026}
 
 
 def _get_temperature(params: dict) -> dict:
