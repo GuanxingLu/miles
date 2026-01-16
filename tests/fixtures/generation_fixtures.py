@@ -11,6 +11,7 @@ import pytest
 
 from miles.rollout.base_types import GenerateFnInput
 from miles.rollout.modular_rollout.orchestration_common import GenerateState
+from miles.utils.async_utils import run
 from miles.utils.http_utils import init_http_client
 from miles.utils.misc import SingletonMeta, load_function
 from miles.utils.test_utils.mock_sglang_server import ProcessResult, ProcessResultMetaInfo, with_mock_server
@@ -18,12 +19,19 @@ from miles.utils.types import Sample
 
 MODEL_NAME = "Qwen/Qwen3-0.6B"
 RESPONSE_TEXT = "\\boxed{8}"
+DEFAULT_SAMPLING_PARAMS = {"max_new_tokens": 64, "temperature": 0.7}
 
 
 @dataclass
 class GenerateEnv:
     args: Namespace
     mock_server: Any
+
+
+@dataclass
+class GenerateResult:
+    sample: Sample
+    requests: list[dict]
 
 
 async def call_generate(
@@ -47,6 +55,46 @@ async def call_generate(
         return output.samples
     else:
         raise NotImplementedError(f"Unknown variant: {variant}")
+
+
+def make_sample(
+    *,
+    prompt: str | list[dict] = "What is 1+7?",
+    tokens: list[int] | None = None,
+    response: str = "",
+    response_length: int = 0,
+    status: Sample.Status = Sample.Status.PENDING,
+    multimodal_inputs: dict | None = None,
+) -> Sample:
+    return Sample(
+        prompt=prompt,
+        tokens=tokens or [],
+        response=response,
+        response_length=response_length,
+        status=status,
+        multimodal_inputs=multimodal_inputs,
+    )
+
+
+def run_generate(
+    env: GenerateEnv,
+    sample: Sample,
+    sampling_params: dict[str, Any] | None = None,
+    *,
+    variant: str = "modular_rollout",
+    generate_fn_path: str = "miles.rollout.generate_hub.single_turn:generate",
+) -> GenerateResult:
+    env.mock_server.request_log.clear()
+    result_sample = run(
+        call_generate(
+            env.args,
+            sample,
+            sampling_params or DEFAULT_SAMPLING_PARAMS,
+            variant=variant,
+            generate_fn_path=generate_fn_path,
+        )
+    )
+    return GenerateResult(sample=result_sample, requests=list(env.mock_server.request_log))
 
 
 def make_args(
