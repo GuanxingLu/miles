@@ -106,6 +106,9 @@ def verify_sample(
     assert actual == expected_other_fields
 
 
+MULTI_TURN_GENERATE_FN_PATH = "miles.rollout.generate_hub.multi_turn_single_sample:generate"
+
+
 def make_sample(prompt=None):
     return Sample(
         prompt=prompt or [{"role": "user", "content": "What is 1+1?"}],
@@ -116,20 +119,15 @@ def make_sample(prompt=None):
     )
 
 
-async def call_multi_turn_generate(args, sample: Sample, sampling_params: dict) -> Sample:
-    from miles.rollout.generate_hub.multi_turn_single_sample import generate
-
-    state = GenerateState(args)
-    output = await generate(
-        GenerateFnInput(state=state, sample=sample, sampling_params=sampling_params.copy(), evaluation=False)
-    )
-    return output.samples
-
-
 def run_generate(env: GenerateEnv, sample: Sample | None = None, sampling_params: dict | None = None):
     env.mock_server.request_log.clear()
     result_sample = run(
-        call_multi_turn_generate(env.args, sample or make_sample(), sampling_params or DEFAULT_SAMPLING_PARAMS)
+        call_generate(
+            env.args,
+            sample or make_sample(),
+            sampling_params or DEFAULT_SAMPLING_PARAMS,
+            generate_fn_path=MULTI_TURN_GENERATE_FN_PATH,
+        )
     )
     return GenerateResult(sample=result_sample, requests=list(env.mock_server.request_log))
 
