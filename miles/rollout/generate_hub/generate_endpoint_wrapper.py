@@ -25,7 +25,9 @@ async def compute_prompt_ids_from_sample(state, sample, tools=None):
         return prompt_ids
     else:
         if not isinstance(prompt, str):
-            prompt = state.tokenizer.apply_chat_template(prompt, tokenize=False, add_generation_prompt=True, tools=tools)
+            prompt = state.tokenizer.apply_chat_template(
+                prompt, tokenize=False, add_generation_prompt=True, tools=tools
+            )
 
         return state.tokenizer.encode(prompt, add_special_tokens=False)
 
