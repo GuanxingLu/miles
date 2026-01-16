@@ -24,8 +24,7 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
     args = input.args
     sample = input.sample
     tokenizer = input.state.tokenizer
-
-    assert not args.partial_rollout, "Partial rollout is not supported for " "this function at the moment."
+    assert not args.partial_rollout
 
     url = f"http://{args.sglang_router_ip}:{args.sglang_router_port}/generate"
 
