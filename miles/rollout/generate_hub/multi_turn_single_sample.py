@@ -93,7 +93,7 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
 
         update_sample_with_tool_responses(sample, tool_messages, tokenizer=tokenizer)
 
-    sample.update_from_meta_info(args, output["meta_info"])
+        sample.update_from_meta_info(args, output["meta_info"])
 
     return GenerateFnOutput(samples=sample)
 
