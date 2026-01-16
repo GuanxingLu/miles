@@ -1,21 +1,17 @@
-from argparse import Namespace
 from dataclasses import dataclass
-from typing import Any
 
 import numpy as np
 import pybase64
 import pytest
 import torch
 from PIL import Image
-from tests.fixtures.generation_fixtures import GenerateEnv, generation_env
 from transformers import AutoProcessor
 
-from miles.rollout.base_types import GenerateFnInput
-from miles.rollout.modular_rollout.orchestration_common import GenerateState
 from miles.utils.async_utils import run
 from miles.utils.processing_utils import encode_image_for_rollout_engine
 from miles.utils.test_utils.mock_sglang_server import ProcessResult, ProcessResultMetaInfo
 from miles.utils.types import Sample
+from tests.fixtures.generation_fixtures import GenerateEnv, call_generate, generation_env
 
 _ = generation_env
 
@@ -97,23 +93,6 @@ def expected_sample(
     )
 
 
-async def call_generate(variant: str, args: Namespace, sample: Sample, sampling_params: dict[str, Any]) -> Sample:
-    if variant == "sglang_rollout":
-        from miles.rollout.sglang_rollout import generate
-
-        return await generate(args, sample, sampling_params.copy())
-    elif variant == "modular_rollout":
-        from miles.rollout.generate_hub.single_turn import generate
-
-        state = GenerateState(args)
-        output = await generate(
-            GenerateFnInput(state=state, sample=sample, sampling_params=sampling_params.copy(), evaluation=False)
-        )
-        return output.samples
-    else:
-        raise NotImplementedError
-
-
 @dataclass
 class GenerateResult:
     sample: Sample
@@ -134,7 +113,7 @@ def make_sample(tokens=None, response="", response_length=0, status=Sample.Statu
 def run_generate(variant: str, env: GenerateEnv, sample: Sample | None = None, sampling_params: dict | None = None):
     env.mock_server.request_log.clear()
     result_sample = run(
-        call_generate(variant, env.args, sample or make_sample(), sampling_params or DEFAULT_SAMPLING_PARAMS)
+        call_generate(env.args, sample or make_sample(), sampling_params or DEFAULT_SAMPLING_PARAMS, variant=variant)
     )
     return GenerateResult(sample=result_sample, requests=list(env.mock_server.request_log))
 

@@ -9,9 +9,12 @@ from unittest.mock import patch
 
 import pytest
 
+from miles.rollout.base_types import GenerateFnInput
+from miles.rollout.modular_rollout.orchestration_common import GenerateState
 from miles.utils.http_utils import init_http_client
-from miles.utils.misc import SingletonMeta
+from miles.utils.misc import SingletonMeta, load_function
 from miles.utils.test_utils.mock_sglang_server import ProcessResult, ProcessResultMetaInfo, with_mock_server
+from miles.utils.types import Sample
 
 MODEL_NAME = "Qwen/Qwen3-0.6B"
 RESPONSE_TEXT = "\\boxed{8}"
@@ -21,6 +24,29 @@ RESPONSE_TEXT = "\\boxed{8}"
 class GenerateEnv:
     args: Namespace
     mock_server: Any
+
+
+async def call_generate(
+    args: Namespace,
+    sample: Sample,
+    sampling_params: dict[str, Any],
+    *,
+    variant: str = "modular_rollout",
+    generate_fn_path: str = "miles.rollout.generate_hub.single_turn:generate",
+) -> Sample:
+    if variant == "sglang_rollout":
+        from miles.rollout.sglang_rollout import generate
+
+        return await generate(args, sample, sampling_params.copy())
+    elif variant == "modular_rollout":
+        generate_fn = load_function(generate_fn_path)
+        state = GenerateState(args)
+        output = await generate_fn(
+            GenerateFnInput(state=state, sample=sample, sampling_params=sampling_params.copy(), evaluation=False)
+        )
+        return output.samples
+    else:
+        raise NotImplementedError(f"Unknown variant: {variant}")
 
 
 def make_args(
