@@ -13,7 +13,8 @@ from miles.rollout.base_types import GenerateFnInput
 from miles.rollout.modular_rollout.orchestration_common import GenerateState
 from miles.utils.async_utils import run
 from miles.utils.http_utils import init_http_client
-from miles.utils.misc import SingletonMeta, load_function
+from miles.rollout.modular_rollout.compatibility import load_generate_function
+from miles.utils.misc import SingletonMeta
 from miles.utils.test_utils.mock_sglang_server import ProcessResult, ProcessResultMetaInfo, with_mock_server
 from miles.utils.types import Sample
 
@@ -22,6 +23,7 @@ RESPONSE_TEXT = "\\boxed{8}"
 DEFAULT_SAMPLING_PARAMS = {"max_new_tokens": 64, "temperature": 0.7}
 
 VARIANT_TO_GENERATE_FN_PATH = {
+    "old_sglang_rollout": "miles.rollout.sglang_rollout:generate",
     "single_turn": "miles.rollout.generate_hub.single_turn:generate",
     "multi_turn_single_sample": "miles.rollout.generate_hub.multi_turn_single_sample:generate",
 }
@@ -65,18 +67,13 @@ async def call_generate(
     *,
     variant: str = "single_turn",
 ) -> Sample:
-    if variant == "old_sglang_rollout":
-        from miles.rollout.sglang_rollout import generate
-
-        return await generate(args, sample, sampling_params.copy())
-    elif variant in VARIANT_TO_GENERATE_FN_PATH:
-        generate_fn = load_function(VARIANT_TO_GENERATE_FN_PATH[variant])
-        state = GenerateState(args)
-        input = GenerateFnInput(state=state, sample=sample, sampling_params=sampling_params.copy(), evaluation=False)
-        output = await generate_fn(input)
-        return output.samples
-    else:
+    if variant not in VARIANT_TO_GENERATE_FN_PATH:
         raise NotImplementedError(f"Unknown variant: {variant}")
+    generate_fn = load_generate_function(VARIANT_TO_GENERATE_FN_PATH[variant])
+    state = GenerateState(args)
+    input = GenerateFnInput(state=state, sample=sample, sampling_params=sampling_params.copy(), evaluation=False)
+    output = await generate_fn(input)
+    return output.samples
 
 
 def run_generate(
