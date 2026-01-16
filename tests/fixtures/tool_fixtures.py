@@ -31,7 +31,7 @@ def _get_year(params: dict) -> dict:
 
 
 def _get_temperature(params: dict) -> dict:
-    assert params.get("location") == "Mars"
+    assert params.get("location") == "Earth"
     return {"temperature": 25}
 
 
