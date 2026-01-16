@@ -5,6 +5,7 @@ from sglang.srt.function_call.core_types import ToolCallItem
 from sglang.srt.function_call.function_call_parser import FunctionCallParser
 
 from miles.rollout.generate_hub.tool_call_utils import _DUMMY_USER, _build_dummy_assistant, tokenize_tool_responses
+from tests.fixtures.tool_fixtures import SAMPLE_TOOLS
 
 TOOL_CALL_TEST_MODELS = [
     "Qwen/Qwen2.5-0.5B-Instruct",
@@ -72,37 +73,6 @@ def _compute_chat_template_diff(base_messages, extra_messages, tokenizer) -> str
     )
     text_without = tokenizer.apply_chat_template(base_messages, tokenize=False, add_generation_prompt=False)
     return text_with[len(text_without) :]
-
-
-SAMPLE_TOOLS = [
-    {
-        "type": "function",
-        "function": {
-            "name": "get_weather",
-            "description": "Get current weather for a city",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "city": {"type": "string"},
-                    "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]},
-                },
-                "required": ["city"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "search",
-            "description": "Search for information",
-            "parameters": {
-                "type": "object",
-                "properties": {"query": {"type": "string"}},
-                "required": ["query"],
-            },
-        },
-    },
-]
 
 
 class TestApplyChatTemplateWithTools:
