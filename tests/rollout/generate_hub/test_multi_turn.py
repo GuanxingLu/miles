@@ -95,10 +95,6 @@ def verify_sample(
     *,
     expected_chunks: list[SampleParsedChunk],
     expected_partial_sample: Sample,
-    prompt: list[dict],
-    response: str,
-    response_length: int,
-    status: Sample.Status = Sample.Status.COMPLETED,
 ):
     actual_chunks = parse_sample_into_chunks(actual, TOKENIZER)
     assert actual_chunks == expected_chunks
@@ -147,7 +143,7 @@ class TestBasicMultiTurn:
                 SampleParsedChunk(
                     tokens_decoded_str=SINGLE_TURN_RESPONSE,
                     loss_mask_value=1,
-                    rollout_log_probs=tuple(-1 / 128 * i for i in range(6)),
+                    rollout_log_probs=[-1 / 128 * i for i in range(6)],
                 ),
             ],
             expected_partial_sample=expected_partial_sample(
@@ -174,12 +170,12 @@ class TestBasicMultiTurn:
                 SampleParsedChunk(
                     tokens_decoded_str=MULTI_TURN_FIRST_RESPONSE,
                     loss_mask_value=1,
-                    rollout_log_probs=tuple(-1 / 128 * i for i in range(57)),
+                    rollout_log_probs=[-1 / 128 * i for i in range(57)],
                 ),
                 SampleParsedChunk(
                     tokens_decoded_str=TWO_TURN_TOOL_RESPONSE,
                     loss_mask_value=0,
-                    rollout_log_probs=tuple([0.0] * 47),
+                    rollout_log_probs=[0.0] * 47,
                 ),
                 SampleParsedChunk(
                     tokens_decoded_str=MULTI_TURN_SECOND_RESPONSE,
