@@ -42,9 +42,11 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
         prompt = tokenizer.apply_chat_template(prompt, tokenize=False, add_generation_prompt=True, tools=tool_specs)
     prompt_tokens_ids = tokenizer(prompt, add_special_tokens=False)["input_ids"]
 
+    assert sample.loss_masks is None
+    sample.loss_masks = []
+
     response = ""
     response_token_ids = []
-    loss_masks = []
 
     for turn in range(args.generate_max_turns):
         # Check if total length exceeds max context length
@@ -77,7 +79,7 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
 
         response += cur_response
         response_token_ids += cur_response_token_ids
-        loss_masks += [1] * len(cur_response_token_ids)
+        sample.loss_masks += [1] * len(cur_response_token_ids)
 
         finish_reason_type = output["meta_info"]["finish_reason"]["type"]
         if finish_reason_type in ("abort", "length"):
@@ -93,7 +95,7 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
         # TODO is this ok?
         response += tokenizer.decode(next_obs_tokens_ids)
         response_token_ids += next_obs_tokens_ids
-        loss_masks += [0] * len(next_obs_tokens_ids)
+        sample.loss_masks += [0] * len(next_obs_tokens_ids)
 
         sample.rollout_log_probs += [0.0] * len(next_obs_tokens_ids)
 
@@ -108,7 +110,6 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
     sample.tokens = prompt_tokens_ids + response_token_ids
     sample.response_length = len(response_token_ids)
     sample.response = response
-    sample.loss_mask = loss_masks
 
     sample.rollout_routed_experts = _get_rollout_routed_experts_from_response(args, sample, output)
 
