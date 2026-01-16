@@ -95,13 +95,14 @@ async def _call_generate(
 
 def make_args(
     *,
+    variant: str,
     router_port: int,
     use_rollout_routing_replay: bool = False,
     sglang_speculative_algorithm: str | None = None,
     model_name: str = MODEL_NAME,
     extra_argv: list[str] | None = None,
     custom_generate_function_path: str | None = None,
-    generate_max_turns: int | None = None,
+    generate_max_turns: int | None = FILL_THINGS_HERE,
     generate_max_tool_calls: int | None = None,
     generate_tool_specs_path: str | None = None,
     generate_tool_call_parser: str | None = None,
@@ -139,20 +140,22 @@ def make_args(
         argv.extend(["--sglang-speculative-algorithm", sglang_speculative_algorithm])
     if custom_generate_function_path:
         argv.extend(["--custom-generate-function-path", custom_generate_function_path])
-    if generate_max_turns is not None:
-        argv.extend(["--generate-max-turns", str(generate_max_turns)])
-    if generate_max_tool_calls is not None:
-        argv.extend(["--generate-max-tool-calls", str(generate_max_tool_calls)])
-    if generate_tool_specs_path:
-        argv.extend(["--generate-tool-specs-path", generate_tool_specs_path])
-    if generate_tool_call_parser:
-        argv.extend(["--generate-tool-call-parser", generate_tool_call_parser])
-    if generate_execute_tool_function_path:
-        argv.extend(["--generate-execute-tool-function-path", generate_execute_tool_function_path])
-    if rollout_max_context_len is not None:
-        argv.extend(["--rollout-max-context-len", str(rollout_max_context_len)])
-    if extra_argv:
-        argv.extend(extra_argv)
+
+    if variant == "multi_turn_single_sample":
+        if generate_max_turns is not None:
+            argv.extend(["--generate-max-turns", str(generate_max_turns)])
+        if generate_max_tool_calls is not None:
+            argv.extend(["--generate-max-tool-calls", str(generate_max_tool_calls)])
+        if generate_tool_specs_path:
+            argv.extend(["--generate-tool-specs-path", generate_tool_specs_path])
+        if generate_tool_call_parser:
+            argv.extend(["--generate-tool-call-parser", generate_tool_call_parser])
+        if generate_execute_tool_function_path:
+            argv.extend(["--generate-execute-tool-function-path", generate_execute_tool_function_path])
+        if rollout_max_context_len is not None:
+            argv.extend(["--rollout-max-context-len", str(rollout_max_context_len)])
+        if extra_argv:
+            argv.extend(extra_argv)
 
     from miles.utils.arguments import parse_args
 
@@ -163,16 +166,6 @@ def make_args(
     return args
 
 
-MULTI_TURN_DEFAULT_ARGS = {
-    "generate_max_turns": 16,
-    "generate_max_tool_calls": 16,
-    "generate_tool_specs_path": "miles.utils.test_utils.mock_tools.SAMPLE_TOOLS",
-    "generate_tool_call_parser": "qwen25",
-    "generate_execute_tool_function_path": "miles.utils.test_utils.mock_tools.execute_tool_call",
-    "rollout_max_context_len": 4096,
-}
-
-
 @pytest.fixture
 def generation_env(request, variant):
     SingletonMeta.clear_all_instances()
@@ -180,9 +173,6 @@ def generation_env(request, variant):
     args_kwargs = params.get("args_kwargs", {})
     model_name = args_kwargs.get("model_name", MODEL_NAME)
     custom_generate_function_path = VARIANT_TO_GENERATE_FN_PATH[variant]
-
-    if variant == "multi_turn_single_sample":
-        args_kwargs = {**MULTI_TURN_DEFAULT_ARGS, **args_kwargs}
 
     def process_fn(_):
         x = params.get("process_fn_kwargs", {})
@@ -202,6 +192,7 @@ def generation_env(request, variant):
     with with_mock_server(model_name=model_name, process_fn=process_fn) as mock_server:
         other_args_kwargs = {k: v for k, v in args_kwargs.items() if k != "model_name"}
         args = make_args(
+            variant=variant,
             router_port=mock_server.port,
             model_name=model_name,
             custom_generate_function_path=custom_generate_function_path,
