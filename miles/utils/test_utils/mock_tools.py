@@ -46,7 +46,7 @@ TOOL_EXECUTORS = {
 }
 
 
-def execute_tool_call(name: str, params: dict) -> str:
+async def execute_tool_call(name: str, params: dict) -> str:
     return TOOL_EXECUTORS[name](params)
 
 

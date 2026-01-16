@@ -35,7 +35,7 @@ MULTI_TURN_EXTRA_ARGV = [
     "--generate-tool-call-parser",
     "qwen25",
     "--generate-execute-tool-function-path",
-    "miles.utils.test_utils.mock_tools.mock_execute_tool_function",
+    "miles.utils.test_utils.mock_tools.execute_tool_call",
     "--rollout-max-context-len",
     "4096",
 ]
