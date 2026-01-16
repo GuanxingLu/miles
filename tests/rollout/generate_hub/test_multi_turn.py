@@ -113,6 +113,7 @@ def expected_request(input_ids: list[int], sampling_params: dict | None = None) 
         "input_ids": input_ids,
         "sampling_params": sampling_params or DEFAULT_SAMPLING_PARAMS,
         "return_logprob": True,
+        "return_routed_experts": False,
     }
 
 
