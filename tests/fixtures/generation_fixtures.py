@@ -21,6 +21,11 @@ MODEL_NAME = "Qwen/Qwen3-0.6B"
 RESPONSE_TEXT = "\\boxed{8}"
 DEFAULT_SAMPLING_PARAMS = {"max_new_tokens": 64, "temperature": 0.7}
 
+VARIANT_TO_GENERATE_FN_PATH = {
+    "single_turn": "miles.rollout.generate_hub.single_turn:generate",
+    "multi_turn_single_sample": "miles.rollout.generate_hub.multi_turn_single_sample:generate",
+}
+
 
 def make_sample(
         *,
@@ -58,15 +63,14 @@ async def call_generate(
     sample: Sample,
     sampling_params: dict[str, Any],
     *,
-    variant: str = "modular_rollout",
-    generate_fn_path: str = "miles.rollout.generate_hub.single_turn:generate",
+    variant: str = "single_turn",
 ) -> Sample:
-    if variant == "sglang_rollout":
+    if variant == "old_sglang_rollout":
         from miles.rollout.sglang_rollout import generate
 
         return await generate(args, sample, sampling_params.copy())
-    elif variant == "modular_rollout":
-        generate_fn = load_function(generate_fn_path)
+    elif variant in VARIANT_TO_GENERATE_FN_PATH:
+        generate_fn = load_function(VARIANT_TO_GENERATE_FN_PATH[variant])
         state = GenerateState(args)
         output = await generate_fn(
             GenerateFnInput(state=state, sample=sample, sampling_params=sampling_params.copy(), evaluation=False)
