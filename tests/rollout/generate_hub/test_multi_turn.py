@@ -4,8 +4,6 @@ from itertools import groupby
 import pytest
 from transformers import AutoTokenizer
 
-from miles.rollout.base_types import GenerateFnInput
-from miles.rollout.modular_rollout.orchestration_common import GenerateState
 from miles.utils.async_utils import run
 from miles.utils.test_utils.mock_sglang_server import ProcessResult
 from miles.utils.test_utils.mock_tools import (
@@ -15,7 +13,7 @@ from miles.utils.test_utils.mock_tools import (
     multi_turn_tool_call_process_fn,
 )
 from miles.utils.types import Sample
-from tests.fixtures.generation_fixtures import GenerateEnv, generation_env
+from tests.fixtures.generation_fixtures import GenerateEnv, call_generate, generation_env
 
 _ = generation_env, SAMPLE_TOOLS, mock_execute_tool_function, multi_turn_tool_call_process_fn
 
