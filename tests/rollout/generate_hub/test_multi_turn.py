@@ -117,7 +117,8 @@ def _run_generate(variant: str, env: GenerateEnv, sample: Sample, sampling_param
 SINGLE_TURN_PROMPT = [{"role": "user", "content": "What is 1+1?"}]
 SINGLE_TURN_RESPONSE = "The answer is 2."
 
-TWO_TURN_PROMPT = [{"role": "user", "content": MULTI_TURN_FIRST_PROMPT}]
+TWO_TURN_USER_QUESTION = "What is 42 + year + temperature?"
+TWO_TURN_PROMPT = [{"role": "user", "content": TWO_TURN_USER_QUESTION}]
 TWO_TURN_TOOL_RESPONSE = (
     '<|im_end|>\n<|im_start|>tool (tool_call_id: call00000)<|im_end|>\n{"year": 2026}'
     '<|im_start|>tool (tool_call_id: call00001)<|im_end|>\n{"temperature": -60}<|im_start|>assistant\n'
