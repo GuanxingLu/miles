@@ -4,6 +4,7 @@ Simple multi-turn generation with tool calling.
 
 import argparse
 import json
+import uuid
 
 from pydantic import TypeAdapter
 from sglang.srt.entrypoints.openai.protocol import Tool
@@ -140,7 +141,8 @@ async def _execute_tool_calls(parsed_tool_calls, execute_one) -> list[dict]:
         tool_messages.append(
             {
                 "role": "tool",
-                "tool_call_id": f"call{call.tool_index:05d}",
+                # src: serving_chat.py :: _process_tool_call_id
+                "tool_call_id": f"call_{uuid.uuid4().hex[:24]}",
                 "content": result,
                 "name": call.name,
             }
