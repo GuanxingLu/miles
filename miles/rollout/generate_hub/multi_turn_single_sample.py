@@ -25,7 +25,7 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
 
     url = f"http://{args.sglang_router_ip}:{args.sglang_router_port}/generate"
 
-    execute_tool_function = load_function(args.execute_tool_function_path)
+    execute_tool_function = load_function(args.generate_execute_tool_function_path)
 
     tool_specs = load_function(args.generate_tool_specs_path)
     assert isinstance(tool_specs, list)

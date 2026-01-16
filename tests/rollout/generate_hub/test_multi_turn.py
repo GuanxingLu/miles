@@ -39,7 +39,7 @@ MULTI_TURN_EXTRA_ARGV = [
     "--generate-max-tool-calls", "4",
     "--generate-tool-specs-path", f"{__name__}:TOOL_SPECS",
     "--generate-tool-call-parser", "qwen25",
-    "--execute-tool-function-path", f"{__name__}:mock_execute_tool",
+    "--generate-execute-tool-function-path", f"{__name__}:mock_execute_tool",
 ]
 
 
