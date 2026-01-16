@@ -24,6 +24,9 @@ async def compute_prompt_ids_from_sample(state, sample):
         return state.tokenizer.encode(sample.prompt, add_special_tokens=False)
 
 
+# Thin wrapper to construct request payload.
+# Make it a function to allow adding logics like `return_routed_experts` in the future
+# without requiring users to change their code.
 async def compute_request_payload(state, sample, input_ids: list[int], sampling_params: dict) -> dict[str, Any]:
     payload = {
         "input_ids": input_ids,
