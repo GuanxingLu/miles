@@ -144,9 +144,25 @@ class MockSGLangServer:
 
                 finish_reason = process_result.finish_reason
                 tool_calls = None
-                if finish_reason == "stop" and "<tool_call>" in process_result.text:
-                    finish_reason = "tool_calls"
-                    tool_calls = self._parse_tool_calls_from_text(process_result.text)
+                if tools and finish_reason == "stop":
+                    parser = FunctionCallParser(
+                        tools=TypeAdapter(list[Tool]).validate_python(tools),
+                        tool_call_parser="qwen25",
+                    )
+                    _, parsed_calls = parser.parse_non_stream(process_result.text)
+                    if parsed_calls:
+                        finish_reason = "tool_calls"
+                        tool_calls = [
+                            {
+                                "id": f"call{i:05d}",
+                                "type": "function",
+                                "function": {
+                                    "name": call.name,
+                                    "arguments": call.parameters or "{}",
+                                },
+                            }
+                            for i, call in enumerate(parsed_calls)
+                        ]
 
                 response = {
                     "id": f"chatcmpl-{uuid.uuid4().hex[:8]}",
@@ -168,26 +184,6 @@ class MockSGLangServer:
                 }
 
                 return JSONResponse(content=response)
-
-    def _parse_tool_calls_from_text(self, text: str) -> list[dict] | None:
-        import json as json_module
-        tool_calls = []
-        pattern = r"<tool_call>\s*(\{[^}]+\})\s*</tool_call>"
-        matches = re.findall(pattern, text, re.DOTALL)
-        for i, match in enumerate(matches):
-            try:
-                parsed = json_module.loads(match)
-                tool_calls.append({
-                    "id": f"call{i:05d}",
-                    "type": "function",
-                    "function": {
-                        "name": parsed.get("name"),
-                        "arguments": json_module.dumps(parsed.get("arguments", {})),
-                    },
-                })
-            except json_module.JSONDecodeError:
-                continue
-        return tool_calls if tool_calls else None
 
     def start(self):
         self._server = UvicornThreadServer(self.app, host=self.host, port=self.port)
