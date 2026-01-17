@@ -311,9 +311,8 @@ class TestExitConditions:
         result = _run_generate(variant, generation_env, make_sample(prompt=TWO_TURN_PROMPT))
 
         assert result.requests == [expected_request(FIRST_PROMPT_TOKEN_IDS)]
-        verify_samples(
-            result.sample,
-            [
+        if variant == "multi_turn_single_sample":
+            expected = [
                 ExpectedSampleInfo(
                     chunks=FIRST_TURN_CHUNKS,
                     partial_sample=expected_partial_sample(
@@ -322,8 +321,19 @@ class TestExitConditions:
                         response_length=45 + 31,
                     ),
                 ),
-            ],
-        )
+            ]
+        else:
+            expected = [
+                ExpectedSampleInfo(
+                    chunks=[FIRST_TURN_ASSISTANT_ONLY_CHUNK],
+                    partial_sample=expected_partial_sample(
+                        prompt=TWO_TURN_PROMPT,
+                        response=MULTI_TURN_FIRST_RESPONSE,
+                        response_length=45,
+                    ),
+                ),
+            ]
+        verify_samples(result.sample, expected)
 
 
 class TestRespectMaxContextLen:
@@ -333,17 +343,18 @@ class TestRespectMaxContextLen:
     def test_prompt_exceeds_max_context_len_returns_truncated(self, variant, generation_env):
         result = _run_generate(variant, generation_env, make_sample(prompt=SINGLE_TURN_PROMPT))
         assert result.requests == []
-        verify_samples(
-            result.sample,
-            [
+        if variant == "multi_turn_single_sample":
+            expected = [
                 ExpectedSampleInfo(
                     chunks=[],
                     partial_sample=expected_partial_sample(
                         prompt=SINGLE_TURN_PROMPT, response="", response_length=0, status=Sample.Status.TRUNCATED
                     ),
                 )
-            ],
-        )
+            ]
+        else:
+            expected = []
+        verify_samples(result.sample, expected)
 
     @pytest.mark.parametrize(
         "generation_env",
