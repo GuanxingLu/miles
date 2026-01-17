@@ -85,7 +85,8 @@ def setup_session_routes(app, router: "MilesRouter"):
             add_special_tokens=False,
             tools=request_body.get("tools"),
         )
-        for item in response_body["logprobs"]["content"]:
+        logprobs_content = response_body["choices"][0]["logprobs"]["content"]
+        for item in logprobs_content:
             item["token_id"] = tokenizer.convert_tokens_to_ids(item["token"])
         # ============================= HACK END ===============================
 
