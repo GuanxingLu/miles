@@ -2,6 +2,7 @@ from argparse import Namespace
 
 from miles.router.sessions import DeleteSessionResponse, SessionRecord
 from miles.utils.http_utils import post
+from miles.utils.types import Sample
 
 
 class OpenAIEndpointTracer:
@@ -23,5 +24,5 @@ class OpenAIEndpointTracer:
         return response.records
 
 
-def compute_samples_from_openai_records(records: list[SessionRecord]):
+def compute_samples_from_openai_records(input_sample: Sample, records: list[SessionRecord]) -> Sample:
     return TODO
