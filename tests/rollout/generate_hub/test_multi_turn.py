@@ -11,7 +11,7 @@ from miles.utils.test_utils.mock_tools import (
     MULTI_TURN_FIRST_PROMPT,
     MULTI_TURN_FIRST_RESPONSE,
     MULTI_TURN_OPENAI_MESSAGES_FIRST_TURN,
-    MULTI_TURN_OPENAI_MESSAGES_SECOND_TURN,
+    MULTI_TURN_OPENAI_MESSAGES_SECOND_TURN_FROM_CLIENT,
     MULTI_TURN_SECOND_PROMPT,
     MULTI_TURN_SECOND_RESPONSE,
     SAMPLE_TOOLS,
@@ -188,7 +188,7 @@ class TestBasicMultiTurn:
         if variant == "agentic_tool_call_multi_samples":
             assert result.requests == [
                 expected_openai_request(MULTI_TURN_OPENAI_MESSAGES_FIRST_TURN),
-                expected_openai_request(MULTI_TURN_OPENAI_MESSAGES_SECOND_TURN),
+                expected_openai_request(MULTI_TURN_OPENAI_MESSAGES_SECOND_TURN_FROM_CLIENT),
             ]
         else:
             assert result.requests == [
