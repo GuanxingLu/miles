@@ -29,8 +29,9 @@ def merge_samples(a: Sample, b: Sample, tokenizer) -> Sample:
     try:
         a.validate()
         b.validate()
-        assert b.tokens[: len(a.tokens)] == a.tokens, "b.tokens must start with a.tokens"
-        assert obs_len > 0, f"obs_len={obs_len} must be > 0"
+        assert b.prompt.startswith(a.prompt)
+        assert b.tokens[: len(a.tokens)] == a.tokens
+        assert obs_len > 0
     except AssertionError as e:
         e.add_note(f"{a=} {b=}")
         raise
