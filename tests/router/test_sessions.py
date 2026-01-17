@@ -71,12 +71,23 @@ class TestSessionManager:
             manager.add_record("nonexistent", record)
 
 
+class HttpClient:
+    def __init__(self, base_url: str):
+        self.base_url = base_url
+
+    def post(self, path: str, json=None):
+        return requests.post(f"{self.base_url}{path}", json=json, timeout=10)
+
+    def delete(self, path: str):
+        return requests.delete(f"{self.base_url}{path}", timeout=10)
+
+
 @pytest.fixture(scope="class")
 def integration_client():
     def process_fn(prompt: str) -> ProcessResult:
         return ProcessResult(text=f"echo: {prompt}", finish_reason="stop")
 
-    with with_mock_server(process_fn=process_fn) as server:
+    with with_mock_server(process_fn=process_fn) as backend:
         args = SimpleNamespace(
             miles_router_max_connections=10,
             miles_router_timeout=30,
@@ -85,9 +96,16 @@ def integration_client():
             miles_router_health_check_failure_threshold=3,
         )
         router = MilesRouter(args)
-        router.worker_request_counts[server.url] = 0
-        router.worker_failure_counts[server.url] = 0
-        yield TestClient(router.app)
+        router.worker_request_counts[backend.url] = 0
+        router.worker_failure_counts[backend.url] = 0
+
+        port = find_available_port(31000)
+        server = UvicornThreadServer(router.app, host="127.0.0.1", port=port)
+        server.start()
+        try:
+            yield HttpClient(f"http://127.0.0.1:{port}")
+        finally:
+            server.stop()
 
 
 class TestSessionRoutes:
