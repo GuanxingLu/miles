@@ -39,9 +39,8 @@ def _compute_sample_from_openai_record(input_sample: Sample, record: SessionReco
     sample.response = ""
     sample.response_length = 0
 
-    # TODO
-    prompt_ids = record.request_json["input_ids"]
-    sample.tokens = list(prompt_ids)
+    # TODO handle this in generation side
+    sample.tokens = record.request_json["input_ids"]
 
     gen_token_ids, gen_log_probs, gen_text = _extract_generation_from_oai_response(record.response_json)
 
