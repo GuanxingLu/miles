@@ -127,13 +127,13 @@ class MockSGLangServer:
             messages = payload.get("messages", [])
             tools = payload.get("tools")
 
-            prompt_str = self.tokenizer.apply_chat_template(
-                messages, tokenize=False, add_generation_prompt=True, tools=tools
-            )
-
             with self._concurrency.track():
                 if self.latency > 0:
                     await asyncio.sleep(self.latency)
+
+                prompt_str = self.tokenizer.apply_chat_template(
+                    messages, tokenize=False, add_generation_prompt=True, tools=tools
+                )
 
                 process_result = self.process_fn(prompt_str)
                 output_ids = self.tokenizer.encode(process_result.text, add_special_tokens=False)
