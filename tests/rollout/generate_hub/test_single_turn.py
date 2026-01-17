@@ -294,7 +294,7 @@ class TestBoundaryConditions:
             response="x" * 10,
             response_length=10,
             tokens=existing_tokens,
-            rollout_log_probs=[],
+            rollout_log_probs=None,
             status=Sample.Status.TRUNCATED,
             prompt_tokens=0,
         )
