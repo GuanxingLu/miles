@@ -39,10 +39,7 @@ def _config_for_variant(variant: str) -> IntegrationEnvConfig:
 
 @pytest.mark.parametrize(
     "variant,rollout_integration_env",
-    [
-        pytest.param(variant, _config_for_variant(variant), id=variant)
-        for variant in _VARIANT_NAMES
-    ],
+    [pytest.param(variant, _config_for_variant(variant), id=variant) for variant in _VARIANT_NAMES],
     indirect=["rollout_integration_env"],
 )
 @pytest.mark.parametrize("test_type", ["train", "eval"])
@@ -64,7 +61,7 @@ def test_rollout(rollout_integration_env, variant, test_type):
 
 def _verify_samples(variant: str, samples: list[Any]):
     is_multi_samples = variant in ("multi_turn_multi_samples", "agentic_tool_call_multi_samples")
-    
+
     if is_multi_samples:
         if len(samples) > 0 and isinstance(samples[0], list):
             # Train mode: list[list[Sample]], grouped by prompt
@@ -75,7 +72,9 @@ def _verify_samples(variant: str, samples: list[Any]):
         else:
             # Eval mode: list[Sample], flattened
             # n_samples_per_eval_prompt=2, and each generate returns 2 turns, so 2*2=4 samples
-            assert len(samples) == 4, f"n_samples_per_eval_prompt=2, each generate returns 2 turns, so should have 4 samples, got {len(samples)}"
+            assert (
+                len(samples) == 4
+            ), f"n_samples_per_eval_prompt=2, each generate returns 2 turns, so should have 4 samples, got {len(samples)}"
             # Group samples by prompt (every 2 samples form a group)
             group_samples_list = [samples[i : i + 2] for i in range(0, len(samples), 2)]
             for group_samples in group_samples_list:
