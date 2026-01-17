@@ -33,6 +33,8 @@ def compute_samples_from_openai_records(input_sample: Sample, records: list[Sess
     ]
 
 def _compute_sample_from_openai_record(input_sample: Sample, record: SessionRecord) -> Sample:
+    gen_token_ids, gen_log_probs, gen_text = _extract_generation_from_oai_response(record.response)
+
     sample = deepcopy(input_sample)
     sample.tokens = record.extras.input_ids + TODO
     sample.loss_mask = record.extras.loss_mask
@@ -59,12 +61,10 @@ def _compute_sample_from_openai_record(input_sample: Sample, record: SessionReco
 
 
 def _extract_generation_from_oai_response(resp: dict) -> tuple[list[int], list[float], str]:
-    choice = resp.get("choices", [{}])[0]
-    message = choice.get("message", {})
-    text = message.get("content") or ""
+    choice = resp["choices"][0]
+    text = choice["message"]["content"]
 
-    logprobs_data = choice.get("logprobs", {})
-    content = logprobs_data.get("content") or []
+    content = choice["logprobs"]["content"]
 
     token_ids = [item["token_id"] for item in content]
     log_probs = [item["logprob"] for item in content]
