@@ -34,7 +34,6 @@ def compute_samples_from_openai_records(input_sample: Sample, records: list[Sess
     return [_compute_sample_from_openai_record(input_sample, record) for record in records]
 
 
-# NOTE: Do not assign `loss_mask`, since here it is a single-turn
 def _compute_sample_from_openai_record(input_sample: Sample, record: SessionRecord) -> Sample:
     # TODO may refine after @guapisolo's implementation
     choice = record.response["choices"][0]
@@ -44,12 +43,13 @@ def _compute_sample_from_openai_record(input_sample: Sample, record: SessionReco
     sample = deepcopy(input_sample)
     sample.tokens = record.request["input_ids"] + output_token_ids
     sample.rollout_log_probs = output_log_probs
-    sample.response = choice["message"]["content"]
-    sample.response_length = get_response_lengths([sample.loss_mask])[0]
+    sample.response = choice["message"]["content"] or ""
+    sample.response_length = len(output_token_ids)
+    sample.loss_mask = [1] * len(output_token_ids)
 
     # TODO unify with Sample.update_from_meta_info
     match choice["finish_reason"]:
-        case "stop":
+        case "stop" | "tool_calls":
             sample.status = Sample.Status.COMPLETED
         case "length":
             sample.status = Sample.Status.TRUNCATED
