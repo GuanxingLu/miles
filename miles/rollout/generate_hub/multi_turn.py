@@ -35,8 +35,7 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
     tool_specs = load_function(args.generate_tool_specs_path)
     tool_call_parser = create_tool_call_parser(tool_specs, args.generate_tool_call_parser)
 
-    if args.generate_multi_samples:
-        multi_samples = []
+    extra_samples = []
 
     # ----------------------- Initial prompts -------------------------
 
@@ -45,7 +44,12 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
     sample.loss_mask = []
     sample.tokens = prompt_tokens_ids.copy()
 
-    for _turn in range(args.generate_max_turns):
+    for turn in range(args.generate_max_turns):
+        # ----------------------- Multi-sample bookkeeping -------------------------
+
+        if args.generate_multi_samples and turn > 0:
+            extra_samples.append(deepcopy(sample))
+
         # ----------------------- Call inference endpoint -------------------------
 
         payload, halt_status = compute_request_payload(args, sample.tokens, input.sampling_params)
@@ -68,12 +72,8 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
         tool_messages = await execute_tool_calls(tool_calls, execute_tool_function)
         update_sample_with_tool_responses(sample, tool_messages, tokenizer=tokenizer)
 
-        # ----------------------- Multi-sample bookkeeping -------------------------
 
-        if args.generate_multi_samples:
-            multi_samples.append(deepcopy(sample))
-
-    return GenerateFnOutput(samples=multi_samples if args.generate_multi_samples else sample)
+    return GenerateFnOutput(samples=extra_samples + [sample])
 
 
 def _add_arguments(parser: argparse.ArgumentParser):
