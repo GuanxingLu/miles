@@ -13,7 +13,7 @@ async def _simple_reward_function(args, samples: Sample | list[Sample]) -> float
     """Simple reward function that checks if response contains the label."""
     if isinstance(samples, list):
         # For multi_samples variants, check if the last sample contains the label
-        # If so, all samples get reward=1 (as requested by user)
+        # If so, all samples get reward=1
         if getattr(args, "generate_multi_samples", False) and len(samples) > 0 and _check_reward(samples[-1]) == 1.0:
             return [1.0] * len(samples)
         # Otherwise, check each sample individually
@@ -92,10 +92,11 @@ def _verify_samples(variant: str, samples: list[Any]):
                 _verify_group_samples(group_sample)
         else:
             # Eval mode: list[Sample], flattened
+            # n_samples_per_eval_prompt=2, and each generate returns 2 turns, so 2*2=4 samples
             assert len(samples) == 4, f"n_samples_per_eval_prompt=2, each generate returns 2 turns, so should have 4 samples, got {len(samples)}"
             # Group samples by prompt (every 2 samples form a group)
-            for group_idx in range(2):
-                group_samples = samples[group_idx * 2 : (group_idx + 1) * 2]
+            group_samples_list = [samples[i : i + 2] for i in range(0, len(samples), 2)]
+            for group_samples in group_samples_list:
                 _verify_group_samples(group_samples)
     else:
         assert len(samples) == 2, f"n_samples_per_prompt=2, so group should have 2 samples, got {len(samples)}"
