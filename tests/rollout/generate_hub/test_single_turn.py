@@ -78,7 +78,9 @@ def expected_sample(
     multimodal_train_inputs: dict | None = None,
 ) -> Sample:
     actual_response_length = response_length if response_length is not None else len(RESPONSE_TOKENS)
-    loss_mask = [1] * actual_response_length if variant in ("multi_turn_single_sample", "multi_turn_multi_samples") else None
+    loss_mask = (
+        [1] * actual_response_length if variant in ("multi_turn_single_sample", "multi_turn_multi_samples") else None
+    )
     return Sample(
         group_index=None,
         index=None,
