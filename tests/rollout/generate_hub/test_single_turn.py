@@ -42,7 +42,7 @@ def expected_request(
         "sampling_params": sampling_params or SAMPLING_PARAMS,
         "return_logprob": True,
     }
-    if variant in ("single_turn", "multi_turn_single_sample", "multi_turn_multi_samples") or return_routed_experts:
+    if variant in ("single_turn", "multi_turn_single_sample", "multi_turn_multi_samples", "agentic_tool_call_multi_samples") or return_routed_experts:
         result["return_routed_experts"] = return_routed_experts
     if image_data is not None:
         result["image_data"] = image_data
@@ -78,7 +78,7 @@ def expected_sample(
     if isinstance(loss_mask, _Unset):
         loss_mask = (
             [1] * actual_response_length
-            if variant in ("multi_turn_single_sample", "multi_turn_multi_samples")
+            if variant in ("multi_turn_single_sample", "multi_turn_multi_samples", "agentic_tool_call_multi_samples")
             else None
         )
 
@@ -134,7 +134,7 @@ class TestBasicGeneration:
 
 class TestResumedSingleTurn:
     def test_two_consecutive_calls_on_same_sample(self, variant, generation_env):
-        if variant in ("multi_turn_single_sample", "multi_turn_multi_samples"):
+        if variant in ("multi_turn_single_sample", "multi_turn_multi_samples", "agentic_tool_call_multi_samples"):
             pytest.skip("not tested yet")
         partial_text = "\\boxed"
         partial_tokens = [59, 79075]
