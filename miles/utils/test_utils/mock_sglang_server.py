@@ -86,7 +86,7 @@ class MockSGLangServer:
     def _setup_routes(self):
         @self.app.post("/generate")
         async def generate(request: Request):
-            return await self._handle_generate_like_request(request, self._compute_generate_response, log=True)
+            return await self._handle_generate_like_request(request, self._compute_generate_response)
 
         @self.app.post("/v1/chat/completions")
         async def chat_completions(request: Request):
@@ -101,11 +101,10 @@ class MockSGLangServer:
             return JSONResponse(content={"status": "ok"})
 
     async def _handle_generate_like_request(
-        self, request: Request, compute_fn: Callable[[dict], dict], log: bool = False
+        self, request: Request, compute_fn: Callable[[dict], dict]
     ):
         payload = await request.json()
-        if log:
-            self.request_log.append(payload)
+        self.request_log.append(payload)
         with self._concurrency.track():
             if self.latency > 0:
                 await asyncio.sleep(self.latency)
