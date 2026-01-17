@@ -9,15 +9,14 @@ from typing import Any
 from openai import AsyncOpenAI
 
 from miles.rollout.base_types import GenerateFnInput, GenerateFnOutput
-from miles.rollout.generate_hub.oai_endpoint_wrapper import OpenAIEndpointTracer
-
+from miles.rollout.generate_hub.openai_endpoint_wrapper import OpenAIEndpointTracer
 from miles.rollout.generate_hub.openai_endpoint_wrapper import compute_samples_from_openai_records
 from miles.rollout.generate_hub.tool_call_utils import execute_tool_calls
 from miles.utils.misc import load_function
 
 
 async def generate(input: GenerateFnInput) -> GenerateFnOutput:
-    tracer = await OpenAIEndpointTracer.create(args)
+    tracer = await OpenAIEndpointTracer.create(input.args)
 
     await _run_blackbox_tool_call_agent(
         base_url=tracer.base_url,
