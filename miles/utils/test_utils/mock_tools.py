@@ -117,6 +117,55 @@ MULTI_TURN_SECOND_PROMPT = (
 )
 MULTI_TURN_SECOND_RESPONSE = "The answer is: 42 + 2026 + -60 = 2008."
 
+MULTI_TURN_USER_QUESTION = "What is 42 + year + temperature?"
+MULTI_TURN_FIRST_RESPONSE_CONTENT = "Let me get the year and temperature first."
+MULTI_TURN_FIRST_TOOL_CALLS = [
+    {"id": "call00000", "type": "function", "function": {"name": "get_year", "arguments": "{}"}},
+    {
+        "id": "call00001",
+        "type": "function",
+        "function": {"name": "get_temperature", "arguments": '{"location": "Mars"}'},
+    },
+]
+MULTI_TURN_FIRST_TOOL_CALLS_OPENAI_FORMAT = [
+    {"id": "call00000", "function": {"arguments": "{}", "name": "get_year"}, "type": "function"},
+    {
+        "id": "call00001",
+        "function": {"arguments": '{"location": "Mars"}', "name": "get_temperature"},
+        "type": "function",
+    },
+]
+
+MULTI_TURN_OPENAI_MESSAGES_FIRST_TURN = [
+    {"role": "user", "content": MULTI_TURN_USER_QUESTION},
+]
+
+MULTI_TURN_OPENAI_MESSAGES_SECOND_TURN = [
+    {"role": "user", "content": MULTI_TURN_USER_QUESTION},
+    {
+        "role": "assistant",
+        "content": MULTI_TURN_FIRST_RESPONSE_CONTENT,
+        "tool_calls": MULTI_TURN_FIRST_TOOL_CALLS,
+    },
+    {"role": "tool", "tool_call_id": "call00000", "content": '{"year": 2026}'},
+    {"role": "tool", "tool_call_id": "call00001", "content": '{"temperature": -60}'},
+]
+
+MULTI_TURN_OPENAI_MESSAGES_SECOND_TURN_FROM_CLIENT = [
+    {"role": "user", "content": MULTI_TURN_USER_QUESTION},
+    {
+        "content": MULTI_TURN_FIRST_RESPONSE_CONTENT,
+        "refusal": None,
+        "role": "assistant",
+        "annotations": None,
+        "audio": None,
+        "function_call": None,
+        "tool_calls": MULTI_TURN_FIRST_TOOL_CALLS_OPENAI_FORMAT,
+    },
+    {"role": "tool", "tool_call_id": "call00000", "content": '{"year": 2026}', "name": "get_year"},
+    {"role": "tool", "tool_call_id": "call00001", "content": '{"temperature": -60}', "name": "get_temperature"},
+]
+
 
 def multi_turn_tool_call_process_fn(prompt: str) -> ProcessResult:
     prompt_response_pairs = {
