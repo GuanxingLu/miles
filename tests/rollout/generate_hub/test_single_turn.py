@@ -18,10 +18,12 @@ _ = generation_env
 MODEL_NAME = "Qwen/Qwen3-0.6B"
 PROMPT = "What is 1+7?"
 PROMPT_TOKENS = [3838, 374, 220, 16, 10, 22, 30]
+PROMPT_TOKEN_LEN = len(PROMPT_TOKENS)
 RESPONSE_TOKENS = [59, 79075, 90, 23, 92]
 RESPONSE_TEXT = "\\boxed{8}"
 RESPONSE_LOG_PROBS = [-0.0, -0.0078125, -0.015625, -0.0234375, -0.03125]
 SAMPLING_PARAMS = {"max_new_tokens": 16, "temperature": 0.7}
+DEFAULT_MAX_NEW_TOKENS = SAMPLING_PARAMS["max_new_tokens"]
 
 
 @pytest.fixture(params=["old_sglang_rollout", "single_turn", "multi_turn_single_sample", "multi_turn_multi_samples"])
@@ -331,9 +333,9 @@ class TestBoundaryConditions:
     @pytest.mark.parametrize(
         "generation_env,expected_max_new_tokens",
         [
-            ({"args_kwargs": {"rollout_max_context_len": 10}}, 3),
-            ({"args_kwargs": {"rollout_max_context_len": 8}}, 1),
-            ({"args_kwargs": {"rollout_max_context_len": 100}}, 16),
+            ({"args_kwargs": {"rollout_max_context_len": 10}}, 10 - PROMPT_TOKEN_LEN),
+            ({"args_kwargs": {"rollout_max_context_len": 8}}, 8 - PROMPT_TOKEN_LEN),
+            ({"args_kwargs": {"rollout_max_context_len": 100}}, DEFAULT_MAX_NEW_TOKENS),
         ],
         indirect=["generation_env"],
     )
@@ -346,7 +348,11 @@ class TestBoundaryConditions:
         assert result.requests[0]["sampling_params"]["temperature"] == SAMPLING_PARAMS["temperature"]
         assert listify(result.sample) == [expected_sample(variant)]
 
-    @pytest.mark.parametrize("generation_env", [{"args_kwargs": {"rollout_max_context_len": 7}}], indirect=True)
+    @pytest.mark.parametrize(
+        "generation_env",
+        [{"args_kwargs": {"rollout_max_context_len": PROMPT_TOKEN_LEN}}],
+        indirect=True,
+    )
     def test_adjusted_max_new_tokens_zero_returns_truncated(self, variant, generation_env):
         if variant == "old_sglang_rollout":
             pytest.skip("old_sglang_rollout does not support rollout_max_context_len")
