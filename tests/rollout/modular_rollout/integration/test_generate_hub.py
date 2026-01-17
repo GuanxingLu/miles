@@ -37,6 +37,7 @@ def test_rollout(rollout_integration_env, request, test_type):
     env.mock_server.process_fn = TwoTurnStub.process_fn
 
     out = load_and_call_rollout(env.args, env.data_source, mode=test_type)
+    print(f"{out=}")
 
     if test_type == "train":
         assert len(out.samples) == env.args.rollout_batch_size
