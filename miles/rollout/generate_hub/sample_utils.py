@@ -30,11 +30,10 @@ def merge_samples(a: Sample, b: Sample, tokenizer) -> Sample:
     try:
         a.validate()
         b.validate()
-        assert b.prompt.startswith(a.prompt)
-        assert b.tokens[: len(a.tokens)] == a.tokens
-        assert obs_len > 0
-        # Lean towards safety, may support other statuses if needed
-        assert a.status == Sample.Status.COMPLETED
+        assert b.prompt.startswith(a.prompt), "b.prompt must start with a.prompt"
+        assert b.tokens[: len(a.tokens)] == a.tokens, "b.tokens must start with a.tokens"
+        assert obs_len > 0, f"obs_len must be > 0, got {obs_len}"
+        assert a.status == Sample.Status.COMPLETED, f"a.status must be COMPLETED, got {a.status}"
 
         return _create_with_all_fields(
             Sample,

@@ -104,7 +104,7 @@ class TestMergeSamples:
             loss_mask=[1],
         )
 
-        with pytest.raises(AssertionError):
+        with pytest.raises(AssertionError, match="b.tokens must start with a.tokens"):
             merge_samples(a, b, mock_tokenizer)
 
     def test_field_mismatch_raises(self, mock_tokenizer):
@@ -136,7 +136,7 @@ class TestMergeSamples:
             loss_mask=[1],
         )
 
-        with pytest.raises(AssertionError):
+        with pytest.raises(AssertionError, match="obs_len must be > 0"):
             merge_samples(a, b, mock_tokenizer)
 
     def test_sample_validate_fails_raises(self, mock_tokenizer):
@@ -151,5 +151,5 @@ class TestMergeSamples:
             loss_mask=[1],
         )
 
-        with pytest.raises(AssertionError):
+        with pytest.raises(AssertionError, match="loss_mask length"):
             merge_samples(a, b, mock_tokenizer)
