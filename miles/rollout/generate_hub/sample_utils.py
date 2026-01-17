@@ -16,17 +16,17 @@ def merge_samples(a: Sample, b: Sample, tokenizer) -> Sample:
     obs_text = tokenizer.decode(obs_tokens)
 
     return Sample(
+        group_index=_merge_equal_value(a.group_index, b.group_index, "group_index"),
+        index=_merge_equal_value(a.index, b.index, "index"),
         prompt=a.prompt,
         tokens=b.tokens,
         response=a.response + obs_text + b.response,
         response_length=a.response_length + obs_len + b.response_length,
+        label=_merge_equal_value(a.label, b.label, "label"),
+        reward=b.reward,
         loss_mask=a.loss_mask + [0] * obs_len + b.loss_mask,
         rollout_log_probs=a.rollout_log_probs + [0.0] * obs_len + b.rollout_log_probs,
         status=b.status,
-        label=_merge_equal_value(a.label, b.label, "label"),
-        reward=b.reward,
-        index=_merge_equal_value(a.index, b.index, "index"),
-        group_index=_merge_equal_value(a.group_index, b.group_index, "group_index"),
     )
 
 
