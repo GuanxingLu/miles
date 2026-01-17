@@ -60,8 +60,8 @@ class TestSessionManager:
 
     def test_delete_session_not_exists(self):
         manager = SessionManager()
-        records = manager.delete_session("nonexistent")
-        assert records is None
+        with pytest.raises(KeyError):
+            manager.delete_session("nonexistent")
 
     def test_add_record(self):
         manager = SessionManager()
