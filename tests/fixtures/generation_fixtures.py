@@ -37,6 +37,42 @@ VARIANT_TO_GENERATE_FN_PATH = {
 }
 
 
+def extra_argv_for_variant(
+    variant: str,
+    *,
+    custom_generate_function_path: str | None = None,
+    generate_max_turns: int = 16,
+    generate_tool_specs_path: str = "miles.utils.test_utils.mock_tools.SAMPLE_TOOLS",
+    generate_tool_call_parser: str = "qwen25",
+    generate_execute_tool_function_path: str = "miles.utils.test_utils.mock_tools.execute_tool_call",
+) -> list[str]:
+    argv = [
+        "--custom-generate-function-path",
+        custom_generate_function_path or VARIANT_TO_GENERATE_FN_PATH[variant],
+    ]
+
+    if variant in (
+        "multi_turn_single_sample",
+        "multi_turn_multi_samples",
+        "agentic_tool_call_single_sample",
+        "agentic_tool_call_multi_samples",
+    ):
+        argv += [
+            "--generate-max-turns",
+            str(generate_max_turns),
+            "--generate-tool-specs-path",
+            generate_tool_specs_path,
+            "--generate-execute-tool-function-path",
+            generate_execute_tool_function_path,
+        ]
+        if variant in ("multi_turn_single_sample", "multi_turn_multi_samples"):
+            argv += ["--generate-tool-call-parser", generate_tool_call_parser]
+        if variant in ("multi_turn_multi_samples", "agentic_tool_call_multi_samples"):
+            argv.append("--generate-multi-samples")
+
+    return argv
+
+
 def listify(x):
     return x if isinstance(x, list) else [x]
 
@@ -149,24 +185,19 @@ def make_args(
         argv.append("--use-rollout-routing-replay")
     if sglang_speculative_algorithm:
         argv.extend(["--sglang-speculative-algorithm", sglang_speculative_algorithm])
-    if custom_generate_function_path:
-        argv.extend(["--custom-generate-function-path", custom_generate_function_path])
     if rollout_max_context_len is not None:
         argv.extend(["--rollout-max-context-len", str(rollout_max_context_len)])
 
-    if variant in (
-        "multi_turn_single_sample",
-        "multi_turn_multi_samples",
-        "agentic_tool_call_single_sample",
-        "agentic_tool_call_multi_samples",
-    ):
-        argv.extend(["--generate-max-turns", str(generate_max_turns)])
-        argv.extend(["--generate-tool-specs-path", generate_tool_specs_path])
-        argv.extend(["--generate-execute-tool-function-path", generate_execute_tool_function_path])
-        if variant in ("multi_turn_single_sample", "multi_turn_multi_samples"):
-            argv.extend(["--generate-tool-call-parser", generate_tool_call_parser])
-        if variant in ("multi_turn_multi_samples", "agentic_tool_call_multi_samples"):
-            argv.append("--generate-multi-samples")
+    argv.extend(
+        extra_argv_for_variant(
+            variant,
+            custom_generate_function_path=custom_generate_function_path,
+            generate_max_turns=generate_max_turns,
+            generate_tool_specs_path=generate_tool_specs_path,
+            generate_tool_call_parser=generate_tool_call_parser,
+            generate_execute_tool_function_path=generate_execute_tool_function_path,
+        )
+    )
 
     if extra_argv:
         argv.extend(extra_argv)
