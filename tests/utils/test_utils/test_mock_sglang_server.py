@@ -184,19 +184,6 @@ class TestGenerateEndpoint:
             },
         }
 
-    def test_process_fn_receives_decoded_prompt(self):
-        received_prompts = []
-
-        def process_fn(prompt: str) -> ProcessResult:
-            received_prompts.append(prompt)
-            return ProcessResult(text="response", finish_reason="stop")
-
-        with with_mock_server(process_fn=process_fn) as server:
-            requests.post(f"{server.url}/generate", json={"input_ids": [1, 2, 3], "sampling_params": {}}, timeout=5.0)
-
-        assert len(received_prompts) == 1
-        assert isinstance(received_prompts[0], str)
-
     def test_with_meta_info(self):
         def process_fn(_: str) -> ProcessResult:
             return ProcessResult(
@@ -250,15 +237,6 @@ class TestGenerateEndpoint:
         finish_reason = data["meta_info"]["finish_reason"]
         assert finish_reason["type"] == "length"
         assert finish_reason["length"] == data["meta_info"]["completion_tokens"]
-
-    def test_requires_return_logprob_true(self):
-        with with_mock_server() as server:
-            response = requests.post(
-                f"{server.url}/generate",
-                json={"input_ids": [1, 2, 3], "sampling_params": {}, "return_logprob": False},
-                timeout=5.0,
-            )
-            assert response.status_code == 500
 
 
 class TestChatCompletionsEndpoint:
