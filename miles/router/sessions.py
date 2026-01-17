@@ -51,7 +51,9 @@ def setup_session_routes(app, router: "MilesRouter"):
     manager = SessionManager()
 
     # TODO temporary hack before @guapisolo implements TITO
+    # ============================= HACK START ===============================
     tokenizer = AutoTokenizer.from_pretrained(router.args.hf_checkpoint, trust_remote_code=True)
+    # ============================= HACK END ===============================
 
     @app.post("/sessions")
     async def create_session():
@@ -76,6 +78,7 @@ def setup_session_routes(app, router: "MilesRouter"):
         response_body = json.loads(result["response_body"])
 
         # TODO: remove this hack when @guapisolo implements the real TITO
+        # ============================= HACK START ===============================
         request_body["input_ids"] = tokenizer.apply_chat_template(
             request_body["messages"],
             add_generation_prompt=True,
@@ -84,6 +87,7 @@ def setup_session_routes(app, router: "MilesRouter"):
         )
         for item in response_body["logprobs"]["content"]:
             item["token_id"] = tokenizer.convert_tokens_to_ids(item["token"])
+        # ============================= HACK END ===============================
 
         record = SessionRecord(
             timestamp=time.time(),
