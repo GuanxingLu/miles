@@ -24,14 +24,7 @@ RESPONSE_LOG_PROBS = [-0.0, -0.0078125, -0.015625, -0.0234375, -0.03125]
 SAMPLING_PARAMS = {"max_new_tokens": 16, "temperature": 0.7}
 
 
-@pytest.fixture(
-    params=[
-        "old_sglang_rollout",
-        "single_turn",
-        "multi_turn_single_sample",
-        "multi_turn_multi_samples",
-    ]
-)
+@pytest.fixture(params=["old_sglang_rollout", "single_turn", "multi_turn_single_sample", "multi_turn_multi_samples"])
 def variant(request):
     return request.param
 
@@ -49,11 +42,7 @@ def expected_request(
         "sampling_params": sampling_params or SAMPLING_PARAMS,
         "return_logprob": True,
     }
-    if (
-        variant
-        in ("single_turn", "multi_turn_single_sample", "multi_turn_multi_samples", "agentic_tool_call_multi_samples")
-        or return_routed_experts
-    ):
+    if variant in ("single_turn", "multi_turn_single_sample", "multi_turn_multi_samples") or return_routed_experts:
         result["return_routed_experts"] = return_routed_experts
     if image_data is not None:
         result["image_data"] = image_data
@@ -89,7 +78,7 @@ def expected_sample(
     if isinstance(loss_mask, _Unset):
         loss_mask = (
             [1] * actual_response_length
-            if variant in ("multi_turn_single_sample", "multi_turn_multi_samples", "agentic_tool_call_multi_samples")
+            if variant in ("multi_turn_single_sample", "multi_turn_multi_samples")
             else None
         )
 
@@ -138,8 +127,6 @@ def _run_generate(variant: str, env: GenerateEnv, sample: Sample | None = None, 
 
 class TestBasicGeneration:
     def test_basic_generation(self, variant, generation_env):
-        if variant == "agentic_tool_call_multi_samples":
-            pytest.skip("agentic_tool_call requires chat messages format prompt")
         result = _run_generate(variant, generation_env)
         assert result.requests == [expected_request(variant)]
         assert listify(result.sample) == [expected_sample(variant)]
@@ -147,7 +134,7 @@ class TestBasicGeneration:
 
 class TestResumedSingleTurn:
     def test_two_consecutive_calls_on_same_sample(self, variant, generation_env):
-        if variant in ("multi_turn_single_sample", "multi_turn_multi_samples", "agentic_tool_call_multi_samples"):
+        if variant in ("multi_turn_single_sample", "multi_turn_multi_samples"):
             pytest.skip("not tested yet")
         partial_text = "\\boxed"
         partial_tokens = [59, 79075]
@@ -219,7 +206,7 @@ class TestRoutedExperts:
         indirect=True,
     )
     def test_routed_experts_enabled_and_parsed(self, variant, generation_env):
-        if variant in ("multi_turn_single_sample", "multi_turn_multi_samples", "agentic_tool_call_multi_samples"):
+        if variant in ("multi_turn_single_sample", "multi_turn_multi_samples"):
             pytest.skip("TODO: support")
 
         num_layers, moe_router_topk = 2, 4
@@ -285,7 +272,7 @@ class TestInputStatusValidation:
 
     @pytest.mark.parametrize("status", [Sample.Status.COMPLETED, Sample.Status.TRUNCATED])
     def test_rejected_statuses(self, variant, generation_env, status):
-        if variant in ("multi_turn_single_sample", "multi_turn_multi_samples", "agentic_tool_call_multi_samples"):
+        if variant in ("multi_turn_single_sample", "multi_turn_multi_samples"):
             pytest.skip("not tested yet")
         with pytest.raises(AssertionError):
             _run_generate(variant, generation_env, _make_sample(status=status))
@@ -304,7 +291,7 @@ class TestPayloadStructure:
 
 class TestBoundaryConditions:
     def test_max_new_tokens_zero_returns_truncated(self, variant, generation_env):
-        if variant in ("multi_turn_single_sample", "multi_turn_multi_samples", "agentic_tool_call_multi_samples"):
+        if variant in ("multi_turn_single_sample", "multi_turn_multi_samples"):
             pytest.skip("not tested yet")
         existing_tokens = [1, 2, 3, 4, 5, 6, 7] + list(range(100, 110))
         sample = _make_sample(tokens=existing_tokens, response="x" * 10, response_length=10)
@@ -325,15 +312,11 @@ class TestBoundaryConditions:
     def test_prompt_exceeds_max_context_len_returns_truncated(self, variant, generation_env):
         if variant == "old_sglang_rollout":
             pytest.skip("old_sglang_rollout does not support rollout_max_context_len")
-        if variant in ("multi_turn_multi_samples", "agentic_tool_call_multi_samples"):
+        if variant == "multi_turn_multi_samples":
             pytest.skip("multi_turn_multi_samples returns empty list when first turn fails")
         result = _run_generate(variant, generation_env)
         assert result.requests == []
-        tokens = (
-            PROMPT_TOKENS
-            if variant in ("multi_turn_single_sample", "multi_turn_multi_samples", "agentic_tool_call_multi_samples")
-            else []
-        )
+        tokens = PROMPT_TOKENS if variant in ("multi_turn_single_sample", "multi_turn_multi_samples") else []
         assert listify(result.sample) == [
             expected_sample(
                 variant,
@@ -364,7 +347,7 @@ VLM_MODEL_NAME = "Qwen/Qwen2-VL-2B-Instruct"
 class TestMultimodal:
     @pytest.mark.parametrize("generation_env", [{"args_kwargs": {"model_name": VLM_MODEL_NAME}}], indirect=True)
     def test_multimodal_inputs_processed(self, variant, generation_env):
-        if variant in ("multi_turn_single_sample", "multi_turn_multi_samples", "agentic_tool_call_multi_samples"):
+        if variant in ("multi_turn_single_sample", "multi_turn_multi_samples"):
             pytest.skip("not tested yet")
         test_image = Image.new("RGB", (64, 64), color="red")
         multimodal_inputs = {"images": [test_image]}
