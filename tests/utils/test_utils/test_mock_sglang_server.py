@@ -446,50 +446,7 @@ class TestMultiTurnToolCallProcessFn:
             assert data["choices"][0]["finish_reason"] == "tool_calls"
 
     def test_chat_completions_endpoint_second_turn(self):
-        second_turn_prompt_via_chat_template = (
-            "<|im_start|>system\n"
-            "# Tools\n"
-            "\n"
-            "You may call one or more functions to assist with the user query.\n"
-            "\n"
-            "You are provided with function signatures within <tools></tools> XML tags:\n"
-            "<tools>\n"
-            '{"type": "function", "function": {"name": "get_year", "description": "Get current year", "parameters": {"type": "object", "properties": {}, "required": []}}}\n'
-            '{"type": "function", "function": {"name": "get_temperature", "description": "Get temperature for a location", "parameters": {"type": "object", "properties": {"location": {"type": "string"}}, "required": ["location"]}}}\n'
-            "</tools>\n"
-            "\n"
-            "For each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:\n"
-            "<tool_call>\n"
-            '{"name": <function-name>, "arguments": <args-json-object>}\n'
-            "</tool_call><|im_end|>\n"
-            "<|im_start|>user\n"
-            "What is 42 + year + temperature?<|im_end|>\n"
-            "<|im_start|>assistant\n"
-            "Let me get the year and temperature first.\n"
-            "<tool_call>\n"
-            '{"name": "get_year", "arguments": {}}\n'
-            "</tool_call>\n"
-            "<tool_call>\n"
-            '{"name": "get_temperature", "arguments": {"location": "Mars"}}\n'
-            "</tool_call><|im_end|>\n"
-            "<|im_start|>user\n"
-            "<tool_response>\n"
-            '{"year": 2026}\n'
-            "</tool_response>\n"
-            "<tool_response>\n"
-            '{"temperature": -60}\n'
-            "</tool_response><|im_end|>\n"
-            "<|im_start|>assistant\n"
-        )
-
-        def process_fn_for_chat_template(prompt: str) -> ProcessResult:
-            if prompt == MULTI_TURN_FIRST_PROMPT:
-                return ProcessResult(text=MULTI_TURN_FIRST_RESPONSE, finish_reason="stop")
-            if prompt == second_turn_prompt_via_chat_template:
-                return ProcessResult(text=MULTI_TURN_SECOND_RESPONSE, finish_reason="stop")
-            raise ValueError(f"Unexpected {prompt=}")
-
-        with with_mock_server(process_fn=process_fn_for_chat_template) as server:
+        with with_mock_server(process_fn=multi_turn_tool_call_process_fn) as server:
             response = requests.post(
                 f"{server.url}/v1/chat/completions",
                 json={
