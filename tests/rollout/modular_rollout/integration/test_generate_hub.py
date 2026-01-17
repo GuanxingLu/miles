@@ -24,24 +24,6 @@ def _config_for_variant(variant: str) -> IntegrationEnvConfig:
     )
 
 
-def _verify_samples(variant: str, samples: list[Sample], expected_count: int):
-    if variant in ("multi_turn_multi_samples", "agentic_tool_call_multi_samples"):
-        assert len(samples) == 2
-        for sample in samples:
-            assert sample.status == Sample.Status.COMPLETED
-        assert samples[-1].reward == 1
-        assert "2008" in samples[-1].response
-    else:
-        assert len(samples) == expected_count
-        sample = samples[0]
-        assert sample.status == Sample.Status.COMPLETED
-        if variant == "single_turn":
-            assert sample.reward == 0
-        else:
-            assert sample.reward == 1
-            assert "2008" in sample.response
-
-
 @pytest.mark.parametrize(
     "rollout_integration_env",
     [pytest.param(_config_for_variant(variant), id=variant) for variant in _VARIANT_NAMES],
@@ -64,3 +46,22 @@ def test_rollout(rollout_integration_env, request, test_type):
         assert "toy" in out.data
         samples = out.data["toy"]["samples"]
         _verify_samples(variant, samples, env.args.n_samples_per_eval_prompt)
+
+
+def _verify_samples(variant: str, samples: list[Sample], expected_count: int):
+    if variant in ("multi_turn_multi_samples", "agentic_tool_call_multi_samples"):
+        assert len(samples) == 2
+        for sample in samples:
+            assert sample.status == Sample.Status.COMPLETED
+        assert samples[-1].reward == 1
+        assert "2008" in samples[-1].response
+    else:
+        assert len(samples) == expected_count
+        sample = samples[0]
+        assert sample.status == Sample.Status.COMPLETED
+        if variant == "single_turn":
+            assert sample.reward == 0
+        else:
+            assert sample.reward == 1
+            assert "2008" in sample.response
+
