@@ -4,8 +4,13 @@ from dataclasses import fields
 from miles.utils.types import Sample
 
 
-def _get_field_names(cls):
-    return {f.name for f in fields(cls)}
+def _create_with_all_fields(cls, **kwargs):
+    expected = {f.name for f in fields(cls)}
+    actual = set(kwargs.keys())
+    assert expected == actual, (
+        f"{cls.__name__} field mismatch. Missing: {expected - actual}, Extra: {actual - expected}"
+    )
+    return cls(**kwargs)
 
 
 def merge_samples(a: Sample, b: Sample, tokenizer) -> Sample:
@@ -44,7 +49,8 @@ def merge_samples(a: Sample, b: Sample, tokenizer) -> Sample:
     spec_info = _merge_spec_info(a.spec_info, b.spec_info)
     prefix_cache_info = _merge_prefix_cache_info(a.prefix_cache_info, b.prefix_cache_info)
 
-    merged_fields = dict(
+    return _create_with_all_fields(
+        Sample,
         group_index=_merge_equal_value("group_index"),
         index=_merge_equal_value("index"),
         prompt=b.prompt,
@@ -67,14 +73,6 @@ def merge_samples(a: Sample, b: Sample, tokenizer) -> Sample:
         spec_info=spec_info,
         prefix_cache_info=prefix_cache_info,
     )
-
-    expected_fields = _get_field_names(Sample)
-    actual_fields = set(merged_fields.keys())
-    assert expected_fields == actual_fields, (
-        f"Field mismatch. Missing: {expected_fields - actual_fields}, Extra: {actual_fields - expected_fields}"
-    )
-
-    return Sample(**merged_fields)
 
 
 def _merge_spec_info(a: Sample.SpecInfo, b: Sample.SpecInfo) -> Sample.SpecInfo:
