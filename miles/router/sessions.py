@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from miles.router.router import MilesRouter
 
 
+# TODO refine after @guapisolo's implementation
 class SessionRecordChatCompletionsExtras(BaseModel):
     input_ids: list[int]
     output_ids: list[int]
