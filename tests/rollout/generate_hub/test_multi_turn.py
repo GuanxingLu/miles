@@ -557,7 +557,9 @@ class TestRoutedExpertsMultiTurn:
             return ProcessResult(
                 text=text,
                 finish_reason="stop",
-                meta_info=ProcessResultMetaInfo(routed_experts=pybase64.b64encode(routed_experts.tobytes()).decode("ascii")),
+                meta_info=ProcessResultMetaInfo(
+                    routed_experts=pybase64.b64encode(routed_experts.tobytes()).decode("ascii")
+                ),
             )
 
         generation_env.mock_server.process_fn = process_fn
