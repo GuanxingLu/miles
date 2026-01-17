@@ -26,7 +26,12 @@ class OpenAIEndpointTracer:
 
 
 def compute_samples_from_openai_records(input_sample: Sample, records: list[SessionRecord]) -> list[Sample]:
-    samples = []
+    return [
+        _compute_sample_from_openai_record(input_sample, record)
+        for record in records
+    ]
+
+def _compute_sample_from_openai_record(input_sample: Sample, record: SessionRecord) -> Sample:
     sample = deepcopy(input_sample)
     sample.tokens = []
     sample.loss_mask = []
@@ -34,35 +39,32 @@ def compute_samples_from_openai_records(input_sample: Sample, records: list[Sess
     sample.response = ""
     sample.response_length = 0
 
-    for record in records:
-        req, resp = record.request_json, record.response_json
-        if req is None or resp is None:
-            continue
+    req, resp = record.request_json, record.response_json
+    if req is None or resp is None:
+        return None
 
-        prompt_ids = req.get("input_ids", [])
-        if not sample.tokens:
-            sample.tokens = list(prompt_ids)
+    prompt_ids = req.get("input_ids", [])
+    if not sample.tokens:
+        sample.tokens = list(prompt_ids)
 
-        gen_token_ids, gen_log_probs, gen_text = _extract_generation_from_oai_response(resp)
+    gen_token_ids, gen_log_probs, gen_text = _extract_generation_from_oai_response(resp)
 
-        num_tool_response_tokens = len(prompt_ids) - len(sample.tokens)
-        if num_tool_response_tokens > 0:
-            sample.tokens += prompt_ids[-num_tool_response_tokens:]
-            sample.loss_mask += [0] * num_tool_response_tokens
-            sample.rollout_log_probs += [0.0] * num_tool_response_tokens
-            sample.response_length += num_tool_response_tokens
+    num_tool_response_tokens = len(prompt_ids) - len(sample.tokens)
+    if num_tool_response_tokens > 0:
+        sample.tokens += prompt_ids[-num_tool_response_tokens:]
+        sample.loss_mask += [0] * num_tool_response_tokens
+        sample.rollout_log_probs += [0.0] * num_tool_response_tokens
+        sample.response_length += num_tool_response_tokens
 
-        sample.tokens += gen_token_ids
-        sample.loss_mask += [1] * len(gen_token_ids)
-        sample.rollout_log_probs += gen_log_probs
-        sample.response += gen_text
-        sample.response_length += len(gen_token_ids)
+    sample.tokens += gen_token_ids
+    sample.loss_mask += [1] * len(gen_token_ids)
+    sample.rollout_log_probs += gen_log_probs
+    sample.response += gen_text
+    sample.response_length += len(gen_token_ids)
 
-        _update_sample_status_from_oai_response(sample, resp)
+    _update_sample_status_from_oai_response(sample, resp)
 
-        samples.append(deepcopy(sample))
-
-    return samples
+    return sample
 
 
 def _extract_generation_from_oai_response(resp: dict) -> tuple[list[int], list[float], str]:
