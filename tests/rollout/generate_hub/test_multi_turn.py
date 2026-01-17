@@ -185,10 +185,16 @@ class TestBasicMultiTurn:
 
         result = _run_generate(variant, generation_env, make_sample(prompt=TWO_TURN_PROMPT))
 
-        assert result.requests == [
-            expected_request(FIRST_PROMPT_TOKEN_IDS),
-            expected_request(SECOND_PROMPT_TOKEN_IDS),
-        ]
+        if variant == "agentic_tool_call_multi_samples":
+            assert result.requests == [
+                expected_openai_request(MULTI_TURN_OPENAI_MESSAGES_FIRST_TURN),
+                expected_openai_request(MULTI_TURN_OPENAI_MESSAGES_SECOND_TURN),
+            ]
+        else:
+            assert result.requests == [
+                expected_request(FIRST_PROMPT_TOKEN_IDS),
+                expected_request(SECOND_PROMPT_TOKEN_IDS),
+            ]
         if variant == "multi_turn_single_sample":
             expected = [
                 ExpectedSampleInfo(
