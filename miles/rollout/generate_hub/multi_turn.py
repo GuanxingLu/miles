@@ -66,7 +66,7 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
         if len(tool_calls) == 0:
             break
 
-        if args.generate_multi_samples and turn > 0:
+        if args.generate_multi_samples:
             multi_samples.append(sample)
 
         tool_messages = await execute_tool_calls(tool_calls, execute_tool_function)
