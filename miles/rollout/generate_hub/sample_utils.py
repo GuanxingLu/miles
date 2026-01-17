@@ -36,16 +36,36 @@ def merge_samples(a: Sample, b: Sample, tokenizer) -> Sample:
         e.add_note(f"{a=} {b=}")
         raise
 
+    spec_info = Sample.SpecInfo()
+    spec_info.spec_accept_token_num = a.spec_info.spec_accept_token_num + b.spec_info.spec_accept_token_num
+    spec_info.spec_draft_token_num = a.spec_info.spec_draft_token_num + b.spec_info.spec_draft_token_num
+    spec_info.spec_verify_ct = a.spec_info.spec_verify_ct + b.spec_info.spec_verify_ct
+    spec_info.completion_token_num = a.spec_info.completion_token_num + b.spec_info.completion_token_num
+
+    prefix_cache_info = Sample.PrefixCacheInfo()
+    prefix_cache_info.cached_tokens = a.prefix_cache_info.cached_tokens + b.prefix_cache_info.cached_tokens
+    prefix_cache_info.total_prompt_tokens = a.prefix_cache_info.total_prompt_tokens + b.prefix_cache_info.total_prompt_tokens
+
     return Sample(
         group_index=_merge_equal_value("group_index"),
         index=_merge_equal_value("index"),
         prompt=b.prompt,
         tokens=b.tokens,
+        multimodal_inputs=_merge_equal_value("multimodal_inputs"),
+        multimodal_train_inputs=_merge_equal_value("multimodal_train_inputs"),
         response=a.response + obs_text + b.response,
         response_length=a.response_length + obs_len + b.response_length,
         label=_merge_equal_value("label"),
         reward=_merge_equal_value("reward"),
         loss_mask=a.loss_mask + [0] * obs_len + b.loss_mask,
+        weight_versions=a.weight_versions + b.weight_versions,
         rollout_log_probs=a.rollout_log_probs + [0.0] * obs_len + b.rollout_log_probs,
+        rollout_routed_experts=b.rollout_routed_experts,
+        remove_sample=a.remove_sample or b.remove_sample,
         status=b.status,
+        metadata=_merge_equal_value("metadata"),
+        train_metadata=_merge_equal_value("train_metadata"),
+        non_generation_time=a.non_generation_time + b.non_generation_time,
+        spec_info=spec_info,
+        prefix_cache_info=prefix_cache_info,
     )
