@@ -128,7 +128,7 @@ class TestBasicGeneration:
     def test_basic_generation(self, variant, generation_env):
         result = _run_generate(variant, generation_env)
         assert result.requests == [expected_request(variant)]
-        assert listify(result.sample)[-1] == expected_sample(variant)
+        assert listify(result.sample) == [expected_sample(variant)]
 
 
 class TestResumedSingleTurn:
@@ -190,7 +190,7 @@ class TestFinishReason:
     def test_finish_reason_sets_status(self, variant, generation_env, expected_status):
         result = _run_generate(variant, generation_env)
         assert result.requests == [expected_request(variant)]
-        assert listify(result.sample)[-1] == expected_sample(variant, status=expected_status)
+        assert listify(result.sample) == [expected_sample(variant, status=expected_status)]
 
 
 class TestRoutedExperts:
@@ -237,7 +237,7 @@ class TestMetaInfo:
     def test_meta_info_fields_updated(self, variant, generation_env):
         result = _run_generate(variant, generation_env)
         assert result.requests == [expected_request(variant)]
-        assert listify(result.sample)[-1] == expected_sample(variant, cached_tokens=3, weight_versions=["v1.0"])
+        assert listify(result.sample) == [expected_sample(variant, cached_tokens=3, weight_versions=["v1.0"])]
 
     @pytest.mark.parametrize(
         "generation_env",
@@ -252,12 +252,14 @@ class TestMetaInfo:
     def test_spec_info_updated(self, variant, generation_env):
         result = _run_generate(variant, generation_env)
         assert result.requests == [expected_request(variant)]
-        assert listify(result.sample)[-1] == expected_sample(
-            variant,
-            spec_info=Sample.SpecInfo(
-                spec_accept_token_num=10, spec_draft_token_num=15, spec_verify_ct=3, completion_token_num=5
-            ),
-        )
+        assert listify(result.sample) == [
+            expected_sample(
+                variant,
+                spec_info=Sample.SpecInfo(
+                    spec_accept_token_num=10, spec_draft_token_num=15, spec_verify_ct=3, completion_token_num=5
+                ),
+            )
+        ]
 
 
 class TestInputStatusValidation:
@@ -265,7 +267,7 @@ class TestInputStatusValidation:
     def test_allowed_statuses(self, variant, generation_env, status):
         result = _run_generate(variant, generation_env, _make_sample(status=status))
         assert result.requests == [expected_request(variant)]
-        assert listify(result.sample)[-1].status == Sample.Status.COMPLETED
+        assert listify(result.sample) == [expected_sample(variant)]
 
     @pytest.mark.parametrize("status", [Sample.Status.COMPLETED, Sample.Status.TRUNCATED])
     def test_rejected_statuses(self, variant, generation_env, status):
@@ -283,7 +285,7 @@ class TestPayloadStructure:
         assert result.requests == [
             expected_request(variant, sampling_params={"max_new_tokens": 16, "temperature": 0.5, "top_p": 0.9})
         ]
-        assert listify(result.sample)[-1] == expected_sample(variant)
+        assert listify(result.sample) == [expected_sample(variant)]
 
 
 class TestBoundaryConditions:
@@ -312,15 +314,17 @@ class TestBoundaryConditions:
         result = _run_generate(variant, generation_env)
         assert result.requests == []
         tokens = PROMPT_TOKENS if variant in ("multi_turn_single_sample", "multi_turn_multi_samples") else []
-        assert listify(result.sample)[-1] == expected_sample(
-            variant,
-            response="",
-            response_length=0,
-            tokens=tokens,
-            rollout_log_probs=None,
-            status=Sample.Status.TRUNCATED,
-            prompt_tokens=0,
-        )
+        assert listify(result.sample) == [
+            expected_sample(
+                variant,
+                response="",
+                response_length=0,
+                tokens=tokens,
+                rollout_log_probs=None,
+                status=Sample.Status.TRUNCATED,
+                prompt_tokens=0,
+            )
+        ]
 
 
 class TestEmptyResponse:
@@ -328,9 +332,9 @@ class TestEmptyResponse:
     def test_empty_response(self, variant, generation_env):
         result = _run_generate(variant, generation_env)
         assert result.requests == [expected_request(variant)]
-        assert listify(result.sample)[-1] == expected_sample(
-            variant, response="", response_length=0, tokens=PROMPT_TOKENS, rollout_log_probs=[]
-        )
+        assert listify(result.sample) == [
+            expected_sample(variant, response="", response_length=0, tokens=PROMPT_TOKENS, rollout_log_probs=[])
+        ]
 
 
 VLM_MODEL_NAME = "Qwen/Qwen2-VL-2B-Instruct"
