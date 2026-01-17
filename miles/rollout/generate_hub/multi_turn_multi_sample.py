@@ -28,8 +28,6 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
     execute_tool_function = load_function(args.generate_execute_tool_function_path)
 
     tool_specs = load_function(args.generate_tool_specs_path)
-    assert isinstance(tool_specs, list)
-
     tool_call_parser = create_tool_call_parser(tool_specs, args.generate_tool_call_parser)
 
     # ----------------------- Initial prompts -------------------------
