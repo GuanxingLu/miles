@@ -1,7 +1,6 @@
 import json
 import time
 import uuid
-from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from fastapi import Request

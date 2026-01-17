@@ -27,10 +27,8 @@ class OpenAIEndpointTracer:
 
 
 def compute_samples_from_openai_records(input_sample: Sample, records: list[SessionRecord]) -> list[Sample]:
-    return [
-        _compute_sample_from_openai_record(input_sample, record)
-        for record in records
-    ]
+    return [_compute_sample_from_openai_record(input_sample, record) for record in records]
+
 
 def _compute_sample_from_openai_record(input_sample: Sample, record: SessionRecord) -> Sample:
     choice = record.response["choices"][0]
