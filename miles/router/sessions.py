@@ -81,6 +81,7 @@ def setup_session_routes(app, router: "MilesRouter"):
             path=path,
             request=json.loads(result["request_body"]),
             response=json.loads(result["response_body"]),
+            extras=TODO,
             status_code=result["status_code"],
         )
         manager.add_record(session_id, record)
