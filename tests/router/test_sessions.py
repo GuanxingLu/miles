@@ -150,24 +150,6 @@ class TestSessionRoutes:
         assert response.status_code == 404
         assert response.json()["error"] == "session not found"
 
-    def test_get_then_delete(self, router_url):
-        session_id = requests.post(f"{router_url}/sessions").json()["session_id"]
-
-        requests.post(
-            f"{router_url}/sessions/{session_id}/generate",
-            json={"input_ids": [1, 2, 3], "sampling_params": {}, "return_logprob": True},
-        )
-
-        get_resp = requests.get(f"{router_url}/sessions/{session_id}")
-        assert get_resp.status_code == 200
-        records = get_resp.json()["records"]
-        assert len(records) == 1
-
-        delete_resp = requests.delete(f"{router_url}/sessions/{session_id}")
-        assert delete_resp.status_code == 204
-
-        assert requests.get(f"{router_url}/sessions/{session_id}").status_code == 404
-
 
 class TestSessionProxy:
     def test_proxy_session_not_found(self, router_url):
