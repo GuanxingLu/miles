@@ -1,3 +1,5 @@
+from typing import Any
+
 import pytest
 from tests.fixtures.generation_fixtures import extra_argv_for_variant
 from tests.fixtures.rollout_integration import IntegrationEnvConfig
@@ -5,7 +7,6 @@ from tests.rollout.modular_rollout.integration.utils import MODULAR_ROLLOUT_BASE
 
 from miles.utils.test_utils.mock_tools import TwoTurnStub
 from miles.utils.types import Sample
-from typing import Any
 
 TWO_TURN_DATA_ROWS = [{"input": TwoTurnStub.USER_QUESTION, "label": "2008"}]
 
@@ -53,18 +54,18 @@ def test_rollout(rollout_integration_env, request, test_type):
 
 def _verify_samples(variant: str, samples: list[Any]):
     assert len(samples) == 2, f"n_samples_per_prompt=2, so group should have 2 samples, got {len(samples)}"
-    
+
     if variant in ("multi_turn_multi_samples", "agentic_tool_call_multi_samples"):
         for group_sample in samples:
-            assert isinstance(group_sample, list), f"multi_samples variant should return list[Sample] per generate"
-            assert len(group_sample) == 2, f"multi_samples variant should return 2 samples per generate (one per turn)"
+            assert isinstance(group_sample, list), "multi_samples variant should return list[Sample] per generate"
+            assert len(group_sample) == 2, "multi_samples variant should return 2 samples per generate (one per turn)"
             for i, sample in enumerate(group_sample):
                 assert sample.status == Sample.Status.COMPLETED
                 assert sample.reward == 1, f"Sample {i} should have reward=1"
             assert "2008" in group_sample[-1].response, "Last sample should contain final answer '2008'"
     else:
         for sample in samples:
-            assert isinstance(sample, Sample), f"single_sample variant should return Sample, not list"
+            assert isinstance(sample, Sample), "single_sample variant should return Sample, not list"
             assert sample.status == Sample.Status.COMPLETED
             if variant == "single_turn":
                 assert sample.reward == 0, "single_turn only does first turn, reward should be 0"
