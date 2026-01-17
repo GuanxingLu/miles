@@ -489,12 +489,19 @@ class TestThreeTurn:
         S = ThreeTurnStub
         result = _run_generate(variant, generation_env, make_sample(prompt=S.PROMPT))
 
-        assert result.requests == [
-            expected_request(S.FIRST_PROMPT_TOKEN_IDS),
-            expected_request(S.SECOND_PROMPT_TOKEN_IDS),
-            expected_request(S.THIRD_PROMPT_TOKEN_IDS),
-        ]
-        if variant == "multi_turn_single_sample":
+        if is_agentic_variant(variant):
+            assert result.requests == [
+                expected_openai_request(S.OPENAI_MESSAGES_FIRST_TURN),
+                expected_openai_request(S.OPENAI_MESSAGES_SECOND_TURN_FROM_CLIENT),
+                expected_openai_request(S.OPENAI_MESSAGES_THIRD_TURN_FROM_CLIENT),
+            ]
+        else:
+            assert result.requests == [
+                expected_request(S.FIRST_PROMPT_TOKEN_IDS),
+                expected_request(S.SECOND_PROMPT_TOKEN_IDS),
+                expected_request(S.THIRD_PROMPT_TOKEN_IDS),
+            ]
+        if variant in ("multi_turn_single_sample", "agentic_tool_call_single_sample"):
             full_response = (
                 S.FIRST_RESPONSE
                 + S.FIRST_TOOL_RESPONSE

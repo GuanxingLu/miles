@@ -256,6 +256,59 @@ class ThreeTurnStub:
     SECOND_PROMPT_TOKEN_IDS = _TOKENIZER(SECOND_PROMPT, add_special_tokens=False)["input_ids"]
     THIRD_PROMPT_TOKEN_IDS = _TOKENIZER(THIRD_PROMPT, add_special_tokens=False)["input_ids"]
 
+    FIRST_RESPONSE_CONTENT = "Let me get the year and Mars temperature first."
+    FIRST_TOOL_CALLS_OPENAI_FORMAT = [
+        {"id": "call00000", "function": {"arguments": "{}", "name": "get_year"}, "type": "function"},
+        {"id": "call00001", "function": {"arguments": '{"location": "Mars"}', "name": "get_temperature"}, "type": "function"},
+    ]
+
+    SECOND_RESPONSE_CONTENT = "Now let me get Earth temperature."
+    SECOND_TOOL_CALLS_OPENAI_FORMAT = [
+        {"id": "call00000", "function": {"arguments": '{"location": "Earth"}', "name": "get_temperature"}, "type": "function"},
+    ]
+
+    OPENAI_MESSAGES_FIRST_TURN = [{"role": "user", "content": USER_QUESTION}]
+
+    OPENAI_MESSAGES_SECOND_TURN_FROM_CLIENT = [
+        {"role": "user", "content": USER_QUESTION},
+        {
+            "content": FIRST_RESPONSE_CONTENT,
+            "refusal": None,
+            "role": "assistant",
+            "annotations": None,
+            "audio": None,
+            "function_call": None,
+            "tool_calls": FIRST_TOOL_CALLS_OPENAI_FORMAT,
+        },
+        {"role": "tool", "tool_call_id": "call00000", "content": '{"year": 2026}', "name": "get_year"},
+        {"role": "tool", "tool_call_id": "call00001", "content": '{"temperature": -60}', "name": "get_temperature"},
+    ]
+
+    OPENAI_MESSAGES_THIRD_TURN_FROM_CLIENT = [
+        {"role": "user", "content": USER_QUESTION},
+        {
+            "content": FIRST_RESPONSE_CONTENT,
+            "refusal": None,
+            "role": "assistant",
+            "annotations": None,
+            "audio": None,
+            "function_call": None,
+            "tool_calls": FIRST_TOOL_CALLS_OPENAI_FORMAT,
+        },
+        {"role": "tool", "tool_call_id": "call00000", "content": '{"year": 2026}', "name": "get_year"},
+        {"role": "tool", "tool_call_id": "call00001", "content": '{"temperature": -60}', "name": "get_temperature"},
+        {
+            "content": SECOND_RESPONSE_CONTENT,
+            "refusal": None,
+            "role": "assistant",
+            "annotations": None,
+            "audio": None,
+            "function_call": None,
+            "tool_calls": SECOND_TOOL_CALLS_OPENAI_FORMAT,
+        },
+        {"role": "tool", "tool_call_id": "call00000", "content": '{"temperature": 15}', "name": "get_temperature"},
+    ]
+
     @staticmethod
     def process_fn(prompt: str) -> ProcessResult:
         prompt_response_pairs = {
