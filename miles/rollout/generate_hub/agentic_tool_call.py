@@ -9,14 +9,16 @@ from miles.rollout.base_types import GenerateFnInput, GenerateFnOutput
 
 
 async def generate(input: GenerateFnInput) -> GenerateFnOutput:
+    endpoint_tracer = TODO()
     agent = _BlackboxToolCallAgent(
+        base_url=endpoint_tracer.base_url,
         max_turns=input.args.generate_max_turns,
         tool_specs_path=input.args.generate_tool_specs_path,
         tool_call_parser=input.args.generate_tool_call_parser,
         execute_tool_function_path=input.args.generate_execute_tool_function_path,
     )
     await agent.run()
-    TODO
+    return endpoint_tracer.collect()
 
 
 def _add_arguments(parser: argparse.ArgumentParser):
@@ -37,6 +39,7 @@ class _BlackboxToolCallAgent:
     only understands OpenAI compatible API, and never understands Miles or the Sample data structure.
     """
 
+    base_url: str
     max_turns: int
     tool_specs_path: str
     tool_call_parser: str
