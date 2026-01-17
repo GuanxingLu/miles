@@ -19,6 +19,7 @@ from miles.rollout.base_types import (
     RolloutFnTrainInput,
     call_rollout_fn,
 )
+from miles.rollout.modular_rollout.compatibility import call_rollout_function, load_rollout_function
 from miles.utils import tracking_utils
 from miles.utils.environ import get_experimental_rollout_refactor
 from miles.utils.health_monitor import RolloutHealthMonitor
@@ -61,8 +62,6 @@ class RolloutManager:
 
         self.use_experimental_refactor = get_experimental_rollout_refactor()
         if self.use_experimental_refactor:
-            from miles.rollout.modular_rollout.compatibility import call_rollout_function, load_rollout_function
-
             input = RolloutFnConstructorInput(args=args, data_source=self.data_source)
             self.generate_rollout = load_rollout_function(input, self.args.rollout_function_path)
             self.eval_generate_rollout = load_rollout_function(input, self.args.eval_function_path)
