@@ -82,5 +82,5 @@ class _BlackboxToolCallAgent:
 
             # ----------------------- Execute tools -------------------------
 
-            if (x := choice.message.tool_calls):
+            if x := choice.message.tool_calls:
                 messages += await execute_tool_calls(x, execute_tool_function)
