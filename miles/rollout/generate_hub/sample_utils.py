@@ -100,7 +100,7 @@ def _merge_prefix_cache_info(a: Sample.PrefixCacheInfo, b: Sample.PrefixCacheInf
         total_prompt_tokens=a.total_prompt_tokens + b.total_prompt_tokens,
     )
 
-    expected_fields = set(Sample.PrefixCacheInfo.__dataclass_fields__.keys())
+    expected_fields = _get_field_names(Sample.PrefixCacheInfo)
     actual_fields = set(merged_fields.keys())
     assert expected_fields == actual_fields, (
         f"PrefixCacheInfo field mismatch. Missing: {expected_fields - actual_fields}, Extra: {actual_fields - expected_fields}"
