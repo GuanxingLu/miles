@@ -2,6 +2,12 @@ from miles.utils.types import Sample
 
 
 def merge_samples(a: Sample, b: Sample, tokenizer) -> Sample:
+    def _merge_equal_value(field):
+        x = getattr(a, field)
+        y = getattr(b, field)
+        assert x == y, f"{field} mismatch: a.{field}={x}, b.{field}={y}"
+        return x
+
     _validate_samples(a, b)
 
     obs_len = len(b.tokens) - len(a.tokens) - b.response_length
@@ -16,13 +22,13 @@ def merge_samples(a: Sample, b: Sample, tokenizer) -> Sample:
     obs_text = tokenizer.decode(obs_tokens)
 
     return Sample(
-        group_index=_merge_equal_value(a.group_index, b.group_index, "group_index"),
-        index=_merge_equal_value(a.index, b.index, "index"),
-        prompt=_merge_equal_value(a.prompt, b.prompt, "prompt"),
+        group_index=_merge_equal_value("group_index"),
+        index=_merge_equal_value("index"),
+        prompt=_merge_equal_value("prompt"),
         tokens=b.tokens,
         response=a.response + obs_text + b.response,
         response_length=a.response_length + obs_len + b.response_length,
-        label=_merge_equal_value(a.label, b.label, "label"),
+        label=_merge_equal_value("label"),
         reward=b.reward,
         loss_mask=a.loss_mask + [0] * obs_len + b.loss_mask,
         rollout_log_probs=a.rollout_log_probs + [0.0] * obs_len + b.rollout_log_probs,
@@ -59,7 +65,3 @@ def _validate_samples(sample1: Sample, sample2: Sample):
         f"sample2.response_length ({sample2.response_length})"
     )
 
-
-def _merge_equal_value(x, y, name):
-    assert x == y, f"{name} mismatch: a.{name}={x}, b.{name}={y}"
-    return x
