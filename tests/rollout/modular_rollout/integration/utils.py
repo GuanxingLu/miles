@@ -1,7 +1,12 @@
 from tests.fixtures.generation_fixtures import extra_argv_for_variant
 from tests.fixtures.rollout_integration import IntegrationEnvConfig
 
-from miles.rollout.base_types import RolloutFnConstructorInput, RolloutFnTrainInput
+from miles.rollout.base_types import (
+    RolloutFnConstructorInput,
+    RolloutFnEvalInput,
+    RolloutFnOutput,
+    RolloutFnTrainInput,
+)
 from miles.rollout.filter_hub.base_types import DynamicFilterOutput
 from miles.rollout.modular_rollout.compatibility import call_rollout_function, load_rollout_function
 from miles.utils.types import Sample
