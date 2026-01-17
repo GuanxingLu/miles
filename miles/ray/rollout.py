@@ -157,14 +157,12 @@ class RolloutManager:
 
         if self.use_experimental_refactor:
             result = call_rollout_function(self.eval_generate_rollout, RolloutFnEvalInput(rollout_id=rollout_id))
-            data = result.data
-            metrics = result.metrics
         else:
             result = call_rollout_fn(
                 self.eval_generate_rollout, self.args, rollout_id, self.data_source, evaluation=True
             )
-            data = result.data
-            metrics = result.metrics
+        data = result.data
+        metrics = result.metrics
         self._save_debug_rollout_data(data, rollout_id=rollout_id, evaluation=True)
         metrics = _log_eval_rollout_data(rollout_id, self.args, data, metrics)
         if self._metric_checker is not None:
@@ -246,17 +244,13 @@ class RolloutManager:
             metrics = None
         else:
             if self.use_experimental_refactor:
-                from miles.rollout.modular_rollout.compatibility import call_rollout_function
-
                 result = call_rollout_function(self.generate_rollout, RolloutFnTrainInput(rollout_id=rollout_id))
-                metrics = result.metrics
-                data = result.samples
             else:
                 result = call_rollout_fn(
                     self.generate_rollout, self.args, rollout_id, self.data_source, evaluation=False
                 )
-                metrics = result.metrics
-                data = result.samples
+            metrics = result.metrics
+            data = result.samples
             # flatten the data if it is a list of lists
             while isinstance(data[0], list):
                 data = list(itertools.chain.from_iterable(data))
