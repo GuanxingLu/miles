@@ -43,6 +43,8 @@ def merge_sample_pair(a: Sample, b: Sample, tokenizer) -> Sample:
         assert _startswith(short=a.prompt, long=b.prompt), "b.prompt must start with a.prompt"
         assert _startswith(short=a.tokens, long=b.tokens), "b.tokens must start with a.tokens"
         assert obs_len > 0, f"obs_len must be > 0, got {obs_len}"
+        if a.rollout_routed_experts is not None:
+            assert a.rollout_routed_experts.shape[0] <= b.rollout_routed_experts.shape[0]
         assert a.status == Sample.Status.COMPLETED, f"a.status must be COMPLETED, got {a.status}"
 
         return _create_with_all_fields(
@@ -60,7 +62,7 @@ def merge_sample_pair(a: Sample, b: Sample, tokenizer) -> Sample:
             loss_mask=a.loss_mask + [0] * obs_len + b.loss_mask,
             weight_versions=a.weight_versions + b.weight_versions,
             rollout_log_probs=a.rollout_log_probs + [0.0] * obs_len + b.rollout_log_probs,
-            rollout_routed_experts=_merge_routed_experts(a, b),
+            rollout_routed_experts=b.rollout_routed_experts,
             remove_sample=_merge_equal_value("remove_sample"),
             status=b.status,
             metadata=_merge_equal_value("metadata"),
@@ -105,27 +107,6 @@ def _create_with_all_fields(cls, **kwargs):
         expected == actual
     ), f"{cls.__name__} field mismatch. Missing: {expected - actual}, Extra: {actual - expected}"
     return cls(**kwargs)
-
-
-def _merge_routed_experts(a: Sample, b: Sample):
-    """Merge rollout_routed_experts: use b if it's longer, otherwise use the non-None one."""
-    a_experts = a.rollout_routed_experts
-    b_experts = b.rollout_routed_experts
-
-    if a_experts is None and b_experts is None:
-        return None
-    if a_experts is None:
-        return b_experts
-    if b_experts is None:
-        return a_experts
-
-    # Both are not None, verify a is shorter than b and use b
-    a_array = np.asarray(a_experts)
-    b_array = np.asarray(b_experts)
-    assert (
-        a_array.shape[0] < b_array.shape[0]
-    ), f"a.rollout_routed_experts length ({a_array.shape[0]}) must be < b.rollout_routed_experts length ({b_array.shape[0]})"
-    return b_experts
 
 
 def _startswith(*, short, long) -> bool:
