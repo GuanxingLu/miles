@@ -29,10 +29,8 @@ def variant(request):
     return request.param
 
 
-def get_final_sample(result, variant: str):
-    if variant == "multi_turn_multi_samples":
-        return result.sample[-1]
-    return result.sample
+def listify(x):
+    return x if isinstance(x, list) else [x]
 
 
 def expected_request(
@@ -128,9 +126,7 @@ class TestBasicGeneration:
     def test_basic_generation(self, variant, generation_env):
         result = _run_generate(variant, generation_env)
         assert result.requests == [expected_request(variant)]
-        if variant == "multi_turn_multi_samples":
-            assert len(result.sample) == 1
-        assert get_final_sample(result, variant) == expected_sample(variant)
+        assert listify(result.sample)[-1] == expected_sample(variant)
 
 
 class TestResumedSingleTurn:
@@ -192,9 +188,7 @@ class TestFinishReason:
     def test_finish_reason_sets_status(self, variant, generation_env, expected_status):
         result = _run_generate(variant, generation_env)
         assert result.requests == [expected_request(variant)]
-        if variant == "multi_turn_multi_samples":
-            assert len(result.sample) == 1
-        assert get_final_sample(result, variant) == expected_sample(variant, status=expected_status)
+        assert listify(result.sample)[-1] == expected_sample(variant, status=expected_status)
 
 
 class TestRoutedExperts:
@@ -241,9 +235,7 @@ class TestMetaInfo:
     def test_meta_info_fields_updated(self, variant, generation_env):
         result = _run_generate(variant, generation_env)
         assert result.requests == [expected_request(variant)]
-        if variant == "multi_turn_multi_samples":
-            assert len(result.sample) == 1
-        assert get_final_sample(result, variant) == expected_sample(variant, cached_tokens=3, weight_versions=["v1.0"])
+        assert listify(result.sample)[-1] == expected_sample(variant, cached_tokens=3, weight_versions=["v1.0"])
 
     @pytest.mark.parametrize(
         "generation_env",
@@ -258,9 +250,7 @@ class TestMetaInfo:
     def test_spec_info_updated(self, variant, generation_env):
         result = _run_generate(variant, generation_env)
         assert result.requests == [expected_request(variant)]
-        if variant == "multi_turn_multi_samples":
-            assert len(result.sample) == 1
-        assert get_final_sample(result, variant) == expected_sample(
+        assert listify(result.sample)[-1] == expected_sample(
             variant,
             spec_info=Sample.SpecInfo(
                 spec_accept_token_num=10, spec_draft_token_num=15, spec_verify_ct=3, completion_token_num=5

@@ -35,10 +35,8 @@ def variant(request):
     return request.param
 
 
-def get_final_sample(result, variant: str) -> Sample:
-    if variant == "multi_turn_multi_samples":
-        return result.sample[-1]
-    return result.sample
+def listify(x):
+    return x if isinstance(x, list) else [x]
 
 
 @dataclass(frozen=True)
@@ -157,10 +155,10 @@ class TestBasicMultiTurn:
         result = _run_generate(variant, generation_env, make_sample(prompt=SINGLE_TURN_PROMPT))
 
         assert result.requests == [expected_request(SINGLE_TURN_PROMPT_TOKEN_IDS)]
-        if variant == "multi_turn_multi_samples":
-            assert len(result.sample) == 1
+        samples = listify(result.sample)
+        assert len(samples) == 1
         verify_sample(
-            get_final_sample(result, variant),
+            samples[-1],
             expected_chunks=[
                 SampleParsedChunk(
                     tokens_decoded_str=SINGLE_TURN_RESPONSE,
@@ -184,10 +182,11 @@ class TestBasicMultiTurn:
             expected_request(FIRST_PROMPT_TOKEN_IDS),
             expected_request(SECOND_PROMPT_TOKEN_IDS),
         ]
-        if variant == "multi_turn_multi_samples":
-            assert len(result.sample) == 2
+        samples = listify(result.sample)
+        assert len(samples) == 2 if variant == "multi_turn_multi_samples" else len(samples) == 1
+        if len(samples) == 2:
             verify_sample(
-                result.sample[0],
+                samples[0],
                 expected_chunks=[
                     SampleParsedChunk(
                         tokens_decoded_str=MULTI_TURN_FIRST_RESPONSE,
@@ -207,7 +206,7 @@ class TestBasicMultiTurn:
                 ),
             )
         verify_sample(
-            get_final_sample(result, variant),
+            samples[-1],
             expected_chunks=[
                 SampleParsedChunk(
                     tokens_decoded_str=MULTI_TURN_FIRST_RESPONSE,
@@ -248,10 +247,10 @@ class TestExitConditions:
         result = _run_generate(variant, generation_env, make_sample(prompt=SINGLE_TURN_PROMPT))
 
         assert result.requests == [expected_request(SINGLE_TURN_PROMPT_TOKEN_IDS)]
-        if variant == "multi_turn_multi_samples":
-            assert len(result.sample) == 1
+        samples = listify(result.sample)
+        assert len(samples) == 1
         verify_sample(
-            get_final_sample(result, variant),
+            samples[-1],
             expected_chunks=[
                 SampleParsedChunk(
                     tokens_decoded_str=SINGLE_TURN_RESPONSE,
@@ -275,10 +274,10 @@ class TestExitConditions:
         result = _run_generate(variant, generation_env, make_sample(prompt=TWO_TURN_PROMPT))
 
         assert result.requests == [expected_request(FIRST_PROMPT_TOKEN_IDS)]
-        if variant == "multi_turn_multi_samples":
-            assert len(result.sample) == 1
+        samples = listify(result.sample)
+        assert len(samples) == 1
         verify_sample(
-            get_final_sample(result, variant),
+            samples[-1],
             expected_chunks=[
                 SampleParsedChunk(
                     tokens_decoded_str=MULTI_TURN_FIRST_RESPONSE,
@@ -303,10 +302,10 @@ class TestExitConditions:
         result = _run_generate(variant, generation_env, make_sample(prompt=TWO_TURN_PROMPT))
 
         assert result.requests == [expected_request(FIRST_PROMPT_TOKEN_IDS)]
-        if variant == "multi_turn_multi_samples":
-            assert len(result.sample) == 1
+        samples = listify(result.sample)
+        assert len(samples) == 1
         verify_sample(
-            get_final_sample(result, variant),
+            samples[-1],
             expected_chunks=[
                 SampleParsedChunk(
                     tokens_decoded_str=MULTI_TURN_FIRST_RESPONSE,
@@ -334,10 +333,10 @@ class TestRespectMaxContextLen:
     def test_prompt_exceeds_max_context_len_returns_truncated(self, variant, generation_env):
         result = _run_generate(variant, generation_env, make_sample(prompt=SINGLE_TURN_PROMPT))
         assert result.requests == []
-        if variant == "multi_turn_multi_samples":
-            assert len(result.sample) == 1
+        samples = listify(result.sample)
+        assert len(samples) == 1
         verify_sample(
-            get_final_sample(result, variant),
+            samples[-1],
             expected_chunks=[],
             expected_partial_sample=expected_partial_sample(
                 prompt=SINGLE_TURN_PROMPT,
@@ -358,10 +357,11 @@ class TestRespectMaxContextLen:
         result = _run_generate(variant, generation_env, make_sample(prompt=TWO_TURN_PROMPT))
 
         assert result.requests == [expected_request(FIRST_PROMPT_TOKEN_IDS)]
-        if variant == "multi_turn_multi_samples":
-            assert len(result.sample) == 2
+        samples = listify(result.sample)
+        assert len(samples) == 2 if variant == "multi_turn_multi_samples" else len(samples) == 1
+        if len(samples) == 2:
             verify_sample(
-                result.sample[0],
+                samples[0],
                 expected_chunks=[
                     SampleParsedChunk(
                         tokens_decoded_str=MULTI_TURN_FIRST_RESPONSE,
@@ -381,7 +381,7 @@ class TestRespectMaxContextLen:
                 ),
             )
         verify_sample(
-            get_final_sample(result, variant),
+            samples[-1],
             expected_chunks=[
                 SampleParsedChunk(
                     tokens_decoded_str=MULTI_TURN_FIRST_RESPONSE,
