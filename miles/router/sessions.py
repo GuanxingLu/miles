@@ -11,19 +11,12 @@ if TYPE_CHECKING:
     from miles.router.router import MilesRouter
 
 
-# TODO refine after @guapisolo's implementation
-class SessionRecordChatCompletionsExtras(BaseModel):
-    input_ids: list[int]
-    output_ids: list[int]
-
-
 class SessionRecord(BaseModel):
     timestamp: float
     method: str
     path: str
     request: dict
     response: dict
-    extras: SessionRecordChatCompletionsExtras | None
     status_code: int
 
 
@@ -82,10 +75,6 @@ def setup_session_routes(app, router: "MilesRouter"):
             path=path,
             request=json.loads(result["request_body"]),
             response=json.loads(result["response_body"]),
-            extras=SessionRecordChatCompletionsExtras(
-                input_ids=TODO,
-                output_ids=TODO,
-            ),
             status_code=result["status_code"],
         )
         manager.add_record(session_id, record)
