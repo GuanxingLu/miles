@@ -13,15 +13,8 @@ from miles.utils.test_utils.mock_sglang_server import (
     with_mock_server,
 )
 from miles.utils.test_utils.mock_tools import (
-    MULTI_TURN_FIRST_PROMPT,
-    MULTI_TURN_FIRST_RESPONSE,
-    MULTI_TURN_FIRST_RESPONSE_CONTENT,
-    MULTI_TURN_FIRST_TOOL_CALLS,
-    MULTI_TURN_OPENAI_MESSAGES_FIRST_TURN,
-    MULTI_TURN_OPENAI_MESSAGES_SECOND_TURN,
-    MULTI_TURN_SECOND_PROMPT,
-    MULTI_TURN_SECOND_RESPONSE,
     SAMPLE_TOOLS,
+    TwoTurnStub,
     multi_turn_tool_call_process_fn,
 )
 
@@ -370,8 +363,8 @@ class TestMultiTurnToolCallProcessFn:
     @pytest.mark.parametrize(
         "prompt,expected_response",
         [
-            pytest.param(MULTI_TURN_FIRST_PROMPT, MULTI_TURN_FIRST_RESPONSE, id="first_turn"),
-            pytest.param(MULTI_TURN_SECOND_PROMPT, MULTI_TURN_SECOND_RESPONSE, id="second_turn"),
+            pytest.param(TwoTurnStub.FIRST_PROMPT, TwoTurnStub.FIRST_RESPONSE, id="first_turn"),
+            pytest.param(TwoTurnStub.SECOND_PROMPT, TwoTurnStub.SECOND_RESPONSE, id="second_turn"),
         ],
     )
     def test_generate_endpoint(self, prompt, expected_response):
@@ -391,15 +384,15 @@ class TestMultiTurnToolCallProcessFn:
         "messages,expected_content,expected_tool_calls,expected_finish_reason",
         [
             pytest.param(
-                MULTI_TURN_OPENAI_MESSAGES_FIRST_TURN,
-                MULTI_TURN_FIRST_RESPONSE_CONTENT,
-                MULTI_TURN_FIRST_TOOL_CALLS,
+                TwoTurnStub.OPENAI_MESSAGES_FIRST_TURN,
+                TwoTurnStub.FIRST_RESPONSE_CONTENT,
+                TwoTurnStub.FIRST_TOOL_CALLS_OPENAI_FORMAT,
                 "tool_calls",
                 id="first_turn",
             ),
             pytest.param(
-                MULTI_TURN_OPENAI_MESSAGES_SECOND_TURN,
-                MULTI_TURN_SECOND_RESPONSE,
+                TwoTurnStub.OPENAI_MESSAGES_SECOND_TURN_FROM_CLIENT,
+                TwoTurnStub.SECOND_RESPONSE,
                 None,
                 "stop",
                 id="second_turn",
