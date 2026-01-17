@@ -15,6 +15,10 @@ from miles.utils.test_utils.mock_sglang_server import (
 from miles.utils.test_utils.mock_tools import (
     MULTI_TURN_FIRST_PROMPT,
     MULTI_TURN_FIRST_RESPONSE,
+    MULTI_TURN_FIRST_RESPONSE_CONTENT,
+    MULTI_TURN_FIRST_TOOL_CALLS,
+    MULTI_TURN_OPENAI_MESSAGES_FIRST_TURN,
+    MULTI_TURN_OPENAI_MESSAGES_SECOND_TURN,
     MULTI_TURN_SECOND_PROMPT,
     MULTI_TURN_SECOND_RESPONSE,
     SAMPLE_TOOLS,
@@ -425,29 +429,14 @@ class TestMultiTurnToolCallProcessFn:
         "messages,expected_content,expected_tool_calls,expected_finish_reason",
         [
             pytest.param(
-                [{"role": "user", "content": "What is 42 + year + temperature?"}],
-                "Let me get the year and temperature first.",
-                [
-                    {"id": "call00000", "type": "function", "function": {"name": "get_year", "arguments": "{}"}},
-                    {"id": "call00001", "type": "function", "function": {"name": "get_temperature", "arguments": '{"location": "Mars"}'}},
-                ],
+                MULTI_TURN_OPENAI_MESSAGES_FIRST_TURN,
+                MULTI_TURN_FIRST_RESPONSE_CONTENT,
+                MULTI_TURN_FIRST_TOOL_CALLS,
                 "tool_calls",
                 id="first_turn",
             ),
             pytest.param(
-                [
-                    {"role": "user", "content": "What is 42 + year + temperature?"},
-                    {
-                        "role": "assistant",
-                        "content": "Let me get the year and temperature first.",
-                        "tool_calls": [
-                            {"id": "call00000", "type": "function", "function": {"name": "get_year", "arguments": "{}"}},
-                            {"id": "call00001", "type": "function", "function": {"name": "get_temperature", "arguments": '{"location": "Mars"}'}},
-                        ],
-                    },
-                    {"role": "tool", "tool_call_id": "call00000", "content": '{"year": 2026}'},
-                    {"role": "tool", "tool_call_id": "call00001", "content": '{"temperature": -60}'},
-                ],
+                MULTI_TURN_OPENAI_MESSAGES_SECOND_TURN,
                 MULTI_TURN_SECOND_RESPONSE,
                 None,
                 "stop",
