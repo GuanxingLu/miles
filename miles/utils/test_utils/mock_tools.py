@@ -284,19 +284,7 @@ class ThreeTurnStub:
         {"role": "tool", "tool_call_id": "call00001", "content": '{"temperature": -60}', "name": "get_temperature"},
     ]
 
-    OPENAI_MESSAGES_THIRD_TURN_FROM_CLIENT = [
-        {"role": "user", "content": USER_QUESTION},
-        {
-            "content": FIRST_RESPONSE_CONTENT,
-            "refusal": None,
-            "role": "assistant",
-            "annotations": None,
-            "audio": None,
-            "function_call": None,
-            "tool_calls": FIRST_TOOL_CALLS_OPENAI_FORMAT,
-        },
-        {"role": "tool", "tool_call_id": "call00000", "content": '{"year": 2026}', "name": "get_year"},
-        {"role": "tool", "tool_call_id": "call00001", "content": '{"temperature": -60}', "name": "get_temperature"},
+    OPENAI_MESSAGES_THIRD_TURN_FROM_CLIENT = OPENAI_MESSAGES_SECOND_TURN_FROM_CLIENT + [
         {
             "content": SECOND_RESPONSE_CONTENT,
             "refusal": None,
