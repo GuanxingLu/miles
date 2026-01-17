@@ -35,35 +35,35 @@ def merge_samples(a: Sample, b: Sample, tokenizer) -> Sample:
         assert obs_len > 0
         # Lean towards safety, may support other statuses if needed
         assert a.status == Sample.Status.COMPLETED
+
+        return _create_with_all_fields(
+            Sample,
+            group_index=_merge_equal_value("group_index"),
+            index=_merge_equal_value("index"),
+            prompt=b.prompt,
+            tokens=b.tokens,
+            multimodal_inputs=_merge_equal_value("multimodal_inputs"),
+            multimodal_train_inputs=_merge_equal_value("multimodal_train_inputs"),
+            response=a.response + obs_text + b.response,
+            response_length=a.response_length + obs_len + b.response_length,
+            label=_merge_equal_value("label"),
+            reward=_merge_equal_value("reward"),
+            loss_mask=a.loss_mask + [0] * obs_len + b.loss_mask,
+            weight_versions=a.weight_versions + b.weight_versions,
+            rollout_log_probs=a.rollout_log_probs + [0.0] * obs_len + b.rollout_log_probs,
+            # TODO should support concat
+            rollout_routed_experts=_merge_equal_value("rollout_routed_experts"),
+            remove_sample=_merge_equal_value("remove_sample"),
+            status=b.status,
+            metadata=_merge_equal_value("metadata"),
+            train_metadata=_merge_equal_value("train_metadata"),
+            non_generation_time=_merge_equal_value("non_generation_time"),
+            spec_info=_merge_spec_info(a.spec_info, b.spec_info),
+            prefix_cache_info=_merge_prefix_cache_info(a.prefix_cache_info, b.prefix_cache_info),
+        )
     except AssertionError as e:
         e.add_note(f"{a=} {b=}")
         raise
-
-    return _create_with_all_fields(
-        Sample,
-        group_index=_merge_equal_value("group_index"),
-        index=_merge_equal_value("index"),
-        prompt=b.prompt,
-        tokens=b.tokens,
-        multimodal_inputs=_merge_equal_value("multimodal_inputs"),
-        multimodal_train_inputs=_merge_equal_value("multimodal_train_inputs"),
-        response=a.response + obs_text + b.response,
-        response_length=a.response_length + obs_len + b.response_length,
-        label=_merge_equal_value("label"),
-        reward=_merge_equal_value("reward"),
-        loss_mask=a.loss_mask + [0] * obs_len + b.loss_mask,
-        weight_versions=a.weight_versions + b.weight_versions,
-        rollout_log_probs=a.rollout_log_probs + [0.0] * obs_len + b.rollout_log_probs,
-        # TODO should support concat
-        rollout_routed_experts=_merge_equal_value("rollout_routed_experts"),
-        remove_sample=_merge_equal_value("remove_sample"),
-        status=b.status,
-        metadata=_merge_equal_value("metadata"),
-        train_metadata=_merge_equal_value("train_metadata"),
-        non_generation_time=_merge_equal_value("non_generation_time"),
-        spec_info=_merge_spec_info(a.spec_info, b.spec_info),
-        prefix_cache_info=_merge_prefix_cache_info(a.prefix_cache_info, b.prefix_cache_info),
-    )
 
 
 def _merge_spec_info(a: Sample.SpecInfo, b: Sample.SpecInfo) -> Sample.SpecInfo:
