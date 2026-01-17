@@ -12,6 +12,7 @@ from miles.utils.test_utils.mock_sglang_server import (
     default_process_fn,
     with_mock_server,
 )
+from miles.utils.test_utils.mock_tools import SAMPLE_TOOLS
 
 
 @pytest.fixture(scope="module")
@@ -199,3 +200,193 @@ def test_counter_concurrent_tasks():
 
     asyncio.run(run_all())
     assert counter.max_value == 3
+
+
+def test_chat_completions_basic(mock_server):
+    response = requests.post(
+        f"{mock_server.url}/v1/chat/completions",
+        json={
+            "model": "test-model",
+            "messages": [{"role": "user", "content": "What is 1+5?"}],
+        },
+        timeout=5.0,
+    )
+    assert response.status_code == 200
+    data = response.json()
+
+    assert data["object"] == "chat.completion"
+    assert data["model"] == "mock-model"
+    assert data["id"].startswith("chatcmpl-")
+    assert "created" in data
+    assert len(data["choices"]) == 1
+
+    choice = data["choices"][0]
+    assert choice["index"] == 0
+    assert choice["message"]["role"] == "assistant"
+    assert choice["message"]["content"] == "\\boxed{6}"
+    assert choice["message"]["tool_calls"] is None
+    assert choice["finish_reason"] == "stop"
+    assert "logprobs" in choice
+    assert "content" in choice["logprobs"]
+
+
+def test_chat_completions_logprobs_format(mock_server):
+    response = requests.post(
+        f"{mock_server.url}/v1/chat/completions",
+        json={"model": "test", "messages": [{"role": "user", "content": "What is 1+2?"}]},
+        timeout=5.0,
+    )
+    data = response.json()
+    logprobs_content = data["choices"][0]["logprobs"]["content"]
+
+    assert len(logprobs_content) > 0
+    for i, item in enumerate(logprobs_content):
+        assert "token" in item
+        assert "logprob" in item
+        assert isinstance(item["token"], str)
+        assert item["logprob"] == -1 / 128 * i
+
+
+def test_chat_completions_with_tool_calls():
+    tool_call_response = (
+        'Let me check for you.\n<tool_call>\n{"name": "get_year", "arguments": {}}\n</tool_call>'
+    )
+
+    def process_fn(_: str) -> ProcessResult:
+        return ProcessResult(text=tool_call_response, finish_reason="stop")
+
+    with with_mock_server(process_fn=process_fn) as server:
+        response = requests.post(
+            f"{server.url}/v1/chat/completions",
+            json={
+                "model": "test",
+                "messages": [{"role": "user", "content": "What year is it?"}],
+                "tools": SAMPLE_TOOLS,
+            },
+            timeout=5.0,
+        )
+        data = response.json()
+
+    choice = data["choices"][0]
+    assert choice["finish_reason"] == "tool_calls"
+    assert choice["message"]["content"] is None
+    assert choice["message"]["tool_calls"] is not None
+    assert len(choice["message"]["tool_calls"]) == 1
+
+    tool_call = choice["message"]["tool_calls"][0]
+    assert tool_call["id"] == "call00000"
+    assert tool_call["type"] == "function"
+    assert tool_call["function"]["name"] == "get_year"
+    assert tool_call["function"]["arguments"] == "{}"
+
+
+def test_chat_completions_with_tools_but_no_tool_call():
+    def process_fn(_: str) -> ProcessResult:
+        return ProcessResult(text="The weather is sunny today.", finish_reason="stop")
+
+    with with_mock_server(process_fn=process_fn) as server:
+        response = requests.post(
+            f"{server.url}/v1/chat/completions",
+            json={
+                "model": "test",
+                "messages": [{"role": "user", "content": "What's the weather?"}],
+                "tools": SAMPLE_TOOLS,
+            },
+            timeout=5.0,
+        )
+        data = response.json()
+
+    choice = data["choices"][0]
+    assert choice["finish_reason"] == "stop"
+    assert choice["message"]["content"] == "The weather is sunny today."
+    assert choice["message"]["tool_calls"] is None
+
+
+def test_chat_completions_with_multiple_tool_calls():
+    multi_tool_response = (
+        "I will get year and temperature.\n"
+        '<tool_call>\n{"name": "get_year", "arguments": {}}\n</tool_call>\n'
+        '<tool_call>\n{"name": "get_temperature", "arguments": {"location": "Shanghai"}}\n</tool_call>'
+    )
+
+    def process_fn(_: str) -> ProcessResult:
+        return ProcessResult(text=multi_tool_response, finish_reason="stop")
+
+    with with_mock_server(process_fn=process_fn) as server:
+        response = requests.post(
+            f"{server.url}/v1/chat/completions",
+            json={
+                "model": "test",
+                "messages": [{"role": "user", "content": "What year and temperature?"}],
+                "tools": SAMPLE_TOOLS,
+            },
+            timeout=5.0,
+        )
+        data = response.json()
+
+    choice = data["choices"][0]
+    assert choice["finish_reason"] == "tool_calls"
+    assert len(choice["message"]["tool_calls"]) == 2
+
+    assert choice["message"]["tool_calls"][0]["function"]["name"] == "get_year"
+    assert choice["message"]["tool_calls"][1]["function"]["name"] == "get_temperature"
+    assert choice["message"]["tool_calls"][1]["function"]["arguments"] == '{"location": "Shanghai"}'
+
+
+def test_health_endpoint(mock_server):
+    response = requests.get(f"{mock_server.url}/health", timeout=5.0)
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+
+def test_abort_request_endpoint(mock_server):
+    response = requests.post(f"{mock_server.url}/abort_request", json={}, timeout=5.0)
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+
+def test_generate_finish_reason_length():
+    def process_fn(_: str) -> ProcessResult:
+        return ProcessResult(text="truncated output", finish_reason="length")
+
+    with with_mock_server(process_fn=process_fn) as server:
+        response = requests.post(
+            f"{server.url}/generate",
+            json={"input_ids": [1, 2, 3], "sampling_params": {}, "return_logprob": True},
+            timeout=5.0,
+        )
+        data = response.json()
+
+    finish_reason = data["meta_info"]["finish_reason"]
+    assert finish_reason["type"] == "length"
+    assert finish_reason["length"] == data["meta_info"]["completion_tokens"]
+
+
+def test_generate_requires_return_logprob_true():
+    with with_mock_server() as server:
+        response = requests.post(
+            f"{server.url}/generate",
+            json={"input_ids": [1, 2, 3], "sampling_params": {}, "return_logprob": False},
+            timeout=5.0,
+        )
+        assert response.status_code == 500
+
+
+def test_process_result_defaults():
+    result = ProcessResult(text="hello", finish_reason="stop")
+    assert result.text == "hello"
+    assert result.finish_reason == "stop"
+    assert result.cached_tokens == 0
+    assert result.meta_info == ProcessResultMetaInfo()
+
+    result_with_cache = ProcessResult(text="world", finish_reason="length", cached_tokens=100)
+    assert result_with_cache.cached_tokens == 100
+    assert result_with_cache.meta_info == ProcessResultMetaInfo()
+
+
+def test_port_auto_assignment():
+    with with_mock_server(port=None) as server:
+        assert server.port > 0
+        assert server.port >= 30000
+        response = requests.get(f"{server.url}/health", timeout=5.0)
+        assert response.status_code == 200
