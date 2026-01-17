@@ -421,56 +421,50 @@ class TestMultiTurnToolCallProcessFn:
             assert data["text"] == expected_response
             assert data["meta_info"]["finish_reason"] == {"type": "stop"}
 
-    def test_chat_completions_endpoint_first_turn(self):
+    @pytest.mark.parametrize(
+        "messages,expected_content,expected_tool_calls,expected_finish_reason",
+        [
+            pytest.param(
+                [{"role": "user", "content": "What is 42 + year + temperature?"}],
+                "Let me get the year and temperature first.",
+                [
+                    {"id": "call00000", "type": "function", "function": {"name": "get_year", "arguments": "{}"}},
+                    {"id": "call00001", "type": "function", "function": {"name": "get_temperature", "arguments": '{"location": "Mars"}'}},
+                ],
+                "tool_calls",
+                id="first_turn",
+            ),
+            pytest.param(
+                [
+                    {"role": "user", "content": "What is 42 + year + temperature?"},
+                    {
+                        "role": "assistant",
+                        "content": "Let me get the year and temperature first.\n"
+                        "<tool_call>\n"
+                        '{"name": "get_year", "arguments": {}}\n'
+                        "</tool_call>\n"
+                        "<tool_call>\n"
+                        '{"name": "get_temperature", "arguments": {"location": "Mars"}}\n'
+                        "</tool_call>",
+                    },
+                    {"role": "user", "content": "<tool_response>\n{\"year\": 2026}\n</tool_response>\n<tool_response>\n{\"temperature\": -60}\n</tool_response>"},
+                ],
+                MULTI_TURN_SECOND_RESPONSE,
+                None,
+                "stop",
+                id="second_turn",
+            ),
+        ],
+    )
+    def test_chat_completions_endpoint(self, messages, expected_content, expected_tool_calls, expected_finish_reason):
         with with_mock_server(process_fn=multi_turn_tool_call_process_fn) as server:
             response = requests.post(
                 f"{server.url}/v1/chat/completions",
-                json={
-                    "model": "test",
-                    "messages": [{"role": "user", "content": "What is 42 + year + temperature?"}],
-                    "tools": SAMPLE_TOOLS,
-                },
+                json={"model": "test", "messages": messages, "tools": SAMPLE_TOOLS},
                 timeout=5.0,
             )
             assert response.status_code == 200
             data = response.json()
-            assert data["choices"][0]["message"]["content"] == "Let me get the year and temperature first."
-            assert data["choices"][0]["message"]["tool_calls"] == [
-                {"id": "call00000", "type": "function", "function": {"name": "get_year", "arguments": "{}"}},
-                {
-                    "id": "call00001",
-                    "type": "function",
-                    "function": {"name": "get_temperature", "arguments": '{"location": "Mars"}'},
-                },
-            ]
-            assert data["choices"][0]["finish_reason"] == "tool_calls"
-
-    def test_chat_completions_endpoint_second_turn(self):
-        with with_mock_server(process_fn=multi_turn_tool_call_process_fn) as server:
-            response = requests.post(
-                f"{server.url}/v1/chat/completions",
-                json={
-                    "model": "test",
-                    "messages": [
-                        {"role": "user", "content": "What is 42 + year + temperature?"},
-                        {
-                            "role": "assistant",
-                            "content": "Let me get the year and temperature first.\n"
-                            "<tool_call>\n"
-                            '{"name": "get_year", "arguments": {}}\n'
-                            "</tool_call>\n"
-                            "<tool_call>\n"
-                            '{"name": "get_temperature", "arguments": {"location": "Mars"}}\n'
-                            "</tool_call>",
-                        },
-                        {"role": "user", "content": "<tool_response>\n{\"year\": 2026}\n</tool_response>\n<tool_response>\n{\"temperature\": -60}\n</tool_response>"},
-                    ],
-                    "tools": SAMPLE_TOOLS,
-                },
-                timeout=5.0,
-            )
-            assert response.status_code == 200
-            data = response.json()
-            assert data["choices"][0]["message"]["content"] == MULTI_TURN_SECOND_RESPONSE
-            assert data["choices"][0]["message"]["tool_calls"] is None
-            assert data["choices"][0]["finish_reason"] == "stop"
+            assert data["choices"][0]["message"]["content"] == expected_content
+            assert data["choices"][0]["message"]["tool_calls"] == expected_tool_calls
+            assert data["choices"][0]["finish_reason"] == expected_finish_reason
