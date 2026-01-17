@@ -223,9 +223,10 @@ class TestRoutedExperts:
 
         result = _run_generate(variant, generation_env)
         assert result.requests == [expected_request(variant, return_routed_experts=True)]
-        assert result.sample.rollout_routed_experts is not None
-        assert result.sample.rollout_routed_experts.shape == (num_tokens - 1, num_layers, moe_router_topk)
-        np.testing.assert_array_equal(result.sample.rollout_routed_experts, routed_experts_array)
+        sample = result.sample[0] if isinstance(result.sample, list) else result.sample
+        assert sample.rollout_routed_experts is not None
+        assert sample.rollout_routed_experts.shape == (num_tokens - 1, num_layers, moe_router_topk)
+        np.testing.assert_array_equal(sample.rollout_routed_experts, routed_experts_array)
 
 
 class TestMetaInfo:

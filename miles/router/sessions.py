@@ -57,7 +57,16 @@ def setup_session_routes(app, router: "MilesRouter"):
 
     # TODO temporary hack before @guapisolo implements TITO
     # ============================= HACK START ===============================
-    tokenizer = AutoTokenizer.from_pretrained(router.args.hf_checkpoint, trust_remote_code=True)
+    # Lazy load tokenizer only when needed (for tests that don't have hf_checkpoint)
+    tokenizer = None
+
+    def get_tokenizer():
+        nonlocal tokenizer
+        if tokenizer is None:
+            if not hasattr(router.args, "hf_checkpoint") or router.args.hf_checkpoint is None:
+                raise AttributeError("router.args.hf_checkpoint is required for session routes")
+            tokenizer = AutoTokenizer.from_pretrained(router.args.hf_checkpoint, trust_remote_code=True)
+        return tokenizer
     # ============================= HACK END ===============================
 
     @app.post("/sessions")
@@ -92,7 +101,7 @@ def setup_session_routes(app, router: "MilesRouter"):
         # TODO: remove this hack when @guapisolo implements the real TITO
         # ============================= HACK START ===============================
         if "messages" in request_body and "input_ids" not in request_body:
-            request_body["input_ids"] = tokenizer.apply_chat_template(
+            request_body["input_ids"] = get_tokenizer().apply_chat_template(
                 request_body["messages"],
                 add_generation_prompt=True,
                 add_special_tokens=False,
@@ -105,7 +114,7 @@ def setup_session_routes(app, router: "MilesRouter"):
             logprobs_content = response_body["choices"][0]["logprobs"]["content"]
             for item in logprobs_content:
                 if "token" in item and "token_id" not in item:
-                    item["token_id"] = tokenizer.convert_tokens_to_ids(item["token"])
+                    item["token_id"] = get_tokenizer().convert_tokens_to_ids(item["token"])
         # ============================= HACK END ===============================
 
         record = SessionRecord(

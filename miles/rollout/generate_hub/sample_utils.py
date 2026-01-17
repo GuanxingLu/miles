@@ -1,8 +1,6 @@
 from copy import deepcopy
 from dataclasses import fields
 
-import numpy as np
-
 from miles.utils.types import Sample
 
 
