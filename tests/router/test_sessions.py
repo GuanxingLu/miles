@@ -59,7 +59,7 @@ class TestSessionManager:
 
     def test_delete_session_not_exists(self):
         manager = SessionManager()
-        with pytest.raises(KeyError):
+        with pytest.raises(AssertionError):
             manager.delete_session("nonexistent")
 
     def test_add_record(self):
@@ -87,7 +87,7 @@ class TestSessionManager:
             response_json={},
             status_code=200,
         )
-        with pytest.raises(KeyError):
+        with pytest.raises(AssertionError):
             manager.add_record("nonexistent", record)
 
 
@@ -99,21 +99,6 @@ class TestSessionRoutes:
         assert "session_id" in data
         assert len(data["session_id"]) == 32
 
-    def test_get_session(self, client):
-        create_resp = client.post("/sessions")
-        session_id = create_resp.json()["session_id"]
-
-        get_resp = client.get(f"/sessions/{session_id}")
-        assert get_resp.status_code == 200
-        data = get_resp.json()
-        assert data["session_id"] == session_id
-        assert data["records"] == []
-
-    def test_get_session_not_found(self, client):
-        response = client.get("/sessions/nonexistent")
-        assert response.status_code == 404
-        assert response.json()["error"] == "session not found"
-
     def test_delete_session(self, client):
         create_resp = client.post("/sessions")
         session_id = create_resp.json()["session_id"]
@@ -124,8 +109,8 @@ class TestSessionRoutes:
         assert data["session_id"] == session_id
         assert data["records"] == []
 
-        get_resp = client.get(f"/sessions/{session_id}")
-        assert get_resp.status_code == 404
+        delete_again = client.delete(f"/sessions/{session_id}")
+        assert delete_again.status_code == 404
 
     def test_delete_session_not_found(self, client):
         response = client.delete("/sessions/nonexistent")
@@ -158,11 +143,10 @@ class TestSessionProxy:
 
         assert proxy_resp.status_code == 200
         assert proxy_resp.json() == {"result": "ok"}
-
         mock_router._do_proxy.assert_called()
 
-        get_resp = client.get(f"/sessions/{session_id}")
-        records = get_resp.json()["records"]
+        delete_resp = client.delete(f"/sessions/{session_id}")
+        records = delete_resp.json()["records"]
         assert len(records) == 1
         assert records[0]["method"] == "POST"
         assert records[0]["path"] == "generate"
@@ -191,8 +175,8 @@ class TestSessionProxy:
 
         assert proxy_resp.status_code == 200
 
-        get_resp = client.get(f"/sessions/{session_id}")
-        records = get_resp.json()["records"]
+        delete_resp = client.delete(f"/sessions/{session_id}")
+        records = delete_resp.json()["records"]
         assert records[0]["request_json"] == {}
         assert records[0]["response_json"] == {"status": "ok"}
 
@@ -221,8 +205,8 @@ class TestSessionProxy:
 
             client.post(f"/sessions/{session_id}/test", json={"req": i})
 
-        get_resp = client.get(f"/sessions/{session_id}")
-        records = get_resp.json()["records"]
+        delete_resp = client.delete(f"/sessions/{session_id}")
+        records = delete_resp.json()["records"]
         assert len(records) == 3
         for i, record in enumerate(records):
             assert record["request_json"] == {"req": i}
@@ -250,8 +234,8 @@ class TestSessionProxy:
             resp = client.request(method, f"/sessions/{session_id}/test")
             assert resp.status_code == 200
 
-        get_resp = client.get(f"/sessions/{session_id}")
-        records = get_resp.json()["records"]
+        delete_resp = client.delete(f"/sessions/{session_id}")
+        records = delete_resp.json()["records"]
         assert len(records) == len(methods)
         for i, record in enumerate(records):
             assert record["method"] == methods[i]
