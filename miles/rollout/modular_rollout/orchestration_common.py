@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from argparse import Namespace
+from copy import deepcopy
 from typing import Any
 
 from miles.rollout.base_types import GenerateFnInput
@@ -68,7 +69,7 @@ async def generate_and_rm(
             GenerateFnInput(
                 state=state,
                 sample=sample,
-                sampling_params=sampling_params,
+                sampling_params=deepcopy(sampling_params),
                 evaluation=evaluation,
             )
         )
