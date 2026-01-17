@@ -446,8 +446,13 @@ class TestMultiTurnToolCallProcessFn:
                         "<tool_call>\n"
                         '{"name": "get_temperature", "arguments": {"location": "Mars"}}\n'
                         "</tool_call>",
+                        "tool_calls": [
+                            {"id": "call00000", "type": "function", "function": {"name": "get_year", "arguments": "{}"}},
+                            {"id": "call00001", "type": "function", "function": {"name": "get_temperature", "arguments": '{"location": "Mars"}'}},
+                        ],
                     },
-                    {"role": "user", "content": "<tool_response>\n{\"year\": 2026}\n</tool_response>\n<tool_response>\n{\"temperature\": -60}\n</tool_response>"},
+                    {"role": "tool", "tool_call_id": "call00000", "content": '{"year": 2026}'},
+                    {"role": "tool", "tool_call_id": "call00001", "content": '{"temperature": -60}'},
                 ],
                 MULTI_TURN_SECOND_RESPONSE,
                 None,
