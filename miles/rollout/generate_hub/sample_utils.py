@@ -85,7 +85,7 @@ def _merge_spec_info(a: Sample.SpecInfo, b: Sample.SpecInfo) -> Sample.SpecInfo:
         completion_token_num=a.completion_token_num + b.completion_token_num,
     )
 
-    expected_fields = set(Sample.SpecInfo.__dataclass_fields__.keys())
+    expected_fields = _get_field_names(Sample.SpecInfo)
     actual_fields = set(merged_fields.keys())
     assert expected_fields == actual_fields, (
         f"SpecInfo field mismatch. Missing: {expected_fields - actual_fields}, Extra: {actual_fields - expected_fields}"
