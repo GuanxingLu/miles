@@ -2,7 +2,7 @@ from miles.utils.types import Sample
 
 
 def merge_samples(a: Sample, b: Sample, tokenizer) -> Sample:
-    def _m(x, y, name):
+    def _merge_equal_value(x, y, name):
         assert x == y, f"{name} mismatch: a.{name}={x}, b.{name}={y}"
         return x
 
@@ -27,10 +27,10 @@ def merge_samples(a: Sample, b: Sample, tokenizer) -> Sample:
         loss_mask=a.loss_mask + [0] * obs_len + b.loss_mask,
         rollout_log_probs=a.rollout_log_probs + [0.0] * obs_len + b.rollout_log_probs,
         status=b.status,
-        label=_m(a.label, b.label, "label"),
+        label=_merge_equal_value(a.label, b.label, "label"),
         reward=b.reward,
-        index=_m(a.index, b.index, "index"),
-        group_index=_m(a.group_index, b.group_index, "group_index"),
+        index=_merge_equal_value(a.index, b.index, "index"),
+        group_index=_merge_equal_value(a.group_index, b.group_index, "group_index"),
     )
 
 
