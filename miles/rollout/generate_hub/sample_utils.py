@@ -39,7 +39,7 @@ def merge_samples(a: Sample, b: Sample, tokenizer) -> Sample:
     return Sample(
         group_index=_merge_equal_value("group_index"),
         index=_merge_equal_value("index"),
-        prompt=_merge_equal_value("prompt"),
+        prompt=b.prompt,
         tokens=b.tokens,
         response=a.response + obs_text + b.response,
         response_length=a.response_length + obs_len + b.response_length,
