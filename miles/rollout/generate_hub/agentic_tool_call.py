@@ -76,16 +76,4 @@ async def _run_blackbox_tool_call_agent(
         # ----------------------- Execute tools -------------------------
 
         if x := choice.message.tool_calls:
-            messages += await _execute_openai_tool_calls(x, execute_tool_function)
-
-
-async def _execute_openai_tool_calls(
-    tool_calls: list[ChatCompletionMessageToolCall],
-    execute_one: Callable[[str, dict], Coroutine[Any, Any, str]],
-) -> list[dict[str, Any]]:
-    tool_messages = []
-    for call in tool_calls:
-        params = json.loads(call.function.arguments) if call.function.arguments else {}
-        result = await execute_one(call.function.name, params)
-        tool_messages.append({"role": "tool", "tool_call_id": call.id, "content": result})
-    return tool_messages
+            messages += await execute_tool_calls(x, execute_tool_function)

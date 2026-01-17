@@ -21,18 +21,23 @@ def create_tool_call_parser(tool_specs, tool_call_parser):
     )
 
 
-async def execute_tool_calls(tool_calls: list, execute_one: Callable) -> list[dict[str, Any]]:
+async def execute_tool_calls(
+    tool_calls: list[ToolCallItem] | list[ChatCompletionMessageToolCall],
+    execute_one: Callable,
+) -> list[dict[str, Any]]:
     tool_messages = []
 
     for call in tool_calls:
-        if hasattr(call, "function"):
+        if isinstance(call, ChatCompletionMessageToolCall):
             name = call.function.name
             params = json.loads(call.function.arguments) if call.function.arguments else {}
             tool_call_id = call.id
-        else:
+        elif isinstance(call, ToolCallItem):
             name = call.name
             params = json.loads(call.parameters) if call.parameters else {}
             tool_call_id = f"call_{uuid.uuid4().hex[:24]}"
+        else:
+            raise TypeError(f"Unsupported tool call type: {type(call)}")
 
         result = await execute_one(name, params)
         assert isinstance(result, str)
