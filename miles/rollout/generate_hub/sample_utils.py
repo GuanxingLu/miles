@@ -4,15 +4,6 @@ from dataclasses import fields
 from miles.utils.types import Sample
 
 
-def _create_with_all_fields(cls, **kwargs):
-    expected = {f.name for f in fields(cls)}
-    actual = set(kwargs.keys())
-    assert expected == actual, (
-        f"{cls.__name__} field mismatch. Missing: {expected - actual}, Extra: {actual - expected}"
-    )
-    return cls(**kwargs)
-
-
 def merge_samples(a: Sample, b: Sample, tokenizer) -> Sample:
     a, b = deepcopy(a), deepcopy(b)
 
@@ -88,3 +79,13 @@ def _merge_prefix_cache_info(a: Sample.PrefixCacheInfo, b: Sample.PrefixCacheInf
         cached_tokens=a.cached_tokens + b.cached_tokens,
         total_prompt_tokens=a.total_prompt_tokens + b.total_prompt_tokens,
     )
+
+
+def _create_with_all_fields(cls, **kwargs):
+    expected = {f.name for f in fields(cls)}
+    actual = set(kwargs.keys())
+    assert expected == actual, (
+        f"{cls.__name__} field mismatch. Missing: {expected - actual}, Extra: {actual - expected}"
+    )
+    return cls(**kwargs)
+
