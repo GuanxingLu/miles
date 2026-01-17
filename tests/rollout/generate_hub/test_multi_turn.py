@@ -529,7 +529,6 @@ class TestRoutedExpertsMultiTurn:
         indirect=True,
     )
     def test_two_turns_routed_experts(self, variant, generation_env):
-        """测试两轮对话中，最后一轮的路由信息包含整个序列"""
         if is_agentic_variant(variant):
             pytest.skip("agentic_tool_call uses different endpoint")
 
@@ -538,32 +537,26 @@ class TestRoutedExpertsMultiTurn:
         generation_env.args.num_layers = num_layers
         generation_env.args.moe_router_topk = moe_router_topk
 
-        # 计算各轮次的 tokens 长度
         first_prompt_len = len(S.FIRST_PROMPT_TOKEN_IDS)
         first_response_len = token_len(S.FIRST_RESPONSE)
         first_tool_response_len = token_len(S.FIRST_TOOL_RESPONSE)
         second_response_len = token_len(S.SECOND_RESPONSE)
 
-        # 第二轮：整个序列（prompt + first_response + tool_response + second_response）
         second_total_tokens = first_prompt_len + first_response_len + first_tool_response_len + second_response_len
         second_routed_experts_len = second_total_tokens - 1
 
-        # 构造第二轮的路由信息数组（包含整个序列）
         second_routed_experts = np.arange(
             second_routed_experts_len * num_layers * moe_router_topk, dtype=np.int32
         ).reshape(second_routed_experts_len, num_layers, moe_router_topk)
 
-        # 设置 mock server 的 process_fn
         def process_fn(prompt: str) -> ProcessResult:
             if prompt == S.FIRST_PROMPT:
-                # 第一轮返回空的路由信息（会被覆盖）
                 return ProcessResult(
                     text=S.FIRST_RESPONSE,
                     finish_reason="stop",
                     meta_info=ProcessResultMetaInfo(routed_experts=None),
                 )
             elif prompt == S.SECOND_PROMPT:
-                # 第二轮返回包含整个序列的路由信息
                 routed_experts_str = pybase64.b64encode(second_routed_experts.tobytes()).decode("ascii")
                 return ProcessResult(
                     text=S.SECOND_RESPONSE,
@@ -574,21 +567,15 @@ class TestRoutedExpertsMultiTurn:
 
         generation_env.mock_server.process_fn = process_fn
 
-        # 运行生成
         result = _run_generate(variant, generation_env, make_sample(prompt=S.PROMPT))
 
-        # 验证结果
         if variant == "multi_turn_single_sample":
-            # 对于 single_sample，应该使用最后一轮的路由信息
             sample = result.sample
             assert sample.rollout_routed_experts is not None
             assert sample.rollout_routed_experts.shape == (second_routed_experts_len, num_layers, moe_router_topk)
-            # 验证使用的是第二轮的路由信息（包含整个序列）
             np.testing.assert_array_equal(sample.rollout_routed_experts, second_routed_experts)
-            # 验证路由信息长度与 tokens 长度匹配
             assert len(sample.tokens) - 1 == second_routed_experts_len
         elif variant == "multi_turn_multi_samples":
-            # 对于 multi_samples，最后一个 sample 应该有路由信息
             samples = listify(result.sample)
             assert len(samples) >= 1
             last_sample = samples[-1]

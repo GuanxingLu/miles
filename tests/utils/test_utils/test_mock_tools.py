@@ -6,7 +6,7 @@ from sglang.srt.entrypoints.openai.protocol import Tool
 from sglang.srt.function_call.core_types import ToolCallItem
 from sglang.srt.function_call.function_call_parser import FunctionCallParser
 
-from miles.utils.test_utils.mock_tools import MULTI_TURN_FIRST_RESPONSE, SAMPLE_TOOLS, execute_tool_call
+from miles.utils.test_utils.mock_tools import SAMPLE_TOOLS, TwoTurnStub, execute_tool_call
 
 
 class TestExecuteToolCall:
@@ -93,7 +93,7 @@ class TestSGLangFunctionCallParser:
                 id="no_tool_call",
             ),
             pytest.param(
-                MULTI_TURN_FIRST_RESPONSE,
+                TwoTurnStub.FIRST_RESPONSE,
                 (
                     "Let me get the year and temperature first.",
                     [
