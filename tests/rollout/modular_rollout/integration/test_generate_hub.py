@@ -1,8 +1,8 @@
 import pytest
+from tests.fixtures.generation_fixtures import extra_argv_for_variant
 from tests.fixtures.rollout_integration import IntegrationEnvConfig
 from tests.rollout.modular_rollout.integration.utils import (
     MODULAR_ROLLOUT_BASE_ARGV,
-    extra_argv_for_variant,
     load_and_call_train,
 )
 
