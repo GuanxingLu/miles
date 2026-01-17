@@ -27,7 +27,7 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
         execute_tool_function_path=input.args.generate_execute_tool_function_path,
     )
 
-    records = await tracer.collect()
+    records = await tracer.collect_records()
     samples = compute_samples_from_openai_records(records)
     return GenerateFnOutput(samples=samples)
 
