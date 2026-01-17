@@ -107,7 +107,6 @@ def _verify_samples(variant: str, samples: list[Any]):
                 _verify_group_samples(group_sample)
         else:
             # Eval mode: list[Sample], flattened
-            # n_samples_per_eval_prompt=2, and each generate returns 2 turns, so 2*2=4 samples
             assert len(samples) == 4, f"n_samples_per_eval_prompt=2, each generate returns 2 turns, so should have 4 samples, got {len(samples)}"
             # Group samples by prompt (every 2 samples form a group)
             for group_idx in range(2):
