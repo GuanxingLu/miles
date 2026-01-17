@@ -46,32 +46,13 @@ def _compute_sample_from_openai_record(input_sample: Sample, record: SessionReco
     sample.response = choice["message"]["content"]
     sample.response_length = get_response_lengths([sample.loss_mask])[0]
 
-    num_tool_response_tokens = len(prompt_ids) - len(sample.tokens)
-    if num_tool_response_tokens > 0:
-        sample.tokens += prompt_ids[-num_tool_response_tokens:]
-        sample.loss_mask += [0] * num_tool_response_tokens
-        sample.rollout_log_probs += [0.0] * num_tool_response_tokens
-        sample.response_length += num_tool_response_tokens
-
-    sample.tokens += gen_token_ids
-    sample.loss_mask += [1] * len(gen_token_ids)
-    sample.rollout_log_probs += gen_log_probs
-    sample.response += gen_text
-    sample.response_length += len(gen_token_ids)
-
-    _update_sample_status_from_oai_response(sample, record.response)
-
-    return sample
-
-
-def _update_sample_status_from_oai_response(sample: Sample, resp: dict):
-    choice = resp.get("choices", [{}])[0]
-    finish_reason = choice.get("finish_reason", "")
-
-    match finish_reason:
+    # TODO unify with Sample.update_from_meta_info
+    match choice["finish_reason"]:
         case "stop":
             sample.status = Sample.Status.COMPLETED
         case "length":
             sample.status = Sample.Status.TRUNCATED
         case "abort":
             sample.status = Sample.Status.ABORTED
+
+    return sample
