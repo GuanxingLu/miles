@@ -66,7 +66,7 @@ def token_len(text: str) -> int:
     return len(TOKENIZER(text, add_special_tokens=False)["input_ids"])
 
 
-def make_chunk(text: str, loss_mask: int) -> SampleParsedChunk:
+def expected_chunk(text: str, loss_mask: int) -> SampleParsedChunk:
     n = token_len(text)
     log_probs = [-1 / 128 * i for i in range(n)] if loss_mask else [0.0] * n
     return SampleParsedChunk(text, loss_mask, log_probs)
@@ -171,10 +171,6 @@ TWO_TURN_TOOL_RESPONSE = (
     "<|im_start|>assistant\n"
 )
 
-THREE_TURN_PROMPT = [{"role": "user", "content": ThreeTurnStub.USER_QUESTION}]
-THREE_TURN_FIRST_PROMPT_TOKEN_IDS = TOKENIZER(ThreeTurnStub.FIRST_PROMPT, add_special_tokens=False)["input_ids"]
-THREE_TURN_SECOND_PROMPT_TOKEN_IDS = TOKENIZER(ThreeTurnStub.SECOND_PROMPT, add_special_tokens=False)["input_ids"]
-THREE_TURN_THIRD_PROMPT_TOKEN_IDS = TOKENIZER(ThreeTurnStub.THIRD_PROMPT, add_special_tokens=False)["input_ids"]
 
 
 # ------------------------------------ tests ----------------------------------------
@@ -507,11 +503,11 @@ class TestThreeTurn:
             expected = [
                 ExpectedSampleInfo(
                     chunks=[
-                        make_chunk(S.FIRST_RESPONSE, 1),
-                        make_chunk(S.FIRST_TOOL_RESPONSE, 0),
-                        make_chunk(S.SECOND_RESPONSE, 1),
-                        make_chunk(S.SECOND_TOOL_RESPONSE, 0),
-                        make_chunk(S.THIRD_RESPONSE, 1),
+                        expected_chunk(S.FIRST_RESPONSE, 1),
+                        expected_chunk(S.FIRST_TOOL_RESPONSE, 0),
+                        expected_chunk(S.SECOND_RESPONSE, 1),
+                        expected_chunk(S.SECOND_TOOL_RESPONSE, 0),
+                        expected_chunk(S.THIRD_RESPONSE, 1),
                     ],
                     partial_sample=expected_partial_sample(
                         prompt=THREE_TURN_PROMPT,
@@ -523,7 +519,7 @@ class TestThreeTurn:
         else:
             expected = [
                 ExpectedSampleInfo(
-                    chunks=[make_chunk(S.FIRST_RESPONSE, 1)],
+                    chunks=[expected_chunk(S.FIRST_RESPONSE, 1)],
                     partial_sample=expected_partial_sample(
                         prompt=THREE_TURN_PROMPT,
                         response=S.FIRST_RESPONSE,
@@ -531,7 +527,7 @@ class TestThreeTurn:
                     ),
                 ),
                 ExpectedSampleInfo(
-                    chunks=[make_chunk(S.SECOND_RESPONSE, 1)],
+                    chunks=[expected_chunk(S.SECOND_RESPONSE, 1)],
                     partial_sample=expected_partial_sample(
                         prompt=THREE_TURN_PROMPT,
                         response=S.SECOND_RESPONSE,
@@ -539,7 +535,7 @@ class TestThreeTurn:
                     ),
                 ),
                 ExpectedSampleInfo(
-                    chunks=[make_chunk(S.THIRD_RESPONSE, 1)],
+                    chunks=[expected_chunk(S.THIRD_RESPONSE, 1)],
                     partial_sample=expected_partial_sample(
                         prompt=THREE_TURN_PROMPT,
                         response=S.THIRD_RESPONSE,
