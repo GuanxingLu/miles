@@ -39,6 +39,7 @@ def _compute_sample_from_openai_record(input_sample: Sample, record: SessionReco
     gen_token_ids = [item["token_id"] for item in logprobs_content]
     gen_log_probs = [item["logprob"] for item in logprobs_content]
 
+    # TODO refine after @guapisolo's implementation
     sample = deepcopy(input_sample)
     sample.tokens = record.extras.input_ids + gen_token_ids
     sample.loss_mask = record.extras.loss_mask
