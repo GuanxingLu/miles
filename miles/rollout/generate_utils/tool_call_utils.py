@@ -1,3 +1,7 @@
+"""
+Utils to handle tool calls.
+"""
+
 import json
 import uuid
 from collections.abc import Callable
