@@ -3,9 +3,9 @@ import os
 import pytest
 
 from tests.non_e2e.fixtures.generation_fixtures import generation_env
-from tests.non_e2e.fixtures.rollout_integration import rollout_integration_env
+from tests.non_e2e.fixtures.rollout_fixtures import rollout_env
 
-_ = rollout_integration_env, generation_env
+_ = rollout_env, generation_env
 
 
 @pytest.fixture(autouse=True)

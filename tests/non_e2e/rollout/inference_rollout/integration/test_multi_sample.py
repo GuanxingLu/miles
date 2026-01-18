@@ -1,5 +1,5 @@
 import pytest
-from tests.non_e2e.fixtures.rollout_integration import DEFAULT_DATA_ROWS, IntegrationEnvConfig
+from tests.non_e2e.fixtures.rollout_fixtures import DEFAULT_DATA_ROWS, IntegrationEnvConfig
 from tests.non_e2e.rollout import MODULAR_ROLLOUT_BASE_ARGV, load_and_call_train
 
 from miles.rollout.base_types import GenerateFnInput, GenerateFnOutput
@@ -31,7 +31,7 @@ async def _multi_sample_generate(input: GenerateFnInput) -> GenerateFnOutput:
 
 
 @pytest.mark.parametrize(
-    "rollout_integration_env",
+    "rollout_env",
     [
         pytest.param(
             IntegrationEnvConfig(
@@ -51,8 +51,8 @@ async def _multi_sample_generate(input: GenerateFnInput) -> GenerateFnOutput:
     ],
     indirect=True,
 )
-def test_multi_sample_output_preserves_existing_reward(rollout_integration_env):
-    env = rollout_integration_env
+def test_multi_sample_output_preserves_existing_reward(rollout_env):
+    env = rollout_env
     with function_registry.temporary("test:multi_sample_generate", _multi_sample_generate):
         out = load_and_call_train(env.args, env.data_source)
 

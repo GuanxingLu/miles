@@ -1,5 +1,5 @@
 from tests.non_e2e.fixtures.generation_fixtures import extra_argv_for_variant
-from tests.non_e2e.fixtures.rollout_integration import IntegrationEnvConfig
+from tests.non_e2e.fixtures.rollout_fixtures import IntegrationEnvConfig
 
 from miles.rollout.base_types import (
     RolloutFnConstructorInput,

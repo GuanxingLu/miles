@@ -2,7 +2,7 @@ from typing import Any
 
 import pytest
 from tests.non_e2e.fixtures.generation_fixtures import extra_argv_for_variant
-from tests.non_e2e.fixtures.rollout_integration import IntegrationEnvConfig
+from tests.non_e2e.fixtures.rollout_fixtures import IntegrationEnvConfig
 from tests.non_e2e.rollout import MODULAR_ROLLOUT_BASE_ARGV, load_and_call_rollout
 
 from miles.utils.test_utils.mock_tools import TwoTurnStub
@@ -38,13 +38,13 @@ def _config_for_variant(variant: str) -> IntegrationEnvConfig:
 
 
 @pytest.mark.parametrize(
-    "variant,rollout_integration_env",
+    "variant,rollout_env",
     [pytest.param(variant, _config_for_variant(variant), id=variant) for variant in _VARIANT_NAMES],
-    indirect=["rollout_integration_env"],
+    indirect=["rollout_env"],
 )
 @pytest.mark.parametrize("test_type", ["train", "eval"])
-def test_rollout(rollout_integration_env, variant, test_type):
-    env = rollout_integration_env
+def test_rollout(rollout_env, variant, test_type):
+    env = rollout_env
     env.mock_server.process_fn = TwoTurnStub.process_fn
 
     out = load_and_call_rollout(env.args, env.data_source, mode=test_type)
