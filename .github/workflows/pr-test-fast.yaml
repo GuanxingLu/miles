@@ -14,14 +14,28 @@ concurrency:
 jobs:
   fast-test:
     runs-on: ubuntu-latest
-    container:
-      image: radixark/miles:latest
     steps:
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install
-        run: pip install -e . --no-deps --break-system-packages --force-reinstall
+      - name: Pull Docker image
+        run: docker pull radixark/miles:latest
 
       - name: Run fast tests
-        run: pytest tests/fast -v
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace \
+            -w /workspace \
+            radixark/miles:latest \
+            bash -c "pip install -e . --no-deps --break-system-packages --force-reinstall && pytest tests/fast -v"
