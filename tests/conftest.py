@@ -2,8 +2,8 @@ import os
 
 import pytest
 
-from tests.fixtures.generation_fixtures import generation_env
-from tests.fixtures.rollout_integration import rollout_integration_env
+from tests.non_e2e.fixtures.generation_fixtures import generation_env
+from tests.non_e2e.fixtures.rollout_integration import rollout_integration_env
 
 _ = rollout_integration_env, generation_env
 

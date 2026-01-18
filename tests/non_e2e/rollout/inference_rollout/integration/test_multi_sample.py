@@ -1,6 +1,6 @@
 import pytest
-from tests.fixtures.rollout_integration import DEFAULT_DATA_ROWS, IntegrationEnvConfig
-from tests.rollout.modular_rollout.integration.utils import MODULAR_ROLLOUT_BASE_ARGV, load_and_call_train
+from tests.non_e2e.fixtures.rollout_integration import DEFAULT_DATA_ROWS, IntegrationEnvConfig
+from tests.non_e2e.rollout import MODULAR_ROLLOUT_BASE_ARGV, load_and_call_train
 
 from miles.rollout.base_types import GenerateFnInput, GenerateFnOutput
 from miles.utils.misc import function_registry

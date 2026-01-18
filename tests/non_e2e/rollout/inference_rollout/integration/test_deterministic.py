@@ -1,6 +1,6 @@
 import pytest
 
-from tests.rollout.modular_rollout.integration.utils import integration_env_config, load_and_call_train
+from tests.non_e2e.rollout import integration_env_config, load_and_call_train
 
 
 @pytest.mark.parametrize(
