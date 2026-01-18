@@ -42,9 +42,7 @@ def expected_sample(*, group_index: int | None) -> Sample:
 
 MODULAR_ROLLOUT_BASE_ARGV = [
     "--rollout-function-path",
-    "miles.rollout.inference_rollout.inference_rollout_train.SimpleTrainRolloutFn",
-    "--eval-function-path",
-    "miles.rollout.inference_rollout.inference_rollout_eval.SimpleEvalRolloutFn",
+    "miles.rollout.inference_rollout.inference_rollout_common.InferenceRolloutFn",
 ]
 
 MIXED_DATA_ROWS = [

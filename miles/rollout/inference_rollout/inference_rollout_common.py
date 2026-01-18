@@ -4,7 +4,16 @@ from argparse import Namespace
 from copy import deepcopy
 from typing import Any
 
-from miles.rollout.base_types import GenerateFnInput
+from miles.rollout.base_types import (
+    GenerateFnInput,
+    RolloutFnConstructorInput,
+    RolloutFnEvalInput,
+    RolloutFnEvalOutput,
+    RolloutFnInput,
+    RolloutFnOutput,
+    RolloutFnTrainInput,
+    RolloutFnTrainOutput,
+)
 from miles.rollout.generate_hub.single_turn import generate
 from miles.rollout.inference_rollout.compatibility import load_generate_function
 from miles.rollout.rm_hub import async_rm, batched_async_rm
@@ -148,3 +157,36 @@ def compute_sampling_params(
         no_stop_trim=True,
         spaces_between_special_tokens=False,
     )
+
+
+class InferenceRolloutFn:
+    def __init__(self, input: RolloutFnConstructorInput):
+        self.data_source = input.data_source
+        self.state = GenerateState(input.args)
+        self.eval_prompt_dataset_cache = {}
+
+    async def __call__(self, input: RolloutFnInput) -> RolloutFnOutput:
+        if input.evaluation:
+            return await self._call_eval(input)
+        return await self._call_train(input)
+
+    async def _call_train(self, input: RolloutFnTrainInput) -> RolloutFnTrainOutput:
+        from miles.rollout.inference_rollout.inference_rollout_train import generate_rollout_async
+
+        output, aborted_samples = await generate_rollout_async(
+            self.state, input.rollout_id, self.data_source.get_samples
+        )
+        self.data_source.add_samples(aborted_samples)
+        return output
+
+    async def _call_eval(self, input: RolloutFnEvalInput) -> RolloutFnEvalOutput:
+        from miles.rollout.inference_rollout.inference_rollout_eval import eval_rollout_single_dataset
+
+        assert not self.state.args.group_rm, "Group RM is not supported for eval rollout"
+
+        coros = []
+        for dataset_cfg in getattr(self.state.args, "eval_datasets", []) or []:
+            coros.append(eval_rollout_single_dataset(self.state, dataset_cfg, self.eval_prompt_dataset_cache))
+        results_list = await asyncio.gather(*coros)
+        results = {k: v for r in results_list for k, v in r.items()}
+        return RolloutFnEvalOutput(data=results)
