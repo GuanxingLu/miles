@@ -6,7 +6,11 @@ from typing import Any
 from tqdm import tqdm
 
 from miles.rollout.base_types import RolloutFnConstructorInput, RolloutFnEvalInput, RolloutFnEvalOutput
-from miles.rollout.inference_rollout.inference_rollout_common import GenerateState, compute_sampling_params, generate_and_rm
+from miles.rollout.inference_rollout.inference_rollout_common import (
+    GenerateState,
+    compute_sampling_params,
+    generate_and_rm,
+)
 from miles.utils.data import Dataset
 from miles.utils.eval_config import EvalDatasetConfig
 from miles.utils.misc import as_completed_async
