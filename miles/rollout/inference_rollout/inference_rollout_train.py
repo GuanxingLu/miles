@@ -9,7 +9,7 @@ from tqdm import tqdm
 
 from miles.rollout.base_types import RolloutFnConstructorInput, RolloutFnTrainInput, RolloutFnTrainOutput
 from miles.rollout.filter_hub.base_types import MetricGatherer, call_dynamic_filter
-from miles.rollout.modular_rollout.orchestration_common import GenerateState, generate_and_rm_group
+from miles.rollout.inference_rollout.inference_rollout_common import GenerateState, generate_and_rm_group
 from miles.utils.http_utils import get, post
 from miles.utils.misc import as_completed_async, load_function
 from miles.utils.types import Sample

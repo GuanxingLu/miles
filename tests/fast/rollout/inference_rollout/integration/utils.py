@@ -8,7 +8,7 @@ from miles.rollout.base_types import (
     RolloutFnTrainInput,
 )
 from miles.rollout.filter_hub.base_types import DynamicFilterOutput
-from miles.rollout.modular_rollout.compatibility import call_rollout_function, load_rollout_function
+from miles.rollout.inference_rollout.compatibility import call_rollout_function, load_rollout_function
 from miles.utils.types import Sample
 
 
@@ -42,9 +42,9 @@ def expected_sample(*, group_index: int | None) -> Sample:
 
 MODULAR_ROLLOUT_BASE_ARGV = [
     "--rollout-function-path",
-    "miles.rollout.modular_rollout.orchestration_train.SimpleTrainRolloutFn",
+    "miles.rollout.inference_rollout.inference_rollout_train.SimpleTrainRolloutFn",
     "--eval-function-path",
-    "miles.rollout.modular_rollout.orchestration_eval.SimpleEvalRolloutFn",
+    "miles.rollout.inference_rollout.inference_rollout_eval.SimpleEvalRolloutFn",
 ]
 
 MIXED_DATA_ROWS = [

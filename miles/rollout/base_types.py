@@ -8,7 +8,7 @@ from miles.rollout.data_source import DataSource
 from miles.utils.types import Sample
 
 if TYPE_CHECKING:
-    from miles.rollout.modular_rollout.orchestration_common import GenerateState
+    from miles.rollout.inference_rollout.inference_rollout_common import GenerateState
 
 
 @dataclass(frozen=True)

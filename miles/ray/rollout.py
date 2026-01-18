@@ -19,7 +19,7 @@ from miles.rollout.base_types import (
     RolloutFnTrainInput,
     call_rollout_fn,
 )
-from miles.rollout.modular_rollout.compatibility import call_rollout_function, load_rollout_function
+from miles.rollout.inference_rollout.compatibility import call_rollout_function, load_rollout_function
 from miles.utils import tracking_utils
 from miles.utils.environ import get_experimental_rollout_refactor
 from miles.utils.health_monitor import RolloutHealthMonitor

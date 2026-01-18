@@ -26,7 +26,7 @@ _BASE_EXTRA_ARGV = [
     "--n-samples-per-eval-prompt",
     "2",
     "--custom-rm-path",
-    "tests.rollout.modular_rollout.integration.test_generate_hub._simple_reward_function",
+    "tests.fast.rollout.inference_rollout.integration.test_multi_turn._simple_reward_function",
 ]
 
 

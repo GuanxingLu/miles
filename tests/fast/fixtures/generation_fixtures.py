@@ -13,8 +13,8 @@ import pytest
 import requests
 
 from miles.rollout.base_types import GenerateFnInput
-from miles.rollout.modular_rollout.compatibility import load_generate_function
-from miles.rollout.modular_rollout.orchestration_common import GenerateState
+from miles.rollout.inference_rollout.compatibility import load_generate_function
+from miles.rollout.inference_rollout.inference_rollout_common import GenerateState
 from miles.router.router import MilesRouter
 from miles.utils.async_utils import run
 from miles.utils.http_utils import find_available_port, init_http_client

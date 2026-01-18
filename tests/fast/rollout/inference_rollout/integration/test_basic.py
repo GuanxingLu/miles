@@ -4,7 +4,7 @@ from tests.fast.fixtures.rollout_fixtures import RolloutEnvConfig
 from tests.fast.rollout import MODULAR_ROLLOUT_BASE_ARGV, expected_sample, load_and_call_train
 
 from miles.rollout.base_types import RolloutFnConstructorInput, RolloutFnEvalInput
-from miles.rollout.modular_rollout.compatibility import call_rollout_function, load_rollout_function
+from miles.rollout.inference_rollout.compatibility import call_rollout_function, load_rollout_function
 
 _VARIANTS = [
     pytest.param(
@@ -24,9 +24,9 @@ _VARIANTS = [
         RolloutEnvConfig(
             extra_argv=[
                 "--rollout-function-path",
-                "miles.rollout.modular_rollout.orchestration_train.SimpleTrainRolloutFn",
+                "miles.rollout.inference_rollout.inference_rollout_train.SimpleTrainRolloutFn",
                 "--eval-function-path",
-                "miles.rollout.modular_rollout.orchestration_eval.SimpleEvalRolloutFn",
+                "miles.rollout.inference_rollout.inference_rollout_eval.SimpleEvalRolloutFn",
                 "--custom-generate-function-path",
                 "miles.rollout.sglang_rollout.generate",
             ]

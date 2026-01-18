@@ -12,7 +12,7 @@ from miles.rollout.base_types import (
     RolloutFnTrainInput,
     RolloutFnTrainOutput,
 )
-from miles.rollout.modular_rollout.compatibility import (
+from miles.rollout.inference_rollout.compatibility import (
     LegacyGenerateFnAdapter,
     LegacyRolloutFnAdapter,
     call_rollout_function,
