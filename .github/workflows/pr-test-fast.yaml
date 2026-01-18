@@ -15,27 +15,17 @@ jobs:
   fast-test:
     runs-on: ubuntu-latest
     steps:
-      - name: Free disk space
-        uses: jlumbroso/free-disk-space@main
-        with:
-          tool-cache: false
-          android: true
-          dotnet: true
-          haskell: true
-          large-packages: true
-          docker-images: true
-          swap-storage: true
-
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Pull Docker image
-        run: docker pull radixark/miles:latest
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -e . pytest
 
       - name: Run fast tests
-        run: |
-          docker run --rm \
-            -v ${{ github.workspace }}:/workspace \
-            -w /workspace \
-            radixark/miles:latest \
-            bash -c "pip install -e . --no-deps --break-system-packages --force-reinstall && pytest tests/fast -v"
+        run: pytest tests/fast -v
