@@ -206,7 +206,11 @@ def get_miles_extra_args_provider(add_custom_arguments=None):
             parser.add_argument(
                 "--rollout-function-path",
                 type=str,
-                default="miles.rollout.sglang_rollout.generate_rollout",
+                default=(
+                    TODO
+                    if enable_experimental_rollout_refactor() else
+                    "miles.rollout.sglang_rollout.generate_rollout"
+                ),
                 help=(
                     "Path to the rollout generation function."
                     "You should use this model to create your own custom rollout function, "
