@@ -10,18 +10,13 @@ from miles.rollout.base_types import GenerateFnInput
 from miles.rollout.modular_rollout.compatibility import load_generate_function
 from miles.rollout.modular_rollout.inference_wrapper import generate
 from miles.rollout.rm_hub import async_rm, batched_async_rm
-from miles.utils.misc import SingletonMeta
 from miles.utils.processing_utils import load_processor, load_tokenizer
 from miles.utils.types import Sample
 
 logger = logging.getLogger(__name__)
 
 
-class GenerateState(metaclass=SingletonMeta):
-    """
-    The global state for the generation process.
-    """
-
+class GenerateState:
     def __init__(self, args: Namespace) -> None:
         # persistent state for the generation process
         self.args = args
@@ -51,6 +46,11 @@ class GenerateState(metaclass=SingletonMeta):
         self.dp_counts = [0] * (args.sglang_dp_size or 1)
         self.dp_rank = 0
 
+        if args.custom_generate_function_path is not None:
+            self.generate_function = load_generate_function(args.custom_generate_function_path)
+        else:
+            self.generate_function = generate
+
         self.reset()
 
     @contextmanager
@@ -76,7 +76,7 @@ class GenerateState(metaclass=SingletonMeta):
                 asyncio.create_task(
                     # submit a group of samples as a single task.
                     generate_and_rm_group(
-                        self.args,
+                        self,
                         group,
                         sampling_params=self.sampling_params.copy(),
                         evaluation=False,
@@ -87,11 +87,13 @@ class GenerateState(metaclass=SingletonMeta):
 
 
 async def generate_and_rm(
-    args: Namespace,
+    state: GenerateState,
     sample: Sample | list[Sample],
     sampling_params: dict[str, Any],
     evaluation: bool = False,
 ) -> Sample | list[Sample]:
+    args = state.args
+
     # mask previous off-policy generation for partial rollout
     if args.partial_rollout and args.mask_offpolicy_in_partial_rollout and sample.response_length > 0:
         sample.loss_mask = [0] * sample.response_length
@@ -103,8 +105,6 @@ async def generate_and_rm(
             assert sample.reward is not None
         return sample
 
-    state = GenerateState(args)
-
     # generate
     async with state.semaphore:
         if state.aborted:
@@ -112,13 +112,13 @@ async def generate_and_rm(
             return sample
 
         with state.dp_rank_context() as _:
-            # TODO load function only once during whole lifetime
-            if args.custom_generate_function_path is not None:
-                fn = load_generate_function(args.custom_generate_function_path)
-            else:
-                fn = generate
-            output = await fn(
-                GenerateFnInput(state=state, sample=sample, sampling_params=sampling_params, evaluation=evaluation)
+            output = await state.generate_function(
+                GenerateFnInput(
+                    state=state,
+                    sample=sample,
+                    sampling_params=sampling_params,
+                    evaluation=evaluation,
+                )
             )
             sample = output.sample
 
@@ -149,9 +149,9 @@ async def generate_and_rm(
 
 
 async def generate_and_rm_group(
-    args: Namespace, group: list[Sample], sampling_params: dict[str, Any], evaluation: bool = False
+    state: GenerateState, group: list[Sample], sampling_params: dict[str, Any], evaluation: bool = False
 ) -> list[Sample]:
-    state = GenerateState(args)
+    args = state.args
 
     if state.aborted:
         return group
@@ -163,7 +163,7 @@ async def generate_and_rm_group(
             seed = state.group_sampling_seeds[idx]
             current_sampling_params["sampling_seed"] = seed
         tasks.append(
-            asyncio.create_task(generate_and_rm(args, sample, current_sampling_params, evaluation=evaluation))
+            asyncio.create_task(generate_and_rm(state, sample, current_sampling_params, evaluation=evaluation))
         )
 
     group = await asyncio.gather(*tasks)

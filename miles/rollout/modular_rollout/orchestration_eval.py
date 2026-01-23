@@ -1,13 +1,12 @@
 import asyncio
 import copy
 import logging
-from argparse import Namespace
 from typing import Any
 
 from tqdm import tqdm
 
 from miles.rollout.base_types import RolloutFnConstructorInput, RolloutFnEvalInput, RolloutFnEvalOutput
-from miles.rollout.modular_rollout.orchestration_common import generate_and_rm
+from miles.rollout.modular_rollout.orchestration_common import GenerateState, generate_and_rm
 from miles.utils.data import Dataset
 from miles.utils.eval_config import EvalDatasetConfig
 from miles.utils.processing_utils import load_processor, load_tokenizer
@@ -15,28 +14,20 @@ from miles.utils.types import Sample
 
 logger = logging.getLogger(__name__)
 
-EVAL_PROMPT_DATASET = {}
-
 
 async def eval_rollout_single_dataset(
-    args: Namespace, rollout_id: int, dataset_cfg: EvalDatasetConfig
+    state: GenerateState,
+    dataset_cfg: EvalDatasetConfig,
+    prompt_dataset_cache: dict[Any, Dataset],
 ) -> dict[str, dict[str, list[Any]]]:
-    """An example to implement the eval_rollout function for an rule based rm rollout generation.
-
-    Args:
-        args: the whole args
-        rollout_id: int, the id of the rollout, used for deterministic data generation
-        dataset_cfg: configuration of the dataset
-    """
+    args = state.args
     assert not args.group_rm, "Group RM is not supported for eval rollout"
 
-    global EVAL_PROMPT_DATASET
-
     cache_key = dataset_cfg.cache_key + (args.hf_checkpoint, args.apply_chat_template)
-    if cache_key not in EVAL_PROMPT_DATASET:
+    if cache_key not in prompt_dataset_cache:
         tokenizer = load_tokenizer(args.hf_checkpoint, trust_remote_code=True)
         processor = load_processor(args.hf_checkpoint, trust_remote_code=True)
-        EVAL_PROMPT_DATASET[cache_key] = Dataset(
+        prompt_dataset_cache[cache_key] = Dataset(
             path=dataset_cfg.path,
             tokenizer=tokenizer,
             processor=processor,
@@ -49,7 +40,7 @@ async def eval_rollout_single_dataset(
             apply_chat_template=args.apply_chat_template,
             apply_chat_template_kwargs=args.apply_chat_template_kwargs,
         )
-    dataset = EVAL_PROMPT_DATASET[cache_key]
+    dataset = prompt_dataset_cache[cache_key]
 
     base_sampling_params = dict(
         temperature=dataset_cfg.temperature,
@@ -80,7 +71,7 @@ async def eval_rollout_single_dataset(
             tasks.append(
                 asyncio.create_task(
                     generate_and_rm(
-                        args,
+                        state,
                         sample,
                         sampling_params=sampling_params,
                         evaluation=True,
@@ -122,13 +113,15 @@ async def eval_rollout_single_dataset(
 class SimpleEvalRolloutFn:
     def __init__(self, input: RolloutFnConstructorInput):
         self.args = input.args
+        self.prompt_dataset_cache = {}
+        self.state = GenerateState(self.args)
 
     async def __call__(self, input: RolloutFnEvalInput) -> RolloutFnEvalOutput:
         assert not self.args.group_rm, "Group RM is not supported for eval rollout"
 
         coros = []
         for dataset_cfg in getattr(self.args, "eval_datasets", []) or []:
-            coros.append(eval_rollout_single_dataset(self.args, input.rollout_id, dataset_cfg))
+            coros.append(eval_rollout_single_dataset(self.state, dataset_cfg, self.prompt_dataset_cache))
         results_list = await asyncio.gather(*coros)
         results = {}
         for r in results_list:
