@@ -10,6 +10,7 @@ from openai import AsyncOpenAI
 
 from miles.rollout.base_types import GenerateFnInput, GenerateFnOutput
 from miles.rollout.generate_hub.openai_endpoint_utils import OpenAIEndpointTracer, compute_samples_from_openai_records
+from miles.rollout.generate_hub.sample_utils import merge_samples
 from miles.rollout.generate_hub.tool_call_utils import execute_tool_calls
 from miles.utils.misc import load_function
 
@@ -27,6 +28,8 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
 
     records = await tracer.collect_records()
     samples = compute_samples_from_openai_records(input.sample, records, input.state.tokenizer)
+    if not input.args.generate_multi_samples:
+        samples = merge_samples(samples, input.state.tokenizer)
     return GenerateFnOutput(samples=samples)
 
 

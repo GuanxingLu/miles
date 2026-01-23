@@ -22,6 +22,10 @@ from miles.utils.types import Sample
 _ = generation_env, SAMPLE_TOOLS, multi_turn_tool_call_process_fn
 
 
+def is_agentic_variant(variant: str) -> bool:
+    return variant in ("agentic_tool_call_single_sample", "agentic_tool_call_multi_samples")
+
+
 # ------------------------------------ fixtures and consts ----------------------------------------
 
 
@@ -32,7 +36,14 @@ FIRST_PROMPT_TOKEN_IDS = TOKENIZER(MULTI_TURN_FIRST_PROMPT, add_special_tokens=F
 SECOND_PROMPT_TOKEN_IDS = TOKENIZER(MULTI_TURN_SECOND_PROMPT, add_special_tokens=False)["input_ids"]
 
 
-@pytest.fixture(params=["multi_turn_single_sample", "multi_turn_multi_samples", "agentic_tool_call_multi_samples"])
+@pytest.fixture(
+    params=[
+        "multi_turn_single_sample",
+        "multi_turn_multi_samples",
+        "agentic_tool_call_single_sample",
+        "agentic_tool_call_multi_samples",
+    ]
+)
 def variant(request):
     return request.param
 
@@ -161,7 +172,7 @@ class TestBasicMultiTurn:
 
         result = _run_generate(variant, generation_env, make_sample(prompt=SINGLE_TURN_PROMPT))
 
-        if variant == "agentic_tool_call_multi_samples":
+        if is_agentic_variant(variant):
             assert result.requests == [expected_openai_request(SINGLE_TURN_PROMPT)]
         else:
             assert result.requests == [expected_request(SINGLE_TURN_PROMPT_TOKEN_IDS)]
@@ -188,7 +199,7 @@ class TestBasicMultiTurn:
 
         result = _run_generate(variant, generation_env, make_sample(prompt=TWO_TURN_PROMPT))
 
-        if variant == "agentic_tool_call_multi_samples":
+        if is_agentic_variant(variant):
             assert result.requests == [
                 expected_openai_request(MULTI_TURN_OPENAI_MESSAGES_FIRST_TURN),
                 expected_openai_request(MULTI_TURN_OPENAI_MESSAGES_SECOND_TURN_FROM_CLIENT),
@@ -198,7 +209,7 @@ class TestBasicMultiTurn:
                 expected_request(FIRST_PROMPT_TOKEN_IDS),
                 expected_request(SECOND_PROMPT_TOKEN_IDS),
             ]
-        if variant == "multi_turn_single_sample":
+        if variant in ("multi_turn_single_sample", "agentic_tool_call_single_sample"):
             expected = [
                 ExpectedSampleInfo(
                     chunks=[
@@ -259,7 +270,7 @@ class TestBasicMultiTurn:
 
 class TestExitConditions:
     def test_partial_rollout_not_supported(self, variant, generation_env):
-        if variant == "agentic_tool_call_multi_samples":
+        if is_agentic_variant(variant):
             pytest.skip("agentic_tool_call does not check partial_rollout flag")
         generation_env.args.partial_rollout = True
 
@@ -267,7 +278,7 @@ class TestExitConditions:
             _run_generate(variant, generation_env, make_sample(prompt=SINGLE_TURN_PROMPT))
 
     def test_abort_preserves_content(self, variant, generation_env):
-        if variant == "agentic_tool_call_multi_samples":
+        if is_agentic_variant(variant):
             pytest.skip("agentic_tool_call does not handle abort finish_reason")
         generation_env.mock_server.process_fn = lambda _: ProcessResult(
             text=SINGLE_TURN_RESPONSE, finish_reason="abort"
@@ -304,7 +315,7 @@ class TestExitConditions:
 
         result = _run_generate(variant, generation_env, make_sample(prompt=TWO_TURN_PROMPT))
 
-        if variant == "agentic_tool_call_multi_samples":
+        if is_agentic_variant(variant):
             assert result.requests == [expected_openai_request(MULTI_TURN_OPENAI_MESSAGES_FIRST_TURN)]
         else:
             assert result.requests == [expected_request(FIRST_PROMPT_TOKEN_IDS)]
@@ -337,7 +348,7 @@ class TestExitConditions:
 
         result = _run_generate(variant, generation_env, make_sample(prompt=TWO_TURN_PROMPT))
 
-        if variant == "agentic_tool_call_multi_samples":
+        if is_agentic_variant(variant):
             assert result.requests == [expected_openai_request(MULTI_TURN_OPENAI_MESSAGES_FIRST_TURN)]
         else:
             assert result.requests == [expected_request(FIRST_PROMPT_TOKEN_IDS)]
@@ -386,7 +397,7 @@ class TestRespectMaxContextLen:
         "generation_env", [{"args_kwargs": {"rollout_max_context_len": SINGLE_TURN_PROMPT_TOKEN_LEN}}], indirect=True
     )
     def test_prompt_exceeds_max_context_len_returns_truncated(self, variant, generation_env):
-        if variant == "agentic_tool_call_multi_samples":
+        if is_agentic_variant(variant):
             pytest.skip("TODO: implement")
         result = _run_generate(variant, generation_env, make_sample(prompt=SINGLE_TURN_PROMPT))
         assert result.requests == []
@@ -409,7 +420,7 @@ class TestRespectMaxContextLen:
         indirect=True,
     )
     def test_second_turn_exceeds_max_context_len_returns_truncated(self, variant, generation_env):
-        if variant == "agentic_tool_call_multi_samples":
+        if is_agentic_variant(variant):
             pytest.skip("TODO: implement")
         generation_env.mock_server.process_fn = multi_turn_tool_call_process_fn
 
