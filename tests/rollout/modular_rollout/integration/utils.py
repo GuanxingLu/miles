@@ -1,6 +1,12 @@
+from tests.fixtures.generation_fixtures import extra_argv_for_variant
 from tests.fixtures.rollout_integration import IntegrationEnvConfig
 
-from miles.rollout.base_types import RolloutFnConstructorInput, RolloutFnTrainInput
+from miles.rollout.base_types import (
+    RolloutFnConstructorInput,
+    RolloutFnEvalInput,
+    RolloutFnOutput,
+    RolloutFnTrainInput,
+)
 from miles.rollout.filter_hub.base_types import DynamicFilterOutput
 from miles.rollout.modular_rollout.compatibility import call_rollout_function, load_rollout_function
 from miles.utils.types import Sample
@@ -39,8 +45,6 @@ MODULAR_ROLLOUT_BASE_ARGV = [
     "miles.rollout.modular_rollout.orchestration_train.SimpleTrainRolloutFn",
     "--eval-function-path",
     "miles.rollout.modular_rollout.orchestration_eval.SimpleEvalRolloutFn",
-    "--custom-generate-function-path",
-    "miles.rollout.generate_hub.single_turn.generate",
 ]
 
 MIXED_DATA_ROWS = [
@@ -51,20 +55,33 @@ MIXED_DATA_ROWS = [
 ]
 
 
-def config(extra_argv: list[str], data_rows: list[dict] | None = None, latency: float = 0.0):
+def integration_env_config(
+    extra_argv: list[str],
+    data_rows: list[dict] | None = None,
+    latency: float = 0.0,
+    variant: str = "single_turn",
+):
     return IntegrationEnvConfig(
-        extra_argv=MODULAR_ROLLOUT_BASE_ARGV + extra_argv,
+        extra_argv=MODULAR_ROLLOUT_BASE_ARGV + extra_argv_for_variant(variant) + extra_argv,
         data_rows=data_rows,
         latency=latency,
     )
 
 
-def load_and_call_train(args, data_source):
+def load_and_call_rollout(args, data_source, mode: str = "train") -> RolloutFnOutput:
+    function_path = args.rollout_function_path if mode == "train" else args.eval_function_path
     fn = load_rollout_function(
         RolloutFnConstructorInput(args=args, data_source=data_source),
-        args.rollout_function_path,
+        function_path,
     )
-    return call_rollout_function(fn, RolloutFnTrainInput(rollout_id=0))
+    if mode == "train":
+        return call_rollout_function(fn, RolloutFnTrainInput(rollout_id=0))
+    else:
+        return call_rollout_function(fn, RolloutFnEvalInput(rollout_id=0))
+
+
+def load_and_call_train(args, data_source):
+    return load_and_call_rollout(args, data_source, mode="train")
 
 
 def filter_by_reward(args, samples, **kwargs):

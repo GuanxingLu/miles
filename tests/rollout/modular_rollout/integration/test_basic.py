@@ -1,4 +1,5 @@
 import pytest
+from tests.fixtures.generation_fixtures import extra_argv_for_variant
 from tests.fixtures.rollout_integration import IntegrationEnvConfig
 from tests.rollout.modular_rollout.integration.utils import (
     MODULAR_ROLLOUT_BASE_ARGV,
@@ -37,7 +38,7 @@ _VARIANTS = [
         id="new_rollout_old_generate",
     ),
     pytest.param(
-        IntegrationEnvConfig(extra_argv=MODULAR_ROLLOUT_BASE_ARGV),
+        IntegrationEnvConfig(extra_argv=MODULAR_ROLLOUT_BASE_ARGV + extra_argv_for_variant("single_turn")),
         id="new_rollout_new_generate",
     ),
 ]
