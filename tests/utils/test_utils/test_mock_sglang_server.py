@@ -12,18 +12,7 @@ from miles.utils.test_utils.mock_sglang_server import (
     default_process_fn,
     with_mock_server,
 )
-from miles.utils.test_utils.mock_tools import (
-    MULTI_TURN_FIRST_PROMPT,
-    MULTI_TURN_FIRST_RESPONSE,
-    MULTI_TURN_FIRST_RESPONSE_CONTENT,
-    MULTI_TURN_FIRST_TOOL_CALLS,
-    MULTI_TURN_OPENAI_MESSAGES_FIRST_TURN,
-    MULTI_TURN_OPENAI_MESSAGES_SECOND_TURN,
-    MULTI_TURN_SECOND_PROMPT,
-    MULTI_TURN_SECOND_RESPONSE,
-    SAMPLE_TOOLS,
-    multi_turn_tool_call_process_fn,
-)
+from miles.utils.test_utils.mock_tools import SAMPLE_TOOLS, TwoTurnStub
 
 
 def expected_logprobs(tokenizer, text: str) -> list[dict]:
@@ -370,12 +359,12 @@ class TestMultiTurnToolCallProcessFn:
     @pytest.mark.parametrize(
         "prompt,expected_response",
         [
-            pytest.param(MULTI_TURN_FIRST_PROMPT, MULTI_TURN_FIRST_RESPONSE, id="first_turn"),
-            pytest.param(MULTI_TURN_SECOND_PROMPT, MULTI_TURN_SECOND_RESPONSE, id="second_turn"),
+            pytest.param(TwoTurnStub.FIRST_PROMPT, TwoTurnStub.FIRST_RESPONSE, id="first_turn"),
+            pytest.param(TwoTurnStub.SECOND_PROMPT, TwoTurnStub.SECOND_RESPONSE, id="second_turn"),
         ],
     )
     def test_generate_endpoint(self, prompt, expected_response):
-        with with_mock_server(process_fn=multi_turn_tool_call_process_fn) as server:
+        with with_mock_server(process_fn=TwoTurnStub.process_fn) as server:
             input_ids = server.tokenizer.encode(prompt, add_special_tokens=False)
             response = requests.post(
                 f"{server.url}/generate",
@@ -391,15 +380,15 @@ class TestMultiTurnToolCallProcessFn:
         "messages,expected_content,expected_tool_calls,expected_finish_reason",
         [
             pytest.param(
-                MULTI_TURN_OPENAI_MESSAGES_FIRST_TURN,
-                MULTI_TURN_FIRST_RESPONSE_CONTENT,
-                MULTI_TURN_FIRST_TOOL_CALLS,
+                TwoTurnStub.OPENAI_MESSAGES_FIRST_TURN,
+                TwoTurnStub.FIRST_RESPONSE_CONTENT,
+                TwoTurnStub.FIRST_TOOL_CALLS_OPENAI_FORMAT,
                 "tool_calls",
                 id="first_turn",
             ),
             pytest.param(
-                MULTI_TURN_OPENAI_MESSAGES_SECOND_TURN,
-                MULTI_TURN_SECOND_RESPONSE,
+                TwoTurnStub.OPENAI_MESSAGES_SECOND_TURN_FROM_CLIENT,
+                TwoTurnStub.SECOND_RESPONSE,
                 None,
                 "stop",
                 id="second_turn",
@@ -407,7 +396,7 @@ class TestMultiTurnToolCallProcessFn:
         ],
     )
     def test_chat_completions_endpoint(self, messages, expected_content, expected_tool_calls, expected_finish_reason):
-        with with_mock_server(process_fn=multi_turn_tool_call_process_fn) as server:
+        with with_mock_server(process_fn=TwoTurnStub.process_fn) as server:
             response = requests.post(
                 f"{server.url}/v1/chat/completions",
                 json={"model": "test", "messages": messages, "tools": SAMPLE_TOOLS},
