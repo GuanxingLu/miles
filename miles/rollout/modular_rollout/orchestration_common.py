@@ -1,10 +1,8 @@
 import asyncio
 import logging
 from argparse import Namespace
-from contextlib import contextmanager
 from typing import Any
 
-import numpy as np
 
 from miles.rollout.base_types import GenerateFnInput
 from miles.rollout.modular_rollout.compatibility import load_generate_function
@@ -42,28 +40,12 @@ class GenerateState:
             sampling_seed_base = args.rollout_seed
             self.group_sampling_seeds = [sampling_seed_base + i for i in range(args.n_samples_per_prompt)]
 
-        # dp rank balancing
-        self.dp_counts = [0] * (args.sglang_dp_size or 1)
-        self.dp_rank = 0
-
         if args.custom_generate_function_path is not None:
             self.generate_function = load_generate_function(args.custom_generate_function_path)
         else:
             self.generate_function = generate
 
         self.reset()
-
-    @contextmanager
-    def dp_rank_context(self):
-        candidates = [i for i, count in enumerate(self.dp_counts) if count == min(self.dp_counts)]
-        dp_rank = int(np.random.choice(candidates))
-        self.dp_counts[dp_rank] += 1
-        self.dp_rank = dp_rank
-        try:
-            yield dp_rank
-        finally:
-            self.dp_counts[dp_rank] -= 1
-            assert self.dp_counts[dp_rank] >= 0
 
     def reset(self) -> None:
         self.aborted = False
@@ -94,16 +76,15 @@ async def generate_and_rm(
             sample.status = Sample.Status.ABORTED
             return sample
 
-        with state.dp_rank_context() as _:
-            output = await state.generate_function(
-                GenerateFnInput(
-                    state=state,
-                    sample=sample,
-                    sampling_params=sampling_params,
-                    evaluation=evaluation,
-                )
+        output = await state.generate_function(
+            GenerateFnInput(
+                state=state,
+                sample=sample,
+                sampling_params=sampling_params,
+                evaluation=evaluation,
             )
-            sample = output.sample
+        )
+        sample = output.sample
 
     # for the rm that need the whole group, we will not do the rm here
     if args.group_rm:
