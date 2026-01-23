@@ -7,19 +7,10 @@ from tests.fixtures.generation_fixtures import GenerateEnv, generation_env, list
 from transformers import AutoTokenizer
 
 from miles.utils.test_utils.mock_sglang_server import ProcessResult
-from miles.utils.test_utils.mock_tools import (
-    MULTI_TURN_FIRST_PROMPT,
-    MULTI_TURN_FIRST_RESPONSE,
-    MULTI_TURN_OPENAI_MESSAGES_FIRST_TURN,
-    MULTI_TURN_OPENAI_MESSAGES_SECOND_TURN_FROM_CLIENT,
-    MULTI_TURN_SECOND_PROMPT,
-    MULTI_TURN_SECOND_RESPONSE,
-    SAMPLE_TOOLS,
-    multi_turn_tool_call_process_fn,
-)
+from miles.utils.test_utils.mock_tools import SAMPLE_TOOLS, ThreeTurnStub, TwoTurnStub
 from miles.utils.types import Sample
 
-_ = generation_env, SAMPLE_TOOLS, multi_turn_tool_call_process_fn
+_ = generation_env, SAMPLE_TOOLS, TwoTurnStub, ThreeTurnStub
 
 
 def is_agentic_variant(variant: str) -> bool:
@@ -32,8 +23,6 @@ def is_agentic_variant(variant: str) -> bool:
 MODEL_NAME = "Qwen/Qwen3-0.6B"
 DEFAULT_SAMPLING_PARAMS = {"max_new_tokens": 64, "temperature": 0.7}
 TOKENIZER = AutoTokenizer.from_pretrained(MODEL_NAME, trust_remote_code=True)
-FIRST_PROMPT_TOKEN_IDS = TOKENIZER(MULTI_TURN_FIRST_PROMPT, add_special_tokens=False)["input_ids"]
-SECOND_PROMPT_TOKEN_IDS = TOKENIZER(MULTI_TURN_SECOND_PROMPT, add_special_tokens=False)["input_ids"]
 
 
 @pytest.fixture(
@@ -59,6 +48,16 @@ class SampleParsedChunk:
 class ExpectedSampleInfo:
     chunks: list[SampleParsedChunk]
     partial_sample: Sample
+
+
+def token_len(text: str) -> int:
+    return len(TOKENIZER(text, add_special_tokens=False)["input_ids"])
+
+
+def expected_chunk(text: str, loss_mask: int) -> SampleParsedChunk:
+    n = token_len(text)
+    log_probs = [-1 / 128 * i for i in range(n)] if loss_mask else [0.0] * n
+    return SampleParsedChunk(text, loss_mask, log_probs)
 
 
 def parse_sample_into_chunks(sample: Sample, tokenizer) -> list[SampleParsedChunk]:
@@ -147,19 +146,6 @@ _SINGLE_TURN_PROMPT_TEXT = TOKENIZER.apply_chat_template(
 SINGLE_TURN_PROMPT_TOKEN_IDS = TOKENIZER(_SINGLE_TURN_PROMPT_TEXT, add_special_tokens=False)["input_ids"]
 SINGLE_TURN_PROMPT_TOKEN_LEN = len(SINGLE_TURN_PROMPT_TOKEN_IDS)
 
-TWO_TURN_USER_QUESTION = "What is 42 + year + temperature?"
-TWO_TURN_PROMPT = [{"role": "user", "content": TWO_TURN_USER_QUESTION}]
-TWO_TURN_TOOL_RESPONSE = (
-    "<|im_start|>user\n"
-    "<tool_response>\n"
-    '{"year": 2026}\n'
-    "</tool_response>\n"
-    "<tool_response>\n"
-    '{"temperature": -60}\n'
-    "</tool_response><|im_end|>\n"
-    "<|im_start|>assistant\n"
-)
-
 
 # ------------------------------------ tests ----------------------------------------
 
@@ -195,73 +181,53 @@ class TestBasicMultiTurn:
         )
 
     def test_two_turns_with_tool_call(self, variant, generation_env):
-        generation_env.mock_server.process_fn = multi_turn_tool_call_process_fn
+        generation_env.mock_server.process_fn = TwoTurnStub.process_fn
 
-        result = _run_generate(variant, generation_env, make_sample(prompt=TWO_TURN_PROMPT))
+        S = TwoTurnStub
+        result = _run_generate(variant, generation_env, make_sample(prompt=S.PROMPT))
 
         if is_agentic_variant(variant):
             assert result.requests == [
-                expected_openai_request(MULTI_TURN_OPENAI_MESSAGES_FIRST_TURN),
-                expected_openai_request(MULTI_TURN_OPENAI_MESSAGES_SECOND_TURN_FROM_CLIENT),
+                expected_openai_request(S.OPENAI_MESSAGES_FIRST_TURN),
+                expected_openai_request(S.OPENAI_MESSAGES_SECOND_TURN_FROM_CLIENT),
             ]
         else:
             assert result.requests == [
-                expected_request(FIRST_PROMPT_TOKEN_IDS),
-                expected_request(SECOND_PROMPT_TOKEN_IDS),
+                expected_request(S.FIRST_PROMPT_TOKEN_IDS),
+                expected_request(S.SECOND_PROMPT_TOKEN_IDS),
             ]
         if variant in ("multi_turn_single_sample", "agentic_tool_call_single_sample"):
+            full_response = S.FIRST_RESPONSE + S.FIRST_TOOL_RESPONSE + S.SECOND_RESPONSE
             expected = [
                 ExpectedSampleInfo(
                     chunks=[
-                        SampleParsedChunk(
-                            tokens_decoded_str=MULTI_TURN_FIRST_RESPONSE,
-                            loss_mask_value=1,
-                            rollout_log_probs=[-1 / 128 * i for i in range(47)],
-                        ),
-                        SampleParsedChunk(
-                            tokens_decoded_str=TWO_TURN_TOOL_RESPONSE, loss_mask_value=0, rollout_log_probs=[0.0] * 31
-                        ),
-                        SampleParsedChunk(
-                            tokens_decoded_str=MULTI_TURN_SECOND_RESPONSE,
-                            loss_mask_value=1,
-                            rollout_log_probs=[-1 / 128 * i for i in range(24)],
-                        ),
+                        expected_chunk(S.FIRST_RESPONSE, 1),
+                        expected_chunk(S.FIRST_TOOL_RESPONSE, 0),
+                        expected_chunk(S.SECOND_RESPONSE, 1),
                     ],
                     partial_sample=expected_partial_sample(
-                        prompt=TWO_TURN_PROMPT,
-                        response=MULTI_TURN_FIRST_RESPONSE + TWO_TURN_TOOL_RESPONSE + MULTI_TURN_SECOND_RESPONSE,
-                        response_length=47 + 31 + 24,
+                        prompt=S.PROMPT,
+                        response=full_response,
+                        response_length=token_len(full_response),
                     ),
                 ),
             ]
         else:
             expected = [
                 ExpectedSampleInfo(
-                    chunks=[
-                        SampleParsedChunk(
-                            tokens_decoded_str=MULTI_TURN_FIRST_RESPONSE,
-                            loss_mask_value=1,
-                            rollout_log_probs=[-1 / 128 * i for i in range(47)],
-                        )
-                    ],
+                    chunks=[expected_chunk(S.FIRST_RESPONSE, 1)],
                     partial_sample=expected_partial_sample(
-                        prompt=TWO_TURN_PROMPT,
-                        response=MULTI_TURN_FIRST_RESPONSE,
-                        response_length=47,
+                        prompt=S.PROMPT,
+                        response=S.FIRST_RESPONSE,
+                        response_length=token_len(S.FIRST_RESPONSE),
                     ),
                 ),
                 ExpectedSampleInfo(
-                    chunks=[
-                        SampleParsedChunk(
-                            tokens_decoded_str=MULTI_TURN_SECOND_RESPONSE,
-                            loss_mask_value=1,
-                            rollout_log_probs=[-1 / 128 * i for i in range(24)],
-                        )
-                    ],
+                    chunks=[expected_chunk(S.SECOND_RESPONSE, 1)],
                     partial_sample=expected_partial_sample(
-                        prompt=TWO_TURN_PROMPT,
-                        response=MULTI_TURN_SECOND_RESPONSE,
-                        response_length=24,
+                        prompt=S.PROMPT,
+                        response=S.SECOND_RESPONSE,
+                        response_length=token_len(S.SECOND_RESPONSE),
                     ),
                 ),
             ]
@@ -309,31 +275,24 @@ class TestExitConditions:
         )
 
     def test_finish_reason_length_exits_and_preserves_content(self, variant, generation_env):
-        generation_env.mock_server.process_fn = lambda _: ProcessResult(
-            text=MULTI_TURN_FIRST_RESPONSE, finish_reason="length"
-        )
+        S = TwoTurnStub
+        generation_env.mock_server.process_fn = lambda _: ProcessResult(text=S.FIRST_RESPONSE, finish_reason="length")
 
-        result = _run_generate(variant, generation_env, make_sample(prompt=TWO_TURN_PROMPT))
+        result = _run_generate(variant, generation_env, make_sample(prompt=S.PROMPT))
 
         if is_agentic_variant(variant):
-            assert result.requests == [expected_openai_request(MULTI_TURN_OPENAI_MESSAGES_FIRST_TURN)]
+            assert result.requests == [expected_openai_request(S.OPENAI_MESSAGES_FIRST_TURN)]
         else:
-            assert result.requests == [expected_request(FIRST_PROMPT_TOKEN_IDS)]
+            assert result.requests == [expected_request(S.FIRST_PROMPT_TOKEN_IDS)]
         verify_samples(
             result.sample,
             [
                 ExpectedSampleInfo(
-                    chunks=[
-                        SampleParsedChunk(
-                            tokens_decoded_str=MULTI_TURN_FIRST_RESPONSE,
-                            loss_mask_value=1,
-                            rollout_log_probs=[-1 / 128 * i for i in range(47)],
-                        )
-                    ],
+                    chunks=[expected_chunk(S.FIRST_RESPONSE, 1)],
                     partial_sample=expected_partial_sample(
-                        prompt=TWO_TURN_PROMPT,
-                        response=MULTI_TURN_FIRST_RESPONSE,
-                        response_length=47,
+                        prompt=S.PROMPT,
+                        response=S.FIRST_RESPONSE,
+                        response_length=token_len(S.FIRST_RESPONSE),
                         status=Sample.Status.TRUNCATED,
                     ),
                 ),
@@ -342,50 +301,37 @@ class TestExitConditions:
 
     @pytest.mark.parametrize("generation_env", [{"args_kwargs": {"generate_max_turns": 1}}], indirect=True)
     def test_max_turns_reached(self, variant, generation_env):
-        generation_env.mock_server.process_fn = lambda _: ProcessResult(
-            text=MULTI_TURN_FIRST_RESPONSE, finish_reason="stop"
-        )
+        S = TwoTurnStub
+        generation_env.mock_server.process_fn = lambda _: ProcessResult(text=S.FIRST_RESPONSE, finish_reason="stop")
 
-        result = _run_generate(variant, generation_env, make_sample(prompt=TWO_TURN_PROMPT))
+        result = _run_generate(variant, generation_env, make_sample(prompt=S.PROMPT))
 
         if is_agentic_variant(variant):
-            assert result.requests == [expected_openai_request(MULTI_TURN_OPENAI_MESSAGES_FIRST_TURN)]
+            assert result.requests == [expected_openai_request(S.OPENAI_MESSAGES_FIRST_TURN)]
         else:
-            assert result.requests == [expected_request(FIRST_PROMPT_TOKEN_IDS)]
+            assert result.requests == [expected_request(S.FIRST_PROMPT_TOKEN_IDS)]
         if variant == "multi_turn_single_sample":
             expected = [
                 ExpectedSampleInfo(
                     chunks=[
-                        SampleParsedChunk(
-                            tokens_decoded_str=MULTI_TURN_FIRST_RESPONSE,
-                            loss_mask_value=1,
-                            rollout_log_probs=[-1 / 128 * i for i in range(47)],
-                        ),
-                        SampleParsedChunk(
-                            tokens_decoded_str=TWO_TURN_TOOL_RESPONSE, loss_mask_value=0, rollout_log_probs=[0.0] * 31
-                        ),
+                        expected_chunk(S.FIRST_RESPONSE, 1),
+                        expected_chunk(S.FIRST_TOOL_RESPONSE, 0),
                     ],
                     partial_sample=expected_partial_sample(
-                        prompt=TWO_TURN_PROMPT,
-                        response=MULTI_TURN_FIRST_RESPONSE + TWO_TURN_TOOL_RESPONSE,
-                        response_length=47 + 31,
+                        prompt=S.PROMPT,
+                        response=S.FIRST_RESPONSE + S.FIRST_TOOL_RESPONSE,
+                        response_length=token_len(S.FIRST_RESPONSE + S.FIRST_TOOL_RESPONSE),
                     ),
                 ),
             ]
         else:
             expected = [
                 ExpectedSampleInfo(
-                    chunks=[
-                        SampleParsedChunk(
-                            tokens_decoded_str=MULTI_TURN_FIRST_RESPONSE,
-                            loss_mask_value=1,
-                            rollout_log_probs=[-1 / 128 * i for i in range(47)],
-                        )
-                    ],
+                    chunks=[expected_chunk(S.FIRST_RESPONSE, 1)],
                     partial_sample=expected_partial_sample(
-                        prompt=TWO_TURN_PROMPT,
-                        response=MULTI_TURN_FIRST_RESPONSE,
-                        response_length=47,
+                        prompt=S.PROMPT,
+                        response=S.FIRST_RESPONSE,
+                        response_length=token_len(S.FIRST_RESPONSE),
                     ),
                 ),
             ]
@@ -416,34 +362,38 @@ class TestRespectMaxContextLen:
 
     @pytest.mark.parametrize(
         "generation_env",
-        [{"args_kwargs": {"rollout_max_context_len": len(FIRST_PROMPT_TOKEN_IDS) + 47 + 31}}],
+        [
+            {
+                "args_kwargs": {
+                    "rollout_max_context_len": len(TwoTurnStub.FIRST_PROMPT_TOKEN_IDS)
+                    + token_len(TwoTurnStub.FIRST_RESPONSE)
+                    + token_len(TwoTurnStub.FIRST_TOOL_RESPONSE)
+                }
+            }
+        ],
         indirect=True,
     )
     def test_second_turn_exceeds_max_context_len_returns_truncated(self, variant, generation_env):
         if is_agentic_variant(variant):
             pytest.skip("TODO: implement")
-        generation_env.mock_server.process_fn = multi_turn_tool_call_process_fn
+        S = TwoTurnStub
+        generation_env.mock_server.process_fn = S.process_fn
 
-        result = _run_generate(variant, generation_env, make_sample(prompt=TWO_TURN_PROMPT))
+        result = _run_generate(variant, generation_env, make_sample(prompt=S.PROMPT))
 
-        assert result.requests == [expected_request(FIRST_PROMPT_TOKEN_IDS)]
+        assert result.requests == [expected_request(S.FIRST_PROMPT_TOKEN_IDS)]
         if variant == "multi_turn_single_sample":
+            partial_response = S.FIRST_RESPONSE + S.FIRST_TOOL_RESPONSE
             expected = [
                 ExpectedSampleInfo(
                     chunks=[
-                        SampleParsedChunk(
-                            tokens_decoded_str=MULTI_TURN_FIRST_RESPONSE,
-                            loss_mask_value=1,
-                            rollout_log_probs=[-1 / 128 * i for i in range(47)],
-                        ),
-                        SampleParsedChunk(
-                            tokens_decoded_str=TWO_TURN_TOOL_RESPONSE, loss_mask_value=0, rollout_log_probs=[0.0] * 31
-                        ),
+                        expected_chunk(S.FIRST_RESPONSE, 1),
+                        expected_chunk(S.FIRST_TOOL_RESPONSE, 0),
                     ],
                     partial_sample=expected_partial_sample(
-                        prompt=TWO_TURN_PROMPT,
-                        response=MULTI_TURN_FIRST_RESPONSE + TWO_TURN_TOOL_RESPONSE,
-                        response_length=47 + 31,
+                        prompt=S.PROMPT,
+                        response=partial_response,
+                        response_length=token_len(partial_response),
                         status=Sample.Status.TRUNCATED,
                     ),
                 ),
@@ -451,18 +401,87 @@ class TestRespectMaxContextLen:
         else:
             expected = [
                 ExpectedSampleInfo(
+                    chunks=[expected_chunk(S.FIRST_RESPONSE, 1)],
+                    partial_sample=expected_partial_sample(
+                        prompt=S.PROMPT,
+                        response=S.FIRST_RESPONSE,
+                        response_length=token_len(S.FIRST_RESPONSE),
+                        status=Sample.Status.TRUNCATED,
+                    ),
+                ),
+            ]
+        verify_samples(result.sample, expected)
+
+
+class TestThreeTurn:
+    """Need to test 3-turn case besides 2-turn, because e.g. merge_samples may behave differently."""
+
+    def test_three_turns_with_sequential_tool_calls(self, variant, generation_env):
+        generation_env.mock_server.process_fn = ThreeTurnStub.process_fn
+
+        S = ThreeTurnStub
+        result = _run_generate(variant, generation_env, make_sample(prompt=S.PROMPT))
+
+        if is_agentic_variant(variant):
+            assert result.requests == [
+                expected_openai_request(S.OPENAI_MESSAGES_FIRST_TURN),
+                expected_openai_request(S.OPENAI_MESSAGES_SECOND_TURN_FROM_CLIENT),
+                expected_openai_request(S.OPENAI_MESSAGES_THIRD_TURN_FROM_CLIENT),
+            ]
+        else:
+            assert result.requests == [
+                expected_request(S.FIRST_PROMPT_TOKEN_IDS),
+                expected_request(S.SECOND_PROMPT_TOKEN_IDS),
+                expected_request(S.THIRD_PROMPT_TOKEN_IDS),
+            ]
+        if variant in ("multi_turn_single_sample", "agentic_tool_call_single_sample"):
+            full_response = (
+                S.FIRST_RESPONSE
+                + S.FIRST_TOOL_RESPONSE
+                + S.SECOND_RESPONSE
+                + S.SECOND_TOOL_RESPONSE
+                + S.THIRD_RESPONSE
+            )
+            expected = [
+                ExpectedSampleInfo(
                     chunks=[
-                        SampleParsedChunk(
-                            tokens_decoded_str=MULTI_TURN_FIRST_RESPONSE,
-                            loss_mask_value=1,
-                            rollout_log_probs=[-1 / 128 * i for i in range(47)],
-                        )
+                        expected_chunk(S.FIRST_RESPONSE, 1),
+                        expected_chunk(S.FIRST_TOOL_RESPONSE, 0),
+                        expected_chunk(S.SECOND_RESPONSE, 1),
+                        expected_chunk(S.SECOND_TOOL_RESPONSE, 0),
+                        expected_chunk(S.THIRD_RESPONSE, 1),
                     ],
                     partial_sample=expected_partial_sample(
-                        prompt=TWO_TURN_PROMPT,
-                        response=MULTI_TURN_FIRST_RESPONSE,
-                        response_length=47,
-                        status=Sample.Status.TRUNCATED,
+                        prompt=S.PROMPT,
+                        response=full_response,
+                        response_length=token_len(full_response),
+                    ),
+                ),
+            ]
+        else:
+            expected = [
+                ExpectedSampleInfo(
+                    chunks=[expected_chunk(S.FIRST_RESPONSE, 1)],
+                    partial_sample=expected_partial_sample(
+                        prompt=S.PROMPT,
+                        response=S.FIRST_RESPONSE,
+                        response_length=token_len(S.FIRST_RESPONSE),
+                    ),
+                ),
+                ExpectedSampleInfo(
+                    chunks=[expected_chunk(S.SECOND_RESPONSE, 1)],
+                    partial_sample=expected_partial_sample(
+                        prompt=S.PROMPT,
+                        response=S.SECOND_RESPONSE,
+                        response_length=token_len(S.SECOND_RESPONSE),
+                    ),
+                ),
+                ExpectedSampleInfo(
+                    chunks=[expected_chunk(S.THIRD_RESPONSE, 1)],
+                    partial_sample=expected_partial_sample(
+                        prompt=S.PROMPT,
+                        response=S.THIRD_RESPONSE,
+                        response_length=token_len(S.THIRD_RESPONSE),
                     ),
                 ),
             ]
