@@ -2,20 +2,35 @@ import json
 from argparse import Namespace
 from collections.abc import Iterator
 from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 import requests
 
-from miles.rollout.data_source import RolloutDataSourceWithBuffer
+from miles.rollout.data_source import DataSource, RolloutDataSourceWithBuffer
 from miles.rollout.modular_rollout.orchestration_common import GenerateState
 from miles.router.router import MilesRouter
 from miles.utils.arguments import parse_args
 from miles.utils.http_utils import find_available_port, init_http_client
 from miles.utils.misc import SingletonMeta
-from miles.utils.test_utils.mock_sglang_server import with_mock_server
+from miles.utils.test_utils.mock_sglang_server import MockSGLangServer, with_mock_server
 from miles.utils.test_utils.uvicorn_thread_server import UvicornThreadServer
+
+
+@dataclass(frozen=True)
+class IntegrationEnvConfig:
+    extra_argv: list[str] | None = None
+    data_rows: list[dict] | None = None
+    latency: float = 0.0
+
+
+@dataclass(frozen=True)
+class IntegrationEnv:
+    args: Namespace
+    data_source: DataSource
+    mock_server: MockSGLangServer
 
 
 def _build_args(*, data_path: str, router_port: int, extra_argv: list[str] | None = None) -> Namespace:
@@ -80,20 +95,25 @@ def _cleanup_legacy_singleton():
     SingletonMeta._instances.pop(GenerateState, None)
 
 
+DEFAULT_DATA_ROWS = [{"input": "What is 1+7?", "label": "8"}]
+
+
 @pytest.fixture
-def rollout_integration_env(tmp_path, request):
-    extra_argv = request.param
-    assert isinstance(extra_argv, list)
+def rollout_integration_env(tmp_path, request) -> IntegrationEnv:
+    config = request.param
+    assert isinstance(config, IntegrationEnvConfig)
+
+    data_rows = config.data_rows or DEFAULT_DATA_ROWS
 
     data_path = str(tmp_path / "data.jsonl")
-    _write_jsonl(data_path, [{"input": "What is 1+7?", "label": "8"}])
+    _write_jsonl(data_path, data_rows)
 
     router_port = find_available_port(20000)
-    args = _build_args(data_path=data_path, router_port=router_port, extra_argv=extra_argv)
+    args = _build_args(data_path=data_path, router_port=router_port, extra_argv=config.extra_argv)
 
     _cleanup_legacy_singleton()
 
-    with with_mock_server(model_name=args.hf_checkpoint) as mock_server:
+    with with_mock_server(model_name=args.hf_checkpoint, latency=config.latency) as mock_server:
         with _with_miles_router(args) as router_server:
             r = requests.post(
                 f"{router_server.url}/add_worker",
@@ -103,6 +123,6 @@ def rollout_integration_env(tmp_path, request):
             r.raise_for_status()
 
             data_source = RolloutDataSourceWithBuffer(args)
-            yield args, data_source
+            yield IntegrationEnv(args=args, data_source=data_source, mock_server=mock_server)
 
     _cleanup_legacy_singleton()
