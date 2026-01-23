@@ -1,9 +1,11 @@
 import asyncio
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from miles.rollout.base_types import (
+    GenerateFnInput,
+    GenerateFnOutput,
     RolloutFnConstructorInput,
     RolloutFnEvalInput,
     RolloutFnEvalOutput,
@@ -11,15 +13,34 @@ from miles.rollout.base_types import (
     RolloutFnTrainOutput,
 )
 from miles.rollout.modular_rollout.compatibility import (
+    LegacyGenerateFnAdapter,
     LegacyRolloutFnAdapter,
     call_rollout_function,
+    load_generate_function,
     load_rollout_function,
 )
+from miles.utils.async_utils import run
 
 
 @pytest.fixture
 def constructor_input():
     return RolloutFnConstructorInput(args="dummy_args", data_source="dummy_data_source")
+
+
+@pytest.fixture
+def make_generate_fn_input():
+    def _make(evaluation: bool = False):
+        state = MagicMock()
+        state.args = MagicMock()
+
+        return GenerateFnInput(
+            state=state,
+            sample={"text": "test prompt"},
+            sampling_params={"temperature": 0.7},
+            evaluation=evaluation,
+        )
+
+    return _make
 
 
 class TestSupportedRolloutFormats:
@@ -110,3 +131,65 @@ class TestSupportedRolloutFormats:
         assert isinstance(fn, AsyncRolloutFn)
         expected_type = RolloutFnEvalOutput if evaluation else RolloutFnTrainOutput
         assert isinstance(result, expected_type)
+
+
+class TestSupportedGenerateFormats:
+    """
+    Documentation test similar to TestSupportedRolloutFormats
+    """
+
+    @pytest.mark.parametrize("evaluation", [False, True])
+    def test_format_1_legacy_function_with_evaluation_param(self, make_generate_fn_input, evaluation):
+        async def legacy_generate_fn(args, sample, sampling_params, evaluation=False):
+            return "my_sample"
+
+        with patch("miles.rollout.modular_rollout.compatibility.load_function", return_value=legacy_generate_fn):
+            fn = load_generate_function("path.to.fn")
+
+        result = run(fn(make_generate_fn_input(evaluation)))
+
+        assert isinstance(fn, LegacyGenerateFnAdapter)
+        assert isinstance(result, GenerateFnOutput)
+        assert result.sample == "my_sample"
+
+    @pytest.mark.parametrize("evaluation", [False, True])
+    def test_format_2_legacy_function_without_evaluation_param(self, make_generate_fn_input, evaluation):
+        async def legacy_generate_fn(args, sample, sampling_params):
+            return "my_sample"
+
+        with patch("miles.rollout.modular_rollout.compatibility.load_function", return_value=legacy_generate_fn):
+            fn = load_generate_function("path.to.fn")
+
+        result = run(fn(make_generate_fn_input(evaluation)))
+
+        assert isinstance(fn, LegacyGenerateFnAdapter)
+        assert isinstance(result, GenerateFnOutput)
+        assert result.sample == "my_sample"
+
+    @pytest.mark.parametrize("evaluation", [False, True])
+    def test_format_3_new_async_function_api(self, make_generate_fn_input, evaluation):
+        async def generate(input: GenerateFnInput) -> GenerateFnOutput:
+            return GenerateFnOutput(sample="my_sample")
+
+        with patch("miles.rollout.modular_rollout.compatibility.load_function", return_value=generate):
+            fn = load_generate_function("path.to.fn")
+
+        result = run(fn(make_generate_fn_input(evaluation)))
+
+        assert isinstance(result, GenerateFnOutput)
+        assert result.sample == "my_sample"
+
+    @pytest.mark.parametrize("evaluation", [False, True])
+    def test_format_4_new_class_api(self, make_generate_fn_input, evaluation):
+        class MyGenerateFn:
+            async def __call__(self, input: GenerateFnInput) -> GenerateFnOutput:
+                return GenerateFnOutput(sample="my_sample")
+
+        with patch("miles.rollout.modular_rollout.compatibility.load_function", return_value=MyGenerateFn):
+            fn = load_generate_function("path.to.fn")
+
+        result = run(fn(make_generate_fn_input(evaluation)))
+
+        assert isinstance(fn, MyGenerateFn)
+        assert isinstance(result, GenerateFnOutput)
+        assert result.sample == "my_sample"
