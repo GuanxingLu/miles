@@ -10,7 +10,7 @@ from transformers import AutoConfig
 
 from miles.backends.sglang_utils.arguments import add_sglang_arguments
 from miles.backends.sglang_utils.arguments import validate_args as sglang_validate_args
-from miles.utils.environ import get_experimental_rollout_refactor
+from miles.utils.environ import enable_experimental_rollout_refactor
 from miles.utils.eval_config import EvalDatasetConfig, build_eval_dataset_configs, ensure_dataset_list
 from miles.utils.logging_utils import configure_logger
 from miles.utils.misc import load_function
@@ -206,7 +206,11 @@ def get_miles_extra_args_provider(add_custom_arguments=None):
             parser.add_argument(
                 "--rollout-function-path",
                 type=str,
-                default="miles.rollout.sglang_rollout.generate_rollout",
+                default=(
+                    "miles.rollout.inference_rollout.inference_rollout_common.InferenceRolloutFn"
+                    if enable_experimental_rollout_refactor()
+                    else "miles.rollout.sglang_rollout.generate_rollout"
+                ),
                 help=(
                     "Path to the rollout generation function."
                     "You should use this model to create your own custom rollout function, "
@@ -1390,7 +1394,7 @@ def get_miles_extra_args_provider(add_custom_arguments=None):
         parser = add_prefill_decode_disaggregation_arguments(parser)
         parser = add_ci_arguments(parser)
         parser = add_custom_megatron_plugins_arguments(parser)
-        if get_experimental_rollout_refactor():
+        if enable_experimental_rollout_refactor():
             parser = add_user_provided_function_arguments(parser)
         reset_arg(
             parser,

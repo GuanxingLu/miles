@@ -21,7 +21,7 @@ from miles.rollout.base_types import (
 )
 from miles.rollout.inference_rollout.compatibility import call_rollout_function, load_rollout_function
 from miles.utils import tracking_utils
-from miles.utils.environ import get_experimental_rollout_refactor
+from miles.utils.environ import enable_experimental_rollout_refactor
 from miles.utils.health_monitor import RolloutHealthMonitor
 from miles.utils.http_utils import _wrap_ipv6, find_available_port, get_host_info, init_http_client
 from miles.utils.iter_utils import group_by
@@ -60,7 +60,7 @@ class RolloutManager:
         data_source_cls = load_function(self.args.data_source_path)
         self.data_source = data_source_cls(args)
 
-        self.use_experimental_refactor = get_experimental_rollout_refactor()
+        self.use_experimental_refactor = enable_experimental_rollout_refactor()
         if self.use_experimental_refactor:
             input = RolloutFnConstructorInput(args=args, data_source=self.data_source)
             self.generate_rollout = load_rollout_function(input, self.args.rollout_function_path)

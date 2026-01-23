@@ -28,9 +28,7 @@ _VARIANTS = [
         RolloutEnvConfig(
             extra_argv=[
                 "--rollout-function-path",
-                "miles.rollout.inference_rollout.inference_rollout_train.SimpleTrainRolloutFn",
-                "--eval-function-path",
-                "miles.rollout.inference_rollout.inference_rollout_eval.SimpleEvalRolloutFn",
+                "miles.rollout.inference_rollout.inference_rollout_common.InferenceRolloutFn",
                 "--custom-generate-function-path",
                 "miles.rollout.sglang_rollout.generate",
             ]
