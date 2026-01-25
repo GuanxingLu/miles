@@ -350,6 +350,8 @@ class ToolRegistry:
     async def _execute_python(self, arguments: dict[str, Any]) -> str:
         """Execute Python code using the sandbox"""
         code = arguments.get("code", "")
+        if isinstance(code, list):
+            code = "\n".join(str(item) for item in code)
         if not code.strip():
             return "Error: No code provided"
 
@@ -372,14 +374,14 @@ async def reward_func(args, sample: Sample, **kwargs):
     """Tool call reward function using math_dapo, with bonus for tool usage."""
     solution_str = sample.prompt + sample.response if isinstance(sample.prompt, str) else sample.response
     ground_truth = sample.label if sample.label is not None else ""
-    num_turns = sample.metadata.get("tool_call_count", 0)
+    tool_call_count = sample.metadata.get("tool_call_count", 0)
 
     # use \boxed{...} answer
     result = math_dapo_compute_score(solution_str, ground_truth, strict_box_verify=True)
 
     # encourage model to call tools
     if result["score"] < 0:
-        tool_call_reward = num_turns / 2 * 0.1
+        tool_call_reward = tool_call_count / 2 * 0.1
         result["score"] = min(-0.6, result["score"] + tool_call_reward)
 
     if result["pred"] is None:
