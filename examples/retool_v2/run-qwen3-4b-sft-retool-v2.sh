@@ -43,7 +43,7 @@ NUM_GPUS=$(echo "${CUDA_VISIBLE_DEVICES}" | awk -F',' '{print NF}')
 RUN_ID=${RUN_ID:-"run_$(date +%Y%m%d_%H%M%S)"}
 
 MODEL_ARGS=(
-   --model qwen3-4B
+   --model qwen3-4B-sft
    --hf-checkpoint "${MODEL_ROOT}/qwen3-4b-sft-SGLang-RL"
    --ref-load "${MODEL_ROOT}/qwen3-4b-sft-SGLang-RL_torch_dist"
 )
