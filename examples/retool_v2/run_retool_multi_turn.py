@@ -10,31 +10,58 @@ WANDB_PROJECT = "miles-dev-retool-v2"
 WANDB_GROUP = "sft-multi-turn-batch-32"
 
 
+_MODEL_DEFAULTS = {
+    "qwen3-4B-sft": {
+        "hf_checkpoint": "/root/font-info/qwen3-4b-sft",
+        "ref_load": "/root/font-info/qwen3-4b-sft_torch_dist",
+        "megatron_model_type": "qwen3-4B",
+        "tensor_model_parallel_size": 2,
+        "rotary_base": 5000000,
+    },
+    "qwen3-4B": {
+        "hf_checkpoint": "/root/models/Qwen3-4B",
+        "ref_load": "/root/models/Qwen3-4B_torch_dist",
+        "megatron_model_type": "qwen3-4B",
+        "tensor_model_parallel_size": 2,
+        "rotary_base": None,
+    },
+    "qwen3-0.6B": {
+        "hf_checkpoint": "/workspace/miles/MODEL/Qwen3-0.6B",
+        "ref_load": "/workspace/miles/MODEL/Qwen3-0.6B_torch_dist",
+        "megatron_model_type": "qwen3-0.6B",
+        "tensor_model_parallel_size": 1,
+        "rotary_base": None,
+    },
+}
+
+
 @dataclass
 class ScriptArgs(U.ExecuteTrainConfig):
     mode: Literal["normal", "debug_minimal"] = "normal"
     run_id: str = field(default_factory=U.create_run_id)
     hardware: Literal["H100", "GB200", "GB300"] = "H100"
     num_gpus_per_node: int | None = None
-    use_sft_model: bool = True
+    model: Literal["qwen3-4B-sft", "qwen3-4B", "qwen3-0.6B"] = "qwen3-4B-sft"
     save_path: str = "/root/Qwen3-4B_miles/retool_v2_multi_turn"
     prompt_data: str = "/root/dapo-math-17k/dapo-math-17k.jsonl"
+    eval_prompt_data: str = "/root/aime-2024/aime-2024.jsonl"
     generate_max_turns: int = 16
     rollout_num_gpus_per_engine: int = 2
+    # empty string means "use default for the selected model"
+    hf_checkpoint: str = ""
+    ref_load: str = ""
+    megatron_model_type: str = ""
+    tensor_model_parallel_size: int = 0
     extra_args: str = ""
-
-    # resolved in __post_init__, not set by user
-    hf_checkpoint: str = field(init=False)
-    ref_load: str = field(init=False)
 
     def __post_init__(self):
         self.num_gpus_per_node = self.num_gpus_per_node or U.NUM_GPUS_OF_HARDWARE[self.hardware]
-        if self.use_sft_model:
-            self.hf_checkpoint = "/root/font-info/qwen3-4b-sft"
-            self.ref_load = "/root/font-info/qwen3-4b-sft_torch_dist"
-        else:
-            self.hf_checkpoint = "/root/models/Qwen3-4B"
-            self.ref_load = "/root/models/Qwen3-4B_torch_dist"
+        defaults = _MODEL_DEFAULTS[self.model]
+        self.hf_checkpoint = self.hf_checkpoint or defaults["hf_checkpoint"]
+        self.ref_load = self.ref_load or defaults["ref_load"]
+        self.megatron_model_type = self.megatron_model_type or defaults["megatron_model_type"]
+        self.tensor_model_parallel_size = self.tensor_model_parallel_size or defaults["tensor_model_parallel_size"]
+        self._rotary_base = defaults["rotary_base"]
 
 
 def _get_wandb_args() -> str:
@@ -48,40 +75,52 @@ def _get_wandb_args() -> str:
 
 
 def prepare(args: ScriptArgs):
-    U.exec_command("mkdir -p /root/dapo-math-17k /root/aime-2024")
-    U.exec_command("hf download --repo-type dataset zhuzilin/dapo-math-17k --local-dir /root/dapo-math-17k")
-    U.exec_command("hf download --repo-type dataset zhuzilin/aime-2024 --local-dir /root/aime-2024")
+    # if args.model == "qwen3-4B-sft":
+    #     U.exec_command("mkdir -p /root/dapo-math-17k /root/aime-2024 /root/font-info")
+    #     U.exec_command("hf download --repo-type dataset zhuzilin/dapo-math-17k --local-dir /root/dapo-math-17k")
+    #     U.exec_command("hf download --repo-type dataset zhuzilin/aime-2024 --local-dir /root/aime-2024")
+    #     U.exec_command(f"hf download font-info/qwen3-4b-sft-SGLang-RL --local-dir {args.hf_checkpoint}")
+    #     U.convert_checkpoint(
+    #         model_name="qwen3-4b-sft",
+    #         megatron_model_type="qwen3-4B",
+    #         num_gpus_per_node=args.num_gpus_per_node,
+    #         hf_checkpoint=args.hf_checkpoint,
+    #         dir_dst="/root/font-info",
+    #     )
+    # elif args.model == "qwen3-4B":
+    #     U.exec_command("mkdir -p /root/dapo-math-17k /root/aime-2024 /root/models")
+    #     U.exec_command("hf download --repo-type dataset zhuzilin/dapo-math-17k --local-dir /root/dapo-math-17k")
+    #     U.exec_command("hf download --repo-type dataset zhuzilin/aime-2024 --local-dir /root/aime-2024")
+    #     U.exec_command("hf download Qwen/Qwen3-4B --local-dir /root/models/Qwen3-4B")
+    #     U.convert_checkpoint(
+    #         model_name="Qwen3-4B",
+    #         megatron_model_type="qwen3-4B",
+    #         num_gpus_per_node=args.num_gpus_per_node,
+    #         dir_dst="/root/models",
+    #     )
+    # elif args.model == "qwen3-0.6B":
+    #     pass
 
-    if args.use_sft_model:
-        U.exec_command("mkdir -p /root/font-info")
-        U.exec_command(f"hf download font-info/qwen3-4b-sft-SGLang-RL --local-dir {args.hf_checkpoint}")
-        U.convert_checkpoint(
-            model_name="qwen3-4b-sft",
-            megatron_model_type="qwen3-4B",
-            num_gpus_per_node=args.num_gpus_per_node,
-            hf_checkpoint=args.hf_checkpoint,
-            dir_dst="/root/font-info",
-        )
-    else:
-        U.exec_command("mkdir -p /root/models")
-        U.exec_command("hf download Qwen/Qwen3-4B --local-dir /root/models/Qwen3-4B")
-        U.convert_checkpoint(
-            model_name="Qwen3-4B",
-            megatron_model_type="qwen3-4B",
-            num_gpus_per_node=args.num_gpus_per_node,
-            dir_dst="/root/models",
-        )
+    # assume hf checkpoint and datasets already exist on disk; just produce the megatron-converted ref.
+    hf_dir = os.path.dirname(args.hf_checkpoint)
+    U.convert_checkpoint(
+        model_name=os.path.basename(args.hf_checkpoint),
+        megatron_model_type=args.megatron_model_type,
+        num_gpus_per_node=args.num_gpus_per_node,
+        hf_checkpoint=args.hf_checkpoint,
+        dir_dst=hf_dir,
+    )
 
 
 def execute(args: ScriptArgs):
-    megatron_model_type = "qwen3-4B"
+    megatron_model_type = args.megatron_model_type
 
     ckpt_args = (
         f"--hf-checkpoint {args.hf_checkpoint} "
         f"--ref-load {args.ref_load} "
         f"--save {args.save_path} "
         f"--save-interval {2 if args.mode == 'debug_minimal' else 1000} "
-        f"{'--rotary-base 5000000 ' if args.use_sft_model else ''}"
+        f"{f'--rotary-base {args._rotary_base} ' if args._rotary_base else ''}"
     )
 
     custom_args = (
@@ -114,7 +153,7 @@ def execute(args: ScriptArgs):
     if args.mode != "debug_minimal":
         eval_args = (
             "--eval-interval 20 "
-            "--eval-prompt-data aime /root/aime-2024/aime-2024.jsonl "
+            f"--eval-prompt-data aime {args.eval_prompt_data} "
             "--n-samples-per-eval-prompt 16 "
             "--eval-max-response-len 16384 "
             "--eval-top-p 1 "
@@ -144,7 +183,7 @@ def execute(args: ScriptArgs):
     )
 
     perf_args = (
-        "--tensor-model-parallel-size 2 "
+        f"--tensor-model-parallel-size {args.tensor_model_parallel_size} "
         "--sequence-parallel "
         "--pipeline-model-parallel-size 1 "
         "--context-parallel-size 1 "
