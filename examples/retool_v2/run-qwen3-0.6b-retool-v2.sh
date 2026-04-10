@@ -62,7 +62,7 @@ PARALLEL_ARGS=(
 
 DATA_ARGS=(
    --prompt-data "${DATA_ROOT}/dapo-math-17k/dapo-math-17k.jsonl"
-   --eval-prompt-data "${MODEL_ROOT}/aime-2024/aime-2024.jsonl"
+   --eval-prompt-data "${DATA_ROOT}/aime-2024/aime-2024.jsonl"
 )
 
 GENERATE_ARGS=(
