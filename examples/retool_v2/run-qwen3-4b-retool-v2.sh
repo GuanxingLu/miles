@@ -52,7 +52,7 @@ MODEL_ARGS=(
 RUN_ARGS=(
    --mode "${MODE}"
    --run-id "${RUN_ID}"
-   --save-path "/workspace/miles/saves/Qwen3-4B_retool_v2_multi_turn/${RUN_ID}"
+   --save-path "${REPO_DIR}/saves/Qwen3-4B_retool_v2_multi_turn/${RUN_ID}"
 )
 
 PARALLEL_ARGS=(
