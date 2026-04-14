@@ -14,6 +14,7 @@ set -ex
 
 # will prevent ray from buffering stdout/stderr
 export PYTHONBUFFERED=16
+export CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0,1,2,3,4,5,6,7}
 
 NVLINK_COUNT=$(nvidia-smi topo -m 2>/dev/null | grep -o 'NV[0-9][0-9]*' | wc -l)
 if [ "$NVLINK_COUNT" -gt 0 ]; then
@@ -23,21 +24,31 @@ else
 fi
 echo "HAS_NVLINK: $HAS_NVLINK (detected $NVLINK_COUNT NVLink references)"
 
+export WANDB_API_KEY=${WANDB_API_KEY:-local-82cbbacfe8e3c0c527da528160bd76a1e85c9fea}
+export WANDB_BASE_URL=${WANDB_BASE_URL:-http://33.180.4.104}
+
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
-source "/root/miles/scripts/models/qwen3-30B-A3B.sh"
+REPO_DIR="$(cd -- "${SCRIPT_DIR}/../.." &>/dev/null && pwd)"
+
+DATA_ROOT=${DATA_ROOT:-/robby/share/Robotics/guanxing/miles/DATA}
+MODEL_ROOT=${MODEL_ROOT:-/robby/share/Robotics/guanxing/miles/MODEL}
+MEGATRON_PATH=${MEGATRON_PATH:-/root/Megatron-LM/}
+RUN_ID=${RUN_ID:-"run_$(date +%Y%m%d_%H%M%S)"}
+
+source "${REPO_DIR}/scripts/models/qwen3-30B-A3B.sh"
 
 CKPT_ARGS=(
-   --hf-checkpoint /root/Qwen3-30B-A3B
-   #--hf-checkpoint /root/Qwen3-30B-A3B-FP8
-   --ref-load /root/Qwen3-30B-A3B_torch_dist
-   --load /root/Qwen3-4B_miles/
-   --save /root/Qwen3-4B_miles/
+   --hf-checkpoint ${MODEL_ROOT}/Qwen3-30B-A3B
+   #--hf-checkpoint ${MODEL_ROOT}/Qwen3-30B-A3B-FP8
+   --ref-load ${MODEL_ROOT}/Qwen3-30B-A3B_torch_dist
+   --load ${REPO_DIR}/saves/Qwen3-30B-A3B/${RUN_ID}
+   --save ${REPO_DIR}/saves/Qwen3-30B-A3B/${RUN_ID}
    --save-interval 20
 )
 
 ROLLOUT_ARGS=(
    --custom-generate-function-path examples.multi_agent.rollout_with_multi_agents.generate_with_multi_agents
-   --prompt-data /root/dapo-math-17k/dapo-math-17k.jsonl
+   --prompt-data ${DATA_ROOT}/dapo-math-17k/dapo-math-17k.jsonl
    --input-key prompt
    --label-key label
    --apply-chat-template
@@ -134,7 +145,7 @@ ray start --head --node-ip-address ${MASTER_ADDR} --num-gpus 8 --disable-usage-s
 # Build the runtime environment JSON with proper variable substitution
 RUNTIME_ENV_JSON="{
   \"env_vars\": {
-    \"PYTHONPATH\": \"/root/Megatron-LM/\",
+    \"PYTHONPATH\": \"${MEGATRON_PATH}\",
     \"CUDA_DEVICE_MAX_CONNECTIONS\": \"1\",
     \"NCCL_NVLS_ENABLE\": \"${HAS_NVLINK}\"
   }
