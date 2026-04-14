@@ -37,12 +37,19 @@ RUN_ID=${RUN_ID:-"run_$(date +%Y%m%d_%H%M%S)"}
 
 source "${REPO_DIR}/scripts/models/qwen3-30B-A3B.sh"
 
+# CKPT_ARGS=(
+#    --hf-checkpoint ${MODEL_ROOT}/Qwen3-30B-A3B
+#    #--hf-checkpoint ${MODEL_ROOT}/Qwen3-30B-A3B-FP8
+#    --ref-load ${MODEL_ROOT}/Qwen3-30B-A3B_torch_dist
+#    --load ${REPO_DIR}/saves/Qwen3-30B-A3B/${RUN_ID}
+#    --save ${REPO_DIR}/saves/Qwen3-30B-A3B/${RUN_ID}
+#    --save-interval 20
+# )
 CKPT_ARGS=(
-   --hf-checkpoint ${MODEL_ROOT}/Qwen3-30B-A3B
-   #--hf-checkpoint ${MODEL_ROOT}/Qwen3-30B-A3B-FP8
-   --ref-load ${MODEL_ROOT}/Qwen3-30B-A3B_torch_dist
-   --load ${REPO_DIR}/saves/Qwen3-30B-A3B/${RUN_ID}
-   --save ${REPO_DIR}/saves/Qwen3-30B-A3B/${RUN_ID}
+   --hf-checkpoint ${MODEL_ROOT}/Qwen3-30B-A3B-Instruct-2507
+   --ref-load ${MODEL_ROOT}/Qwen3-30B-A3B-Instruct-2507_torch_dist
+   --load ${REPO_DIR}/saves/Qwen3-30B-A3B-Instruct-2507/${RUN_ID}
+   --save ${REPO_DIR}/saves/Qwen3-30B-A3B-Instruct-2507/${RUN_ID}
    --save-interval 20
 )
 
@@ -115,10 +122,10 @@ OPTIMIZER_ARGS=(
 )
 
 WANDB_ARGS=(
-   #--use-wandb
-   # --wandb-project miles-dev
-   # --wandb-group qwen3-30B-A3B-test
-   # --wandb-key ${WANDB_KEY}
+   --use-wandb
+   --wandb-project miles-dev-multi-agent
+   --wandb-group qwen3-30B-A3B-test
+   --wandb-key ${WANDB_KEY}
 )
 
 SGLANG_ARGS=(
