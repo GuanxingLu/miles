@@ -60,7 +60,8 @@ ROLLOUT_ARGS=(
    --label-key label
    --apply-chat-template
    --rollout-shuffle
-   --rm-type deepscaler
+   --rm-type dapo
+   # --rm-type deepscaler
    --num-rollout 3000
    --rollout-batch-size 32
    --n-samples-per-prompt 8
