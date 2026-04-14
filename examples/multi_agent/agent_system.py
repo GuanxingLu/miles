@@ -208,7 +208,10 @@ async def run_agent_system(args, sample):
 
     def reward_adjustment(samples, reward_weight):
         for sample in samples:
-            sample.reward = sample.reward * reward_weight
+            if isinstance(sample.reward, dict):
+                sample.reward = {**sample.reward, "score": sample.reward["score"] * reward_weight}
+            else:
+                sample.reward = sample.reward * reward_weight
         return samples
 
     if len(previous_solutions) == 0:
