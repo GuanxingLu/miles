@@ -61,6 +61,7 @@ ROLLOUT_ARGS=(
    --apply-chat-template
    --rollout-shuffle
    --rm-type dapo
+   --reward-key score
    # --rm-type deepscaler
    --num-rollout 3000
    --rollout-batch-size 32
