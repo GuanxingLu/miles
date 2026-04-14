@@ -125,7 +125,7 @@ WANDB_ARGS=(
    --use-wandb
    --wandb-project miles-dev-multi-agent
    --wandb-group qwen3-30B-A3B-test
-   --wandb-key ${WANDB_KEY}
+   --wandb-key ${WANDB_API_KEY}
 )
 
 SGLANG_ARGS=(
