@@ -57,7 +57,7 @@ ROLLOUT_ARGS=(
    --label-key label
    --apply-chat-template
    --rollout-shuffle
-   # --rm-type dapo
+   --rm-type dapo
    --reward-key score
    --num-rollout 500
    --rollout-batch-size 16
@@ -70,13 +70,12 @@ ROLLOUT_ARGS=(
 )
 
 EVAL_ARGS=(
-   # eval disabled for smoke; re-enable to measure AIME pass-rate.
-   # --eval-interval 20
-   # --eval-prompt-data aime ${DATA_ROOT}/aime-2024/aime-2024.jsonl
-   # --n-samples-per-eval-prompt 8
-   # --eval-max-response-len 8192
-   # --eval-top-p 1
-   # --log-passrate
+   --eval-interval 20
+   --eval-prompt-data aime ${DATA_ROOT}/aime-2024/aime-2024.jsonl
+   --n-samples-per-eval-prompt 8
+   --eval-max-response-len 8192
+   --eval-top-p 1
+   --log-passrate
 )
 
 PARALLEL_ARGS=(
