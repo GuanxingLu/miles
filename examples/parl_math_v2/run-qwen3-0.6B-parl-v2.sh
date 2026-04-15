@@ -16,6 +16,11 @@ set -ex
 
 export PYTHONBUFFERED=16
 export CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0,1,2,3}
+
+# This debug host has http/https/socks proxies in the env that point at a
+# local proxy not reachable from sglang/wandb. Strip them so httpx doesn't
+# try to load the missing socksio backend.
+unset http_proxy https_proxy all_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY
 NVLINK_COUNT=$(nvidia-smi | grep -o "NVLink" | wc -l)
 if [ "$NVLINK_COUNT" -gt 0 ]; then HAS_NVLINK=1; else HAS_NVLINK=0; fi
 echo "HAS_NVLINK: $HAS_NVLINK (detected $NVLINK_COUNT NVLink references)"
@@ -30,8 +35,9 @@ export WANDB_MODE=${WANDB_MODE:-offline}
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 REPO_DIR="$(cd -- "${SCRIPT_DIR}/../.." &>/dev/null && pwd)"
 
-DATA_ROOT=${DATA_ROOT:-/workspace/miles/DATA}
-MODEL_ROOT=${MODEL_ROOT:-/workspace/miles/MODEL}
+DEV_REPO_DIR=${DEV_REPO_DIR:-${REPO_DIR}}
+DATA_ROOT=${DATA_ROOT:-${DEV_REPO_DIR}/DATA}
+MODEL_ROOT=${MODEL_ROOT:-${DEV_REPO_DIR}/MODEL}
 MODE=${MODE:-normal}  # debug_minimal | normal
 NUM_GPUS=$(echo "${CUDA_VISIBLE_DEVICES}" | awk -F',' '{print NF}')
 RUN_ID=${RUN_ID:-"run_$(date +%Y%m%d_%H%M%S)"}
@@ -45,7 +51,8 @@ MODEL_ARGS=(
 RUN_ARGS=(
    --mode "${MODE}"
    --run-id "${RUN_ID}"
-   --save-path "${REPO_DIR}/saves/Qwen3-0.6B-parl-v2/${RUN_ID}"
+   --dev-repo-dir "${DEV_REPO_DIR}"
+   --save-path "${DEV_REPO_DIR}/saves/Qwen3-0.6B-parl-v2/${RUN_ID}"
 )
 
 PARALLEL_ARGS=(
@@ -77,9 +84,16 @@ ray start --head --node-ip-address ${MASTER_ADDR} --num-gpus ${NUM_GPUS} \
 export RAY_ADDRESS="http://127.0.0.1:${RAY_DASHBOARD_PORT}"
 export MILES_SCRIPT_EXTERNAL_RAY=1
 
+# Router is launched by run_parl_math.py via before_ray_job_submit hook
+# (after execute_train's pkill phase, before ray submit).
+SGLANG_ROUTER_IP=${MILES_SGLANG_ROUTER_IP:-127.0.0.1}
+SGLANG_ROUTER_PORT=${MILES_SGLANG_ROUTER_PORT:-18765}
+
 python examples/parl_math_v2/run_parl_math.py \
    ${MODEL_ARGS[@]} \
    ${RUN_ARGS[@]} \
    ${PARALLEL_ARGS[@]} \
    ${DATA_ARGS[@]} \
-   ${GENERATE_ARGS[@]}
+   ${GENERATE_ARGS[@]} \
+   --sglang-router-ip ${SGLANG_ROUTER_IP} \
+   --sglang-router-port ${SGLANG_ROUTER_PORT}

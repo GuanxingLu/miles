@@ -12,6 +12,9 @@ directory at sys.path[0], shadowing both /root/miles and Megatron's own
 `examples` package.
 """
 import os
+import socket
+import subprocess
+import time
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -62,6 +65,7 @@ class ScriptArgs(U.ExecuteTrainConfig):
     entropy_coef: float = 0.001
     sglang_router_ip: str = "127.0.0.1"
     sglang_router_port: int = 18765
+    sglang_router_prometheus_port: int = 14444
     # empty string means "use default for the selected model"
     hf_checkpoint: str = ""
     ref_load: str = ""
@@ -214,6 +218,45 @@ def execute(args: ScriptArgs):
         f"{args.extra_args} "
     )
 
+    # The consult_solvers tool needs to call back into SGLang during a
+    # rollout, so it must know the router address ahead of time. miles'
+    # _start_router skips its own launch when --sglang-router-ip is set, so
+    # we pre-launch the router ourselves on the same host:port. This must
+    # happen AFTER execute_train's `pkill -9 sglang` cleanup phase but
+    # BEFORE the ray job is submitted — the before_ray_job_submit hook
+    # gives us exactly that window.
+    def _launch_router():
+        log_dir = f"{args.dev_repo_dir}/logs"
+        os.makedirs(log_dir, exist_ok=True)
+        log_path = f"{log_dir}/sglang_router.log"
+        with open(log_path, "ab") as log_f:
+            proc = subprocess.Popen(
+                [
+                    "python3", "-m", "sglang_router.launch_router",
+                    "--host", args.sglang_router_ip,
+                    "--port", str(args.sglang_router_port),
+                    "--prometheus-port", str(args.sglang_router_prometheus_port),
+                    "--log-level", "warn",
+                ],
+                stdout=log_f, stderr=subprocess.STDOUT, start_new_session=True,
+            )
+        # Brief wait for the port to bind so engine /workers POSTs succeed.
+        for _ in range(30):
+            if proc.poll() is not None:
+                raise RuntimeError(
+                    f"sglang_router exited early (rc={proc.returncode}); see {log_path}"
+                )
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(0.5)
+                if s.connect_ex((args.sglang_router_ip, args.sglang_router_port)) == 0:
+                    print(f"sglang_router pid={proc.pid} listening on "
+                          f"{args.sglang_router_ip}:{args.sglang_router_port}")
+                    return
+            time.sleep(1)
+        raise RuntimeError(
+            f"sglang_router pid={proc.pid} did not bind {args.sglang_router_port} in time"
+        )
+
     U.execute_train(
         train_args=train_args,
         config=args,
@@ -223,6 +266,7 @@ def execute(args: ScriptArgs):
         # `examples.parl_math_v2.*` imports resolve to the dev copy and not
         # the baked-in /root/miles or Megatron's own examples package.
         train_script=f"{args.dev_repo_dir}/train.py",
+        before_ray_job_submit=_launch_router,
         extra_env_vars={
             "MILES_EXPERIMENTAL_ROLLOUT_REFACTOR": "1",
             "MILES_SGLANG_ROUTER_IP": args.sglang_router_ip,

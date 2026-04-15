@@ -707,6 +707,15 @@ class RolloutManager:
         if samples[0].metadata and "raw_reward" in samples[0].metadata:
             train_data["raw_reward"] = [sample.metadata["raw_reward"] for sample in samples]
 
+        # Per-sample primary flag + pass@k score for rollouts (e.g. multi-agent)
+        # that emit extra non-primary trajectories per prompt. Consumed by
+        # log_passrate to restore rollout_batch_size * n_samples_per_prompt alignment.
+        if any(s.metadata and s.metadata.get("is_primary") for s in samples):
+            train_data["pass_reward"] = [
+                s.metadata.get("pass_reward") if s.metadata and s.metadata.get("is_primary") else None
+                for s in samples
+            ]
+
         # For rollout buffer
         if samples[0].metadata and "round_number" in samples[0].metadata:
             train_data["round_number"] = [sample.metadata["round_number"] for sample in samples]
@@ -783,6 +792,7 @@ class RolloutManager:
             # keys that need to be splited at train side
             for key in [
                 "raw_reward",
+                "pass_reward",
                 "total_lengths",
                 "dynamic_global_batch_size",
             ]:

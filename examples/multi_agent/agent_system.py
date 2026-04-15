@@ -176,6 +176,16 @@ def _stash_raw_reward(samples):
         sample.metadata["raw_reward"] = _score_of(sample.reward)
 
 
+def _mark_primary(sample, pass_reward):
+    # Marks the one sample per run_agent_system call whose reward represents the
+    # pipeline's final answer — log_passrate filters on this to keep pass@k
+    # aligned with rollout_batch_size * n_samples_per_prompt.
+    if sample.metadata is None:
+        sample.metadata = {}
+    sample.metadata["is_primary"] = True
+    sample.metadata["pass_reward"] = float(pass_reward)
+
+
 async def rewrite_worker(args, previous_solutions, problem_statement, worker_id):
     rewriter = RewriterAgent()
     new_solution = await rewriter.rewrite(args, problem_statement, previous_solutions)
@@ -230,10 +240,16 @@ async def run_agent_system(args, sample, evaluation=False):
                 sample.reward = sample.reward * reward_weight
         return samples
 
-    def finalize(samples):
+    def finalize(samples, primary=None, pass_reward=0.0):
         # Stash unweighted DAPO score so rollout.py can override train_data["raw_reward"]
         # (see miles/ray/rollout.py:707-708) — makes pass@k metrics meaningful.
         _stash_raw_reward(samples)
+        # Mark exactly one sample as the pipeline's final answer for pass@k.
+        # When no selector ran, treat as 0 (no final answer produced).
+        if primary is None and samples:
+            primary = samples[0]
+        if primary is not None:
+            _mark_primary(primary, pass_reward)
         return samples
 
     if len(previous_solutions) == 0:
@@ -287,7 +303,10 @@ async def run_agent_system(args, sample, evaluation=False):
                     break
 
     ## 如果最终答案正确，对所有reward添加正向的奖励；如果最终答案不正确，对所有reward添加负向的惩罚。
-    if _score_of(args.results_dict["selector"][0].reward) == 1:
+    selector_sample = args.results_dict["selector"][0]
+    # Capture unweighted DAPO score before reward_adjustment scales it.
+    selector_pass_reward = _score_of(selector_sample.reward)
+    if selector_pass_reward == 1:
         reward_adjustment(args.results_dict["solver"], args.correct_reward_weight)
         reward_adjustment(args.results_dict["rewriter"], args.correct_reward_weight)
         reward_adjustment(args.results_dict["selector"], args.correct_reward_weight)
@@ -296,4 +315,8 @@ async def run_agent_system(args, sample, evaluation=False):
         reward_adjustment(args.results_dict["rewriter"], args.incorrect_reward_weight)
         reward_adjustment(args.results_dict["selector"], args.incorrect_reward_weight)
 
-    return finalize(args.results_dict["solver"] + args.results_dict["rewriter"] + args.results_dict["selector"])
+    return finalize(
+        args.results_dict["solver"] + args.results_dict["rewriter"] + args.results_dict["selector"],
+        primary=selector_sample,
+        pass_reward=selector_pass_reward,
+    )
