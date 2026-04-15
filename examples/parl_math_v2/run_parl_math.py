@@ -160,7 +160,7 @@ def execute(args: ScriptArgs):
     if args.mode != "debug_minimal":
         eval_args = (
             "--eval-interval 20 "
-            "--skip-eval-before-train "
+            # "--skip-eval-before-train "
             f"--eval-prompt-data aime {args.eval_prompt_data} "
             "--n-samples-per-eval-prompt 4 "
             f"--eval-max-response-len {args.rollout_max_response_len} "

@@ -25,7 +25,6 @@ async def eval_rollout_single_dataset(
     prompt_dataset_cache: dict[Any, Dataset],
 ) -> dict[str, dict[str, list[Any]]]:
     args = state.args
-    assert not args.group_rm, "Group RM is not supported for eval rollout"
 
     cache_key = dataset_cfg.cache_key + (args.hf_checkpoint, args.apply_chat_template, args.chat_template_path)
     if cache_key not in prompt_dataset_cache:
