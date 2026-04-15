@@ -8,7 +8,7 @@ from miles.rollout.rm_hub import batched_async_rm
 from miles.utils.http_utils import post
 from miles.utils.types import Sample
 
-from .prompts import SOLVER_PROMPT_TEMPLATE, generate_orchestrator_template
+from .prompts import SOLVER_PROMPT_TEMPLATE, build_orchestrator_prompt
 
 
 # Populated by rollout_with_parl at every step. Read-only inside agent_system.
@@ -105,11 +105,7 @@ async def _solver_worker(args, problem_statement):
 
 
 async def _orchestrator_call(args, problem_statement, candidate_texts):
-    template = generate_orchestrator_template(len(candidate_texts))
-    fmt = {"problem_statement": problem_statement}
-    for i, text in enumerate(candidate_texts):
-        fmt[f"solution{i+1}"] = text
-    prompt = template.format(**fmt)
+    prompt = build_orchestrator_prompt(args.tokenizer, problem_statement, candidate_texts)
     for _ in range(3):
         try:
             return await generate_response(args, prompt, role="orchestrator")
