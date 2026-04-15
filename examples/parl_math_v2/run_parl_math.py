@@ -130,6 +130,12 @@ def execute(args: ScriptArgs):
         f"--generate-max-turns {args.generate_max_turns} "
         "--log-multi-turn "
         "--custom-rm-path examples.parl_math_v2.reward.reward_func "
+        "--custom-rollout-log-function-path examples.parl_math_v2.rollout_log.log_rollout_data "
+        "--custom-eval-rollout-log-function-path examples.parl_math_v2.rollout_log.log_eval_rollout_data "
+        # --group-rm hands the full rollout group to reward_func, which is
+        # required so it can group-normalize per-turn rewards and populate
+        # sample.per_token_advantages for K2.5-style turn-level credit.
+        "--group-rm "
     )
 
     rollout_args = (

@@ -80,6 +80,31 @@ def get_rollout_data(args: Namespace, rollout_data_ref: Box) -> RolloutBatch:
         ]
     if "rollout_routed_experts" in rollout_data:
         rollout_data["rollout_routed_experts"] = [torch.from_numpy(r) for r in rollout_data["rollout_routed_experts"]]
+
+    if "per_token_advantages" in rollout_data:
+        # Same CP slicing pattern as rollout_log_probs: per-token feature over
+        # the response, sliced to this rank's chunk so it matches kl[i]/log_probs[i].
+        rollout_data["per_token_advantages"] = [
+            torch.tensor(
+                slice_log_prob_with_cp(
+                    adv,
+                    total_length,
+                    response_length,
+                    args.qkv_format,
+                    rollout_data["max_seq_lens"][i] if args.qkv_format == "bshd" else None,
+                ),
+                device=torch.cuda.current_device(),
+                dtype=torch.float32,
+            )
+            for i, (adv, total_length, response_length) in enumerate(
+                zip(
+                    rollout_data["per_token_advantages"],
+                    rollout_data["total_lengths"],
+                    rollout_data["response_lengths"],
+                    strict=False,
+                )
+            )
+        ]
     return rollout_data
 
 

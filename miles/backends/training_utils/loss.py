@@ -325,7 +325,24 @@ def compute_advantages_and_returns(args: Namespace, rollout_data: RolloutBatch) 
             for i in range(len(log_probs))
         ]
 
-    if args.advantage_estimator in ["grpo", "gspo"]:
+    per_token_advantages: list[torch.Tensor] | None = rollout_data.get("per_token_advantages")
+
+    if per_token_advantages is not None:
+        # Per-token advantage override (turn-level / segment-level credit). Shapes
+        # already match kl[i] thanks to CP slicing in get_rollout_data. Caller is
+        # responsible for any group baseline / normalization before this point;
+        # `normalize_advantages` below will still whiten if enabled.
+        assert len(per_token_advantages) == len(kl), (
+            f"per_token_advantages count {len(per_token_advantages)} != kl count {len(kl)}"
+        )
+        for i, (adv, k) in enumerate(zip(per_token_advantages, kl, strict=True)):
+            assert adv.shape == k.shape, (
+                f"per_token_advantages[{i}] shape {adv.shape} != kl[{i}] shape {k.shape}"
+            )
+        advantages = [adv.to(dtype=torch.float32) for adv in per_token_advantages]
+        returns = advantages
+
+    elif args.advantage_estimator in ["grpo", "gspo"]:
         rewards = torch.tensor(rewards, dtype=torch.float32, device=kl[0].device)
         returns = get_grpo_returns(rewards, kl)
         # TODO: is the copy necessary?

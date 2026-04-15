@@ -724,6 +724,12 @@ class RolloutManager:
         if samples[0].rollout_log_probs is not None:
             train_data["rollout_log_probs"] = [sample.rollout_log_probs for sample in samples]
 
+        # Per-token advantage override (turn-level / segment-level credit). Only
+        # enabled when every sample in the batch carries it — mixing scalar-reward
+        # and per-token-advantage samples in one batch is unsupported.
+        if all(sample.per_token_advantages is not None for sample in samples):
+            train_data["per_token_advantages"] = [sample.per_token_advantages for sample in samples]
+
         if samples[0].rollout_routed_experts is not None:
             train_data["rollout_routed_experts"] = [sample.rollout_routed_experts for sample in samples]
 
@@ -781,6 +787,7 @@ class RolloutManager:
                 "sample_indices",
                 "rollout_log_probs",
                 "rollout_routed_experts",
+                "per_token_advantages",
                 "prompt",
                 "teacher_log_probs",
                 "weight_versions",
