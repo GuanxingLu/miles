@@ -21,19 +21,19 @@ import miles.utils.external_utils.command_utils as U
 
 WANDB_PROJECT = "miles-dev-multi-agent"
 
-DEV_REPO_DIR = "/workspace/miles"
+DEFAULT_DEV_REPO_DIR = "/workspace/miles"
 
 _MODEL_DEFAULTS = {
     "qwen3-4B": {
-        "hf_checkpoint": f"{DEV_REPO_DIR}/MODEL/Qwen3-4B",
-        "ref_load": f"{DEV_REPO_DIR}/MODEL/Qwen3-4B_torch_dist",
+        "hf_checkpoint": "MODEL/Qwen3-4B",
+        "ref_load": "MODEL/Qwen3-4B_torch_dist",
         "megatron_model_type": "qwen3-4B",
         "tensor_model_parallel_size": 2,
         "rollout_num_gpus_per_engine": 2,
     },
     "qwen3-0.6B": {
-        "hf_checkpoint": f"{DEV_REPO_DIR}/MODEL/Qwen3-0.6B",
-        "ref_load": f"{DEV_REPO_DIR}/MODEL/Qwen3-0.6B_torch_dist",
+        "hf_checkpoint": "MODEL/Qwen3-0.6B",
+        "ref_load": "MODEL/Qwen3-0.6B_torch_dist",
         "megatron_model_type": "qwen3-0.6B",
         "tensor_model_parallel_size": 1,
         "rollout_num_gpus_per_engine": 1,
@@ -48,9 +48,10 @@ class ScriptArgs(U.ExecuteTrainConfig):
     hardware: Literal["H100", "GB200", "GB300"] = "H100"
     num_gpus_per_node: int | None = None
     model: Literal["qwen3-4B", "qwen3-0.6B"] = "qwen3-0.6B"
+    dev_repo_dir: str = DEFAULT_DEV_REPO_DIR
     save_path: str = ""
-    prompt_data: str = f"{DEV_REPO_DIR}/DATA/dapo-math-17k/dapo-math-17k.jsonl"
-    eval_prompt_data: str = f"{DEV_REPO_DIR}/DATA/aime-2024/aime-2024.jsonl"
+    prompt_data: str = ""
+    eval_prompt_data: str = ""
     generate_max_turns: int = 6
     rollout_max_context_len: int = 32768
     rollout_max_response_len: int = 4096
@@ -72,15 +73,17 @@ class ScriptArgs(U.ExecuteTrainConfig):
     def __post_init__(self):
         self.num_gpus_per_node = self.num_gpus_per_node or U.NUM_GPUS_OF_HARDWARE[self.hardware]
         defaults = _MODEL_DEFAULTS[self.model]
-        self.hf_checkpoint = self.hf_checkpoint or defaults["hf_checkpoint"]
-        self.ref_load = self.ref_load or defaults["ref_load"]
+        self.hf_checkpoint = self.hf_checkpoint or f"{self.dev_repo_dir}/{defaults['hf_checkpoint']}"
+        self.ref_load = self.ref_load or f"{self.dev_repo_dir}/{defaults['ref_load']}"
         self.megatron_model_type = self.megatron_model_type or defaults["megatron_model_type"]
         self.tensor_model_parallel_size = self.tensor_model_parallel_size or defaults["tensor_model_parallel_size"]
         self.rollout_num_gpus_per_engine = (
             self.rollout_num_gpus_per_engine or defaults["rollout_num_gpus_per_engine"]
         )
+        self.prompt_data = self.prompt_data or f"{self.dev_repo_dir}/DATA/dapo-math-17k/dapo-math-17k.jsonl"
+        self.eval_prompt_data = self.eval_prompt_data or f"{self.dev_repo_dir}/DATA/aime-2024/aime-2024.jsonl"
         if not self.save_path:
-            self.save_path = f"{DEV_REPO_DIR}/saves/{os.path.basename(self.hf_checkpoint)}-parl-v2/{self.run_id}"
+            self.save_path = f"{self.dev_repo_dir}/saves/{os.path.basename(self.hf_checkpoint)}-parl-v2/{self.run_id}"
 
 
 def _get_wandb_args(args: ScriptArgs) -> str:
@@ -219,7 +222,7 @@ def execute(args: ScriptArgs):
         # Absolute dev-tree train.py: ensures sys.path[0]=/workspace/miles so
         # `examples.parl_math_v2.*` imports resolve to the dev copy and not
         # the baked-in /root/miles or Megatron's own examples package.
-        train_script=f"{DEV_REPO_DIR}/train.py",
+        train_script=f"{args.dev_repo_dir}/train.py",
         extra_env_vars={
             "MILES_EXPERIMENTAL_ROLLOUT_REFACTOR": "1",
             "MILES_SGLANG_ROUTER_IP": args.sglang_router_ip,

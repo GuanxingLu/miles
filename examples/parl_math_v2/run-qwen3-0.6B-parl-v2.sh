@@ -22,6 +22,10 @@ echo "HAS_NVLINK: $HAS_NVLINK (detected $NVLINK_COUNT NVLink references)"
 
 export WANDB_API_KEY=${WANDB_API_KEY:-local-82cbbacfe8e3c0c527da528160bd76a1e85c9fea}
 export WANDB_BASE_URL=${WANDB_BASE_URL:-http://33.180.4.104}
+# Default to offline wandb so the debug host (which can't reach the remote
+# wandb URL above) doesn't block on wandb.init(). Set WANDB_MODE=online to
+# re-enable upload when running on the prod box.
+export WANDB_MODE=${WANDB_MODE:-offline}
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 REPO_DIR="$(cd -- "${SCRIPT_DIR}/../.." &>/dev/null && pwd)"

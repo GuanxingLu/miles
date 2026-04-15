@@ -26,8 +26,9 @@ export WANDB_BASE_URL=${WANDB_BASE_URL:-http://33.180.4.104}
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 REPO_DIR="$(cd -- "${SCRIPT_DIR}/../.." &>/dev/null && pwd)"
 
-DATA_ROOT=${DATA_ROOT:-/workspace/miles/DATA}
-MODEL_ROOT=${MODEL_ROOT:-/workspace/miles/MODEL}
+DEV_REPO_DIR=${DEV_REPO_DIR:-${REPO_DIR}}
+DATA_ROOT=${DATA_ROOT:-${DEV_REPO_DIR}/DATA}
+MODEL_ROOT=${MODEL_ROOT:-${DEV_REPO_DIR}/MODEL}
 MODE=${MODE:-normal}  # debug_minimal | normal
 NUM_GPUS=$(echo "${CUDA_VISIBLE_DEVICES}" | awk -F',' '{print NF}')
 RUN_ID=${RUN_ID:-"run_$(date +%Y%m%d_%H%M%S)"}
@@ -41,7 +42,8 @@ MODEL_ARGS=(
 RUN_ARGS=(
    --mode "${MODE}"
    --run-id "${RUN_ID}"
-   --save-path "${REPO_DIR}/saves/Qwen3-4B-parl-v2/${RUN_ID}"
+   --dev-repo-dir "${DEV_REPO_DIR}"
+   --save-path "${DEV_REPO_DIR}/saves/Qwen3-4B-parl-v2/${RUN_ID}"
    --rollout-batch-size 16
    --global-batch-size 128
    --rollout-max-response-len 8192
