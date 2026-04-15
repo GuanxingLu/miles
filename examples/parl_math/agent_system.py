@@ -200,4 +200,11 @@ async def run_agent_system(args, sample: Sample):
             "lambda2": lam2,
         }
 
+    # Stash unweighted r_perf (0/1 from math grader) so rollout.py overrides
+    # train_data["raw_reward"] with it — otherwise pass@k compares the composite
+    # score against 1 and degenerates to ~0 whenever λ1/λ2 > 0.
+    if orch_sample.metadata is None:
+        orch_sample.metadata = {}
+    orch_sample.metadata["raw_reward"] = r_perf
+
     return [orch_sample]
