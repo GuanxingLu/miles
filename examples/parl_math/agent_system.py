@@ -163,8 +163,17 @@ async def run_agent_system(args, sample: Sample):
     cp.record(getattr(orch_sample, "response_length", 0) or 0 if orch_sample is not None else 0)
 
     if orch_sample is None or orch_sample.response_length == 0:
-        # Synthesize an aborted orchestrator sample so training pipeline still gets something.
+        # Safety net: orchestrator prompt overflowed `rollout_max_context_len` (or RM/network
+        # failure). Build a placeholder with non-empty tokens so the training side's
+        # `prompt_length = total_length - response_length` stays >= 1 and `F.pad` doesn't
+        # hit `narrow(): length must be non-negative`. Empty loss_mask + ABORTED status
+        # means zero gradient contribution.
         orch_sample = deepcopy(sample)
+        problem_token_ids = args.tokenizer(problem_statement, add_special_tokens=False)["input_ids"]
+        if not problem_token_ids:
+            problem_token_ids = [args.tokenizer.eos_token_id or 0]
+        orch_sample.prompt = problem_statement
+        orch_sample.tokens = problem_token_ids
         orch_sample.response = ""
         orch_sample.response_length = 0
         orch_sample.loss_mask = []
