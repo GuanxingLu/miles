@@ -52,6 +52,7 @@ CKPT_ARGS=(
 
 ROLLOUT_ARGS=(
    --custom-generate-function-path examples.parl_math.rollout_with_parl.generate_with_parl
+   --custom-rollout-log-function-path examples.parl_math.rollout_log.log_rollout_with_parl
    --prompt-data ${DATA_ROOT}/dapo-math-17k/dapo-math-17k.jsonl
    --input-key prompt
    --label-key label
