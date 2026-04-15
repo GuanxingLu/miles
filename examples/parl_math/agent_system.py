@@ -8,6 +8,7 @@ from miles.rollout.rm_hub import batched_async_rm
 from miles.utils.http_utils import post
 from miles.utils.types import Sample
 
+from .critical_steps import CriticalPathTracker
 from .prompts import SOLVER_PROMPT_TEMPLATE, build_orchestrator_prompt
 
 
@@ -127,11 +128,18 @@ async def run_agent_system(args, sample: Sample):
     args.sample = sample
     problem_statement = sample.prompt if isinstance(sample.prompt, str) else str(sample.prompt)
 
+    # Critical-path token tracker: generic over arbitrary stage count / fan-out.
+    cp = CriticalPathTracker()
+
     # Stage 1: parallel solvers (frozen / loss_mask=0).
     solver_tasks = [_solver_worker(args, problem_statement) for _ in range(args.num_parallel)]
     solver_results = await asyncio.gather(*solver_tasks, return_exceptions=True)
     solver_samples = [s for s in solver_results if isinstance(s, Sample)]
     valid_solvers = [s for s in solver_samples if _is_valid_solver_sample(s)]
+
+    cp.begin_stage()
+    for s in solver_samples:
+        cp.record(getattr(s, "response_length", 0) or 0)
 
     # Log-only: solver r_perf via RM. Not used for gradient (loss_mask=0).
     if valid_solvers:
@@ -150,6 +158,9 @@ async def run_agent_system(args, sample: Sample):
 
     # Stage 2: orchestrator aggregation (trainable / loss_mask=1).
     orch_sample = await _orchestrator_call(args, problem_statement, candidate_texts)
+
+    cp.begin_stage()
+    cp.record(getattr(orch_sample, "response_length", 0) or 0 if orch_sample is not None else 0)
 
     if orch_sample is None or orch_sample.response_length == 0:
         # Synthesize an aborted orchestrator sample so training pipeline still gets something.
@@ -202,5 +213,10 @@ async def run_agent_system(args, sample: Sample):
     if orch_sample.metadata is None:
         orch_sample.metadata = {}
     orch_sample.metadata["raw_reward"] = r_perf
+
+    critical_total, critical_per_stage = cp.finalize()
+    orch_sample.metadata["critical_steps"] = critical_total
+    orch_sample.metadata["critical_steps_per_stage"] = critical_per_stage
+    orch_sample.metadata["num_stages"] = len(critical_per_stage)
 
     return [orch_sample]
