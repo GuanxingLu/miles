@@ -33,7 +33,7 @@ async def generate_with_multi_agents(args, sample: Sample, sampling_params, eval
         setattr(args, key, value)
 
     custom_multi_agent_func = load_function(args.custom_multi_agent_function_path)
-    samples = await custom_multi_agent_func(args, sample)
+    samples = await custom_multi_agent_func(args, sample, evaluation=evaluation)
 
     random.shuffle(samples)
 

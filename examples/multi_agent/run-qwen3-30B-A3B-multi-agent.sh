@@ -81,6 +81,7 @@ EVAL_ARGS=(
    --n-samples-per-eval-prompt 16
    --eval-max-response-len 16384
    --eval-top-p 1
+   --log-passrate
 )
 
 PERF_ARGS=(

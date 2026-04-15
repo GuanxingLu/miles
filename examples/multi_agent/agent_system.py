@@ -163,6 +163,19 @@ class SelectorAgent(Agent):
             return None
 
 
+def _score_of(reward):
+    if isinstance(reward, dict):
+        return reward.get("score", 0)
+    return reward if reward is not None else 0
+
+
+def _stash_raw_reward(samples):
+    for sample in samples:
+        if sample.metadata is None:
+            sample.metadata = {}
+        sample.metadata["raw_reward"] = _score_of(sample.reward)
+
+
 async def rewrite_worker(args, previous_solutions, problem_statement, worker_id):
     rewriter = RewriterAgent()
     new_solution = await rewriter.rewrite(args, problem_statement, previous_solutions)
@@ -185,7 +198,7 @@ async def solver_worker(args, problem_statement, worker_id):
         return None
 
 
-async def run_agent_system(args, sample):
+async def run_agent_system(args, sample, evaluation=False):
     """
     并发运行 num_parallel 组 pipeline。
     """
@@ -207,6 +220,9 @@ async def run_agent_system(args, sample):
     previous_solutions = [item for item in results if isinstance(item, str)]
 
     def reward_adjustment(samples, reward_weight):
+        # In evaluation we report the unweighted DAPO score so eval metrics == accuracy.
+        if evaluation:
+            return samples
         for sample in samples:
             if isinstance(sample.reward, dict):
                 sample.reward = {**sample.reward, "score": sample.reward["score"] * reward_weight}
@@ -214,9 +230,15 @@ async def run_agent_system(args, sample):
                 sample.reward = sample.reward * reward_weight
         return samples
 
+    def finalize(samples):
+        # Stash unweighted DAPO score so rollout.py can override train_data["raw_reward"]
+        # (see miles/ray/rollout.py:707-708) — makes pass@k metrics meaningful.
+        _stash_raw_reward(samples)
+        return samples
+
     if len(previous_solutions) == 0:
         reward_adjustment(args.results_dict["solver"], args.incorrect_reward_weight)
-        return args.results_dict["solver"]
+        return finalize(args.results_dict["solver"])
 
     # Rewriting
     tasks = [
@@ -238,7 +260,7 @@ async def run_agent_system(args, sample):
     if len(rewrited_solutions) == 0:
         reward_adjustment(args.results_dict["solver"], args.incorrect_reward_weight)
         reward_adjustment(args.results_dict["rewriter"], args.incorrect_reward_weight)
-        return args.results_dict["solver"] + args.results_dict["rewriter"]
+        return finalize(args.results_dict["solver"] + args.results_dict["rewriter"])
 
     # Selection
     selector = SelectorAgent()
@@ -246,7 +268,7 @@ async def run_agent_system(args, sample):
     if len(args.results_dict["selector"]) == 0:
         reward_adjustment(args.results_dict["solver"], args.incorrect_reward_weight)
         reward_adjustment(args.results_dict["rewriter"], args.incorrect_reward_weight)
-        return args.results_dict["solver"] + args.results_dict["rewriter"]
+        return finalize(args.results_dict["solver"] + args.results_dict["rewriter"])
 
     assert (
         len(args.results_dict["selector"]) == 1
@@ -265,7 +287,7 @@ async def run_agent_system(args, sample):
                     break
 
     ## 如果最终答案正确，对所有reward添加正向的奖励；如果最终答案不正确，对所有reward添加负向的惩罚。
-    if args.results_dict["selector"][0].reward == 1:
+    if _score_of(args.results_dict["selector"][0].reward) == 1:
         reward_adjustment(args.results_dict["solver"], args.correct_reward_weight)
         reward_adjustment(args.results_dict["rewriter"], args.correct_reward_weight)
         reward_adjustment(args.results_dict["selector"], args.correct_reward_weight)
@@ -274,4 +296,4 @@ async def run_agent_system(args, sample):
         reward_adjustment(args.results_dict["rewriter"], args.incorrect_reward_weight)
         reward_adjustment(args.results_dict["selector"], args.incorrect_reward_weight)
 
-    return args.results_dict["solver"] + args.results_dict["rewriter"] + args.results_dict["selector"]
+    return finalize(args.results_dict["solver"] + args.results_dict["rewriter"] + args.results_dict["selector"])
