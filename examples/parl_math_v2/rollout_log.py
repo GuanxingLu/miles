@@ -39,8 +39,11 @@ _REWARD_KEYS = (
     "n_spawn",
     "n_solvers_valid",
     "n_solvers_total",
+    "critical_steps",
+    "critical_steps_ratio",
     "lambda1",
     "lambda2",
+    "lambda3",
 )
 
 

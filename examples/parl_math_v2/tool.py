@@ -80,7 +80,8 @@ def _get_semaphore() -> asyncio.Semaphore:
     return _solver_semaphore
 
 
-async def _solver_call(problem: str) -> str:
+async def _solver_call(problem: str) -> tuple[str, int]:
+    """Call a single solver and return (text, completion_tokens)."""
     prompt = SOLVER_PROMPT_TEMPLATE.format(problem=problem)
     payload = {
         "text": prompt,
@@ -94,8 +95,10 @@ async def _solver_call(problem: str) -> str:
         try:
             output = await post(_router_url(), payload)
         except Exception as e:
-            return f"__SOLVER_ERROR__: {e}"
-    return output.get("text", "") or ""
+            return f"__SOLVER_ERROR__: {e}", 0
+    text = output.get("text", "") or ""
+    n_tokens = int(output.get("meta_info", {}).get("completion_tokens", 0))
+    return text, n_tokens
 
 
 def _is_valid_solver_output(text: str) -> bool:
@@ -106,15 +109,18 @@ def _is_valid_solver_output(text: str) -> bool:
     return bool(text.strip())
 
 
-def _format_candidates(candidates: list[str]) -> str:
-    valid = sum(1 for c in candidates if _is_valid_solver_output(c))
+def _format_candidates(candidates: list[tuple[str, int]]) -> str:
+    texts = [c[0] for c in candidates]
+    token_counts = [c[1] for c in candidates]
+    valid = sum(1 for t in texts if _is_valid_solver_output(t))
     total = len(candidates)
     sections = []
-    for i, text in enumerate(candidates, 1):
+    for i, text in enumerate(texts, 1):
         body = text.strip() if _is_valid_solver_output(text) else "(solver returned no usable output)"
         sections.append(f"### Candidate Solution {i}\n{body}")
     body = "\n\n".join(sections)
-    footer = f"{STATS_FOOTER_PREFIX} valid={valid} total={total} {STATS_FOOTER_SUFFIX}"
+    tokens_str = ",".join(str(t) for t in token_counts)
+    footer = f"{STATS_FOOTER_PREFIX} valid={valid} total={total} solver_tokens={tokens_str} {STATS_FOOTER_SUFFIX}"
     return f"{body}\n\n{footer}"
 
 

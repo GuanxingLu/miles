@@ -177,6 +177,8 @@ def execute(args: ScriptArgs):
         f"--entropy-coef {args.entropy_coef} "
         "--eps-clip 0.2 "
         "--eps-clip-high 0.28 "
+        "--use-tis "
+        "--custom-tis-function-path miles.backends.training_utils.loss.icepop_function "
     )
 
     optimizer_args = (

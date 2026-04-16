@@ -35,12 +35,17 @@ from .tool import STATS_FOOTER_PREFIX
 
 LAMBDA1_INIT = 0.3
 LAMBDA2_INIT = 0.2
-ANNEAL_FRAC = 0.5
+LAMBDA3_INIT = 0.1  # critical steps penalty weight
+ANNEAL_FRAC = 100.0
 COST_PER_CALL = 0.02
 GRPO_STD_EPS = 1e-6
 
+# Matches both old format (no solver_tokens) and new format (with solver_tokens).
 _STATS_FOOTER_RE = re.compile(
-    re.escape(STATS_FOOTER_PREFIX) + r"\s*valid=(\d+)\s+total=(\d+)\s*-->"
+    re.escape(STATS_FOOTER_PREFIX)
+    + r"\s*valid=(\d+)\s+total=(\d+)"
+    + r"(?:\s+solver_tokens=([\d,]+))?"
+    + r"\s*-->"
 )
 _TOOL_CALL_RE = re.compile(r"<tool_call>")
 _BOX_RE = re.compile(r"\\boxed\{")
@@ -48,9 +53,21 @@ _BOX_RE = re.compile(r"\\boxed\{")
 _step = 0
 
 
-def _read_per_call_stats(response: str) -> list[tuple[int, int]]:
-    """Extract (valid, total) for every consult_solvers footer, in order."""
-    return [(int(m.group(1)), int(m.group(2))) for m in _STATS_FOOTER_RE.finditer(response or "")]
+def _read_per_call_stats(response: str) -> list[dict]:
+    """Extract stats for every consult_solvers footer, in order.
+
+    Returns list of dicts with keys: valid, total, solver_tokens (list[int] or None).
+    """
+    results = []
+    for m in _STATS_FOOTER_RE.finditer(response or ""):
+        tokens_str = m.group(3)
+        solver_tokens = [int(x) for x in tokens_str.split(",")] if tokens_str else None
+        results.append({
+            "valid": int(m.group(1)),
+            "total": int(m.group(2)),
+            "solver_tokens": solver_tokens,
+        })
+    return results
 
 
 def _count_tool_calls(response: str) -> int:
@@ -61,13 +78,13 @@ def _has_boxed(response: str) -> bool:
     return bool(_BOX_RE.search(response or ""))
 
 
-def _annealed_lambdas(args) -> tuple[float, float]:
+def _annealed_lambdas(args) -> tuple[float, float, float]:
     global _step
     _step += 1
     total = max(1, int(args.num_rollout) * max(1, int(getattr(args, "rollout_batch_size", 1))))
     frac = _step / max(1, int(ANNEAL_FRAC * total))
     scale = max(0.0, 1.0 - frac)
-    return LAMBDA1_INIT * scale, LAMBDA2_INIT * scale
+    return LAMBDA1_INIT * scale, LAMBDA2_INIT * scale, LAMBDA3_INIT * scale
 
 
 def _turn_spans(loss_mask: list[int]) -> list[tuple[int, int]]:
@@ -87,7 +104,43 @@ def _turn_spans(loss_mask: list[int]) -> list[tuple[int, int]]:
     return spans
 
 
-def _score_one(args, sample: Sample, lam1: float, lam2: float) -> dict:
+def _compute_critical_steps(per_call: list[dict], loss_mask: list[int] | None) -> int:
+    """Compute K2.5-style critical steps: Σ_stage(S_main + max_i(S_sub_i)).
+
+    Each consult_solvers call is a "stage". The critical path for that stage is
+    the orchestrator turn tokens (from loss_mask) + max solver token count
+    (from footer). If solver_tokens are unavailable, only orchestrator tokens
+    are counted (conservative: underestimates critical path).
+    """
+    if not per_call:
+        # No tool calls — critical steps = total orchestrator tokens.
+        if loss_mask:
+            return sum(1 for v in loss_mask if v == 1)
+        return 0
+
+    # Orchestrator turn lengths from loss_mask spans.
+    orch_turn_lens = []
+    if loss_mask:
+        spans = _turn_spans(loss_mask)
+        orch_turn_lens = [end - start for start, end in spans]
+
+    critical = 0
+    for i, call in enumerate(per_call):
+        # Orchestrator turn that preceded this call (spawn turn i).
+        orch_tokens = orch_turn_lens[i] if i < len(orch_turn_lens) else 0
+        # Parallel solvers: critical path = max solver tokens.
+        solver_tokens = call.get("solver_tokens")
+        max_solver = max(solver_tokens) if solver_tokens else 0
+        critical += orch_tokens + max_solver
+
+    # Add the final-answer turn (last orchestrator turn, after all calls).
+    if orch_turn_lens and len(orch_turn_lens) > len(per_call):
+        critical += orch_turn_lens[-1]
+
+    return critical
+
+
+def _score_one(args, sample: Sample, lam1: float, lam2: float, lam3: float) -> dict:
     """Compute composite scalar reward + turn decomposition. Pure; no global state."""
     response = sample.response or ""
     label = sample.label if sample.label is not None else ""
@@ -95,20 +148,31 @@ def _score_one(args, sample: Sample, lam1: float, lam2: float) -> dict:
     r_perf = 1.0 if float(perf.get("score", 0.0)) > 0 else 0.0
 
     per_call = _read_per_call_stats(response)
-    valid = sum(v for v, _ in per_call)
-    total = sum(t for _, t in per_call)
+    valid = sum(c["valid"] for c in per_call)
+    total = sum(c["total"] for c in per_call)
     r_parallel = (valid / total) if total > 0 else 0.0
     r_finish = 1.0 if _has_boxed(response) else 0.0
     n_calls = _count_tool_calls(response)
 
-    score = r_perf + lam1 * r_parallel + lam2 * r_finish - COST_PER_CALL * n_calls
+    # Critical steps: normalized by max_response_len to get [0, 1] range.
+    critical_steps = _compute_critical_steps(per_call, sample.loss_mask)
+    max_resp_len = max(1, int(getattr(args, "rollout_max_response_len", 8192)))
+    critical_steps_ratio = critical_steps / max_resp_len
+
+    score = (
+        r_perf
+        + lam1 * r_parallel
+        + lam2 * r_finish
+        - COST_PER_CALL * n_calls
+        - lam3 * critical_steps_ratio
+    )
 
     # Per-turn scalar rewards (pre-normalization). Split spawn credit into a
     # per-call contribution so reward.parallel attributes correctly to the
     # turn that spawned it (loss_mask turn order == tool_call order).
     per_call_r = [
-        lam1 * (v / t if t > 0 else 0.0) - COST_PER_CALL
-        for v, t in per_call
+        lam1 * (c["valid"] / c["total"] if c["total"] > 0 else 0.0) - COST_PER_CALL
+        for c in per_call
     ]
     r_final = r_perf + lam2 * r_finish
 
@@ -124,8 +188,11 @@ def _score_one(args, sample: Sample, lam1: float, lam2: float) -> dict:
         "n_spawn": n_calls,
         "n_solvers_valid": valid,
         "n_solvers_total": total,
+        "critical_steps": critical_steps,
+        "critical_steps_ratio": critical_steps_ratio,
         "lambda1": lam1,
         "lambda2": lam2,
+        "lambda3": lam3,
         "pred": perf.get("pred", "") or "",
         # private: consumed by _fill_per_token_advantages, not logged.
         "_per_call_r": per_call_r,
@@ -194,14 +261,14 @@ def _fill_per_token_advantages(samples: list[Sample], score_dicts: list[dict]) -
 
 
 async def reward_func(args, sample_or_samples, **kwargs):
-    lam1, lam2 = _annealed_lambdas(args)
+    lam1, lam2, lam3 = _annealed_lambdas(args)
 
     if isinstance(sample_or_samples, list):
         samples = sample_or_samples
-        dicts = [_score_one(args, s, lam1, lam2) for s in samples]
+        dicts = [_score_one(args, s, lam1, lam2, lam3) for s in samples]
         _fill_per_token_advantages(samples, dicts)
         # Strip private keys before returning — miles writes this dict to sample.reward.
         return [{k: v for k, v in d.items() if not k.startswith("_")} for d in dicts]
 
-    d = _score_one(args, sample_or_samples, lam1, lam2)
+    d = _score_one(args, sample_or_samples, lam1, lam2, lam3)
     return {k: v for k, v in d.items() if not k.startswith("_")}
