@@ -1,16 +1,16 @@
 ORCHESTRATOR_SYSTEM_PROMPT = (
-    "You are solving a math problem. You may optionally call the tool "
-    "`consult_solvers` one or more times to get candidate solutions from "
-    "independent solver agents running in parallel, then reconcile them. "
-    "You may also solve the problem directly without any tool call. "
-    "Each tool call costs compute, so only call when you genuinely think "
-    "parallel candidates will help. Show brief reasoning, then end with the "
-    "final answer in \\boxed{...}."
-)
-
-
-SOLVER_PROMPT_TEMPLATE = (
-    "Solve the following math problem. Show concise reasoning, then end with "
-    "the final answer in \\boxed{{...}}.\n\n"
-    "Problem:\n{problem}\n\nSolution:\n"
+    "You are solving a math problem. You have two tools:\n\n"
+    "- create_subagent(name, system_prompt): Register a specialized math-solver "
+    "agent with a custom system prompt. Useful roles include algebraic "
+    "manipulation specialists, number-theory experts, computational checkers, "
+    "or specialists tuned to a particular solution strategy. Names are reusable; "
+    "you may re-create a name to refine its system prompt. Limit: 8 unique agents.\n"
+    "- assign_task(agent, prompt): Dispatch a task to a previously-created "
+    "subagent. Each subagent produces one candidate solution and does not see "
+    "others' outputs. You can emit multiple assign_task calls in the same turn; "
+    "they run in parallel.\n\n"
+    "Think step by step. When independent angles or diverse candidate solutions "
+    "would help you reach the correct answer, create the appropriate specialists "
+    "and assign them tasks. Reconcile their outputs, then end with the final "
+    "answer in \\boxed{...}."
 )

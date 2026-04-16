@@ -1,8 +1,8 @@
 """PARL v2 launcher (retool_v2 style).
 
-Wraps train.py with the PARL v2 args (orchestrator with `consult_solvers`
-spawn-as-tool). Mirrors examples/retool_v2/run_retool_multi_turn.py — the
-.sh launchers in this folder are thin shells that invoke this script.
+Wraps train.py with the PARL v2 args (orchestrator with `create_subagent` +
+`assign_task` agent-swarm tools). Mirrors examples/retool_v2/run_retool_multi_turn.py —
+the .sh launchers in this folder are thin shells that invoke this script.
 
 NOTE on PYTHONPATH: parl_math_v2 only lives in the dev tree
 (/workspace/miles/examples/...), not in the baked-in /root/miles. To make
@@ -59,9 +59,12 @@ class ScriptArgs(U.ExecuteTrainConfig):
     generate_max_turns: int = 6
     rollout_max_context_len: int = 32768
     rollout_max_response_len: int = 4096
-    # K2.5 PARL episode-length budget (critical path: orch + max parallel solver).
-    # Defaults to rollout_max_response_len (backward-compatible with the
-    # pre-refactor behavior when __post_init__ fills it in).
+    # K2.5 PARL episode-length budget in TURN units (not tokens):
+    #   phase_cost = 1 per orchestrator turn (final / create-only / length)
+    #              = 2 per spawn turn (≥1 executed assign_task, max_i S_sub=1
+    #                under single-shot subagents).
+    # Defaults to 2 * generate_max_turns (loose cap; main turn cap is
+    # --generate-max-turns).
     rollout_max_critical_steps: int = 0
     rollout_batch_size: int = 8
     n_samples_per_prompt: int = 8
@@ -89,7 +92,7 @@ class ScriptArgs(U.ExecuteTrainConfig):
         self.rollout_num_gpus_per_engine = self.rollout_num_gpus_per_engine or defaults["rollout_num_gpus_per_engine"]
         self.prompt_data = self.prompt_data or f"{self.dev_repo_dir}/DATA/dapo-math-17k/dapo-math-17k.jsonl"
         self.eval_prompt_data = self.eval_prompt_data or f"{self.dev_repo_dir}/DATA/aime-2024/aime-2024.jsonl"
-        self.rollout_max_critical_steps = self.rollout_max_critical_steps or self.rollout_max_response_len
+        self.rollout_max_critical_steps = self.rollout_max_critical_steps or (2 * self.generate_max_turns)
         if not self.save_path:
             self.save_path = f"{self.dev_repo_dir}/saves/{os.path.basename(self.hf_checkpoint)}-parl-v2/{self.run_id}"
 
@@ -129,7 +132,6 @@ def execute(args: ScriptArgs):
     custom_args = (
         "--custom-generate-function-path examples.parl_math_v2.generate.generate "
         "--generate-tool-specs-path examples.parl_math_v2.tool.tool_specs "
-        "--generate-execute-tool-function-path examples.parl_math_v2.tool.execute_tool "
         "--generate-tool-call-parser qwen25 "
         f"--generate-max-turns {args.generate_max_turns} "
         "--log-multi-turn "
@@ -231,7 +233,7 @@ def execute(args: ScriptArgs):
         f"{args.extra_args} "
     )
 
-    # The consult_solvers tool needs to call back into SGLang during a
+    # The assign_task tool needs to call back into SGLang during a
     # rollout, so it must know the router address ahead of time. miles'
     # _start_router skips its own launch when --sglang-router-ip is set, so
     # we pre-launch the router ourselves on the same host:port. This must

@@ -1,25 +1,29 @@
-"""PARL v2 custom multi-turn generate with critical_steps budget.
+"""PARL v2 custom multi-turn generate (agent-swarm + turn-based critical_steps).
 
 Extends miles' multi_turn.generate with:
-- orchestrator system prompt injection (original role of this module)
-- K2.5 PARL *critical_steps* tracking: accumulates per-stage
-  ``orch_turn_tokens + max_i(solver_tokens_i)``; exposes the running value
-  on ``sample.metadata["critical_steps"]`` for logging.
-- Dual-budget termination:
-  * ``critical_steps < rollout_max_critical_steps`` — paper's episode-length budget
-  * ``response_length < rollout_max_response_len`` — context-window cap
-    (enforced by miles' existing ``compute_request_payload`` via
-    ``rollout_max_context_len``; no change needed here)
+- orchestrator system prompt injection
+- per-rollout subagent registry (``dict[name, system_prompt]``) closure-bound
+  into the tool dispatcher, so ``create_subagent`` / ``assign_task`` share state
+- custom parallel tool executor (replacing miles' serial ``execute_tool_calls``):
+  ``create_subagent`` calls first (serial, instant), then ``assign_task`` calls
+  via ``asyncio.gather`` (capped at ``MAX_CONCURRENT_ASSIGN``)
+- K2.5 PARL turn-based ``critical_steps``: each orchestrator turn costs 1, and
+  turns with ≥1 executed ``assign_task`` cost 2 (orch + max_i S_sub where S_sub=1
+  for single-shot subagents). Running value lives on ``sample.metadata["critical_steps"]``
+- structured per-turn stats for reward attribution:
+  ``sample.metadata["turns"] = [{n_create, n_assign, n_valid, final}, ...]``
 
-The latter keeps context from exploding when orchestrator spawns many small
-solvers (critical_steps only counts the longest branch).
-
-Design: docs/superpowers/specs/2026-04-17-parl-v2-critical-steps-refactor-design.md
+Design: docs/superpowers/specs/2026-04-17-parl-v2-agent-swarm-alignment-design.md
 """
 
 import argparse
-import re
+import asyncio
+import json
+import uuid
 from copy import deepcopy
+
+from openai.types.chat import ChatCompletionMessageToolCall
+from sglang.srt.function_call.core_types import ToolCallItem
 
 from miles.rollout.base_types import GenerateFnInput, GenerateFnOutput
 from miles.rollout.generate_utils.generate_endpoint_utils import (
@@ -29,7 +33,6 @@ from miles.rollout.generate_utils.generate_endpoint_utils import (
 )
 from miles.rollout.generate_utils.tool_call_utils import (
     create_tool_call_parser,
-    execute_tool_calls,
     update_sample_with_tool_responses,
 )
 from miles.utils.http_utils import post
@@ -37,26 +40,9 @@ from miles.utils.misc import load_function
 from miles.utils.types import Sample
 
 from .prompts import ORCHESTRATOR_SYSTEM_PROMPT
-from .tool import STATS_FOOTER_PREFIX
+from .tool import _assign_task_call, _create_subagent
 
-_SOLVER_TOKENS_RE = re.compile(re.escape(STATS_FOOTER_PREFIX) + r"\s*valid=\d+\s+total=\d+\s+solver_tokens=([\d,]+)")
-
-
-def _max_solver_tokens_from(tool_messages: list[dict]) -> int:
-    """Return max solver completion-token count across all consult_solvers
-    responses in ``tool_messages``. Returns 0 if no footer is present."""
-    all_tokens: list[int] = []
-    for msg in tool_messages:
-        if msg.get("name") != "consult_solvers":
-            continue
-        m = _SOLVER_TOKENS_RE.search(msg.get("content") or "")
-        if not m:
-            continue
-        try:
-            all_tokens.extend(int(x) for x in m.group(1).split(",") if x)
-        except ValueError:
-            continue
-    return max(all_tokens) if all_tokens else 0
+MAX_CONCURRENT_ASSIGN = 8
 
 
 def _with_system_prompt(prompt):
@@ -70,8 +56,78 @@ def _with_system_prompt(prompt):
     return prompt
 
 
+def _normalize_tool_call(call) -> tuple[str, dict, str]:
+    """Return (name, params, tool_call_id). Mirrors miles' _execute_tool_call."""
+    if isinstance(call, ChatCompletionMessageToolCall):
+        name = call.function.name
+        params = json.loads(call.function.arguments) if call.function.arguments else {}
+        tool_call_id = call.id
+    elif isinstance(call, ToolCallItem):
+        name = call.name
+        params = json.loads(call.parameters) if call.parameters else {}
+        tool_call_id = f"call_{uuid.uuid4().hex[:24]}"
+    else:
+        raise TypeError(f"Unsupported tool call type: {type(call)}")
+    return name, params, tool_call_id
+
+
+async def _execute_tool_calls_parallel(
+    tool_calls,
+    *,
+    registry: dict[str, str],
+    tokenizer,
+) -> tuple[list[dict], dict]:
+    """Two-phase execution: all ``create_subagent`` serial first, then
+    ``assign_task`` in parallel (capped). Returns (tool_messages, per_turn_stats).
+    Preserves original tool_call order so response-text ↔ tool_response mapping
+    stays intact."""
+    normalized = [_normalize_tool_call(c) for c in tool_calls]
+    results: list[str | None] = [None] * len(normalized)
+
+    for i, (name, params, _) in enumerate(normalized):
+        if name == "create_subagent":
+            results[i] = _create_subagent(params, registry=registry)
+
+    assign_indices = [i for i, (n, _, _) in enumerate(normalized) if n == "assign_task"]
+    allowed = assign_indices[:MAX_CONCURRENT_ASSIGN]
+    denied = assign_indices[MAX_CONCURRENT_ASSIGN:]
+
+    async def run_assign(i: int):
+        _, params, _ = normalized[i]
+        text, is_valid = await _assign_task_call(params, registry=registry, tokenizer=tokenizer)
+        return i, text, is_valid
+
+    assign_outputs = await asyncio.gather(*[run_assign(i) for i in allowed])
+    n_valid = 0
+    for i, text, is_valid in assign_outputs:
+        results[i] = text
+        if is_valid:
+            n_valid += 1
+
+    for i in denied:
+        results[i] = (
+            f"Error: too many assign_task calls in this turn "
+            f"(cap={MAX_CONCURRENT_ASSIGN}). Retry in a later turn."
+        )
+
+    for i, (name, _, _) in enumerate(normalized):
+        if results[i] is None:
+            results[i] = f"Error: unknown tool '{name}'"
+
+    tool_messages = [
+        {"role": "tool", "tool_call_id": tool_call_id, "content": result, "name": name}
+        for (name, _, tool_call_id), result in zip(normalized, results)
+    ]
+
+    stats = {
+        "n_create": sum(1 for n, _, _ in normalized if n == "create_subagent"),
+        "n_assign": len(allowed),
+        "n_valid": n_valid,
+    }
+    return tool_messages, stats
+
+
 async def generate(input: GenerateFnInput) -> GenerateFnOutput:
-    # ----------------------- Setup -------------------------
     args = input.args
     sample = deepcopy(input.sample)
     sample.prompt = _with_system_prompt(sample.prompt)
@@ -80,54 +136,55 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
     assert not args.generate_multi_samples, "generate_multi_samples is not supported in parl_math_v2 custom multi-turn"
 
     url = f"http://{args.sglang_router_ip}:{args.sglang_router_port}/generate"
-    execute_tool_function = load_function(args.generate_execute_tool_function_path)
     tool_specs = load_function(args.generate_tool_specs_path)
     tool_call_parser = create_tool_call_parser(tool_specs, args.generate_tool_call_parser)
 
     max_cs_raw = getattr(args, "rollout_max_critical_steps", None)
-    max_cs = int(max_cs_raw) if max_cs_raw is not None else int(args.rollout_max_response_len)
+    max_cs = int(max_cs_raw) if max_cs_raw is not None else 2 * int(args.generate_max_turns)
 
+    registry: dict[str, str] = {}
     sample.metadata = dict(sample.metadata or {})
     sample.metadata["critical_steps"] = 0
+    sample.metadata["turns"] = []
 
-    # ----------------------- Initial prompts -------------------------
     prompt_tokens_ids = compute_prompt_ids_from_sample(input.state, sample, tools=tool_specs)
     sample.tokens = prompt_tokens_ids.copy()
 
     for _turn in range(args.generate_max_turns):
-        # K2.5 PARL: stop once critical_steps budget is spent.
         if sample.metadata["critical_steps"] >= max_cs:
             sample.status = Sample.Status.TRUNCATED
             break
 
-        # ----------------------- Call inference endpoint -------------------------
         payload, halt_status = compute_request_payload(args, sample.tokens, input.sampling_params)
         if payload is None:
             sample.status = halt_status
             break
 
-        resp_len_before = sample.response_length
         output = await post(url, payload)
         await update_sample_from_response(args, sample, payload=payload, output=output, update_loss_mask=True)
-        orch_new_tokens = sample.response_length - resp_len_before
 
         if output["meta_info"]["finish_reason"]["type"] in ("abort", "length"):
-            # Orchestrator hit its own length cap; account for the tokens and stop.
-            sample.metadata["critical_steps"] += orch_new_tokens
+            sample.metadata["turns"].append({"n_create": 0, "n_assign": 0, "n_valid": 0, "final": False})
+            sample.metadata["critical_steps"] += 1
             break
 
-        # ----------------------- Execute tools -------------------------
         _, tool_calls = tool_call_parser.parse_non_stream(output["text"])
         if len(tool_calls) == 0:
-            # Final-answer turn: orchestrator time only, no solver fan-out.
-            sample.metadata["critical_steps"] += orch_new_tokens
+            sample.metadata["turns"].append({"n_create": 0, "n_assign": 0, "n_valid": 0, "final": False})
+            sample.metadata["critical_steps"] += 1
             break
 
-        tool_messages = await execute_tool_calls(tool_calls, execute_tool_function)
-        max_solver = _max_solver_tokens_from(tool_messages)
-        sample.metadata["critical_steps"] += orch_new_tokens + max_solver
+        tool_messages, stats = await _execute_tool_calls_parallel(
+            tool_calls, registry=registry, tokenizer=tokenizer
+        )
+        sample.metadata["turns"].append({**stats, "final": False})
+        sample.metadata["critical_steps"] += 2 if stats["n_assign"] > 0 else 1
 
         update_sample_with_tool_responses(sample, tool_messages, tokenizer=tokenizer)
+
+    if sample.metadata["turns"]:
+        sample.metadata["turns"][-1]["final"] = True
+    sample.metadata["registry_size"] = len(registry)
 
     return GenerateFnOutput(samples=sample)
 
@@ -143,9 +200,9 @@ def _add_arguments(parser: argparse.ArgumentParser):
         type=int,
         default=None,
         help=(
-            "K2.5 PARL episode-length budget: max cumulative critical steps "
-            "(orch_turn_tokens + max_i solver_tokens_i, per stage). "
-            "Defaults to --rollout-max-response-len."
+            "K2.5 PARL episode-length budget in TURN units: phase_cost = 1 per "
+            "orchestrator turn (final/create-only/length) or 2 per spawn turn "
+            "(≥1 executed assign_task). Defaults to 2 * --generate-max-turns."
         ),
     )
 
