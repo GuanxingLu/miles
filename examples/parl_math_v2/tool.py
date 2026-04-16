@@ -11,6 +11,7 @@ Solver success stats are embedded as a machine-readable footer in the tool
 response so `reward.py::reward_func` can recover `valid/total` for the
 `r_parallel` term without needing any sample-side plumbing.
 """
+
 import asyncio
 import os
 

@@ -3,10 +3,11 @@
 Bolts two things onto miles' default wandb logging:
 
 1. Per-component reward stats. `reward.py::reward_func` returns a dict
-   (`r_perf`, `r_parallel`, `r_finish`, `n_spawn`, `n_solvers_valid/total`,
-   `lambda1/2`) but miles only pipes `args.reward_key=score` to wandb —
-   everything else is invisible. We unpack the dict and log mean/std/p50/
-   max/min per key under `reward/<key>/…`.
+   (`r_perf`, `r_parallel`, `r_finish`, `r_box`, `n_spawn`,
+   `n_solvers_valid/total`, `critical_steps`, `lambda1/2/_box`) but miles
+   only pipes `args.reward_key=score` to wandb — everything else is
+   invisible. We unpack the dict and log mean/std/p50/max/min per key
+   under `reward/<key>/…`.
 
 2. Critical-step (tool-decision) metrics for K2.5 PARL. Each turn in the
    orchestrator is a "spawn or answer" decision, so we aggregate:
@@ -36,14 +37,14 @@ _REWARD_KEYS = (
     "r_perf",
     "r_parallel",
     "r_finish",
+    "r_box",
     "n_spawn",
     "n_solvers_valid",
     "n_solvers_total",
     "critical_steps",
-    "critical_steps_ratio",
     "lambda1",
     "lambda2",
-    "lambda3",
+    "lambda_box",
 )
 
 
@@ -156,14 +157,8 @@ def log_eval_rollout_data(rollout_id, args, data, extra_metrics):
         samples = payload.get("samples")
         if not samples:
             continue
-        log_dict |= {
-            f"eval/{eval_key}/{k}": v
-            for k, v in _compute_reward_component_metrics(samples).items()
-        }
-        log_dict |= {
-            f"eval/{eval_key}/{k}": v
-            for k, v in _compute_multi_turn_metrics(args, samples).items()
-        }
+        log_dict |= {f"eval/{eval_key}/{k}": v for k, v in _compute_reward_component_metrics(samples).items()}
+        log_dict |= {f"eval/{eval_key}/{k}": v for k, v in _compute_multi_turn_metrics(args, samples).items()}
 
     if log_dict:
         step = compute_rollout_step(args, rollout_id)

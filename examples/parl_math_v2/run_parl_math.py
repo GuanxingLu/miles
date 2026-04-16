@@ -11,6 +11,7 @@ train_script under the dev tree — `python3 <abs>/train.py` puts that
 directory at sys.path[0], shadowing both /root/miles and Megatron's own
 `examples` package.
 """
+
 import os
 import socket
 import subprocess
@@ -58,6 +59,10 @@ class ScriptArgs(U.ExecuteTrainConfig):
     generate_max_turns: int = 6
     rollout_max_context_len: int = 32768
     rollout_max_response_len: int = 4096
+    # K2.5 PARL episode-length budget (critical path: orch + max parallel solver).
+    # Defaults to rollout_max_response_len (backward-compatible with the
+    # pre-refactor behavior when __post_init__ fills it in).
+    rollout_max_critical_steps: int = 0
     rollout_batch_size: int = 8
     n_samples_per_prompt: int = 8
     global_batch_size: int = 64
@@ -81,11 +86,10 @@ class ScriptArgs(U.ExecuteTrainConfig):
         self.ref_load = self.ref_load or f"{self.dev_repo_dir}/{defaults['ref_load']}"
         self.megatron_model_type = self.megatron_model_type or defaults["megatron_model_type"]
         self.tensor_model_parallel_size = self.tensor_model_parallel_size or defaults["tensor_model_parallel_size"]
-        self.rollout_num_gpus_per_engine = (
-            self.rollout_num_gpus_per_engine or defaults["rollout_num_gpus_per_engine"]
-        )
+        self.rollout_num_gpus_per_engine = self.rollout_num_gpus_per_engine or defaults["rollout_num_gpus_per_engine"]
         self.prompt_data = self.prompt_data or f"{self.dev_repo_dir}/DATA/dapo-math-17k/dapo-math-17k.jsonl"
         self.eval_prompt_data = self.eval_prompt_data or f"{self.dev_repo_dir}/DATA/aime-2024/aime-2024.jsonl"
+        self.rollout_max_critical_steps = self.rollout_max_critical_steps or self.rollout_max_response_len
         if not self.save_path:
             self.save_path = f"{self.dev_repo_dir}/saves/{os.path.basename(self.hf_checkpoint)}-parl-v2/{self.run_id}"
 
@@ -149,6 +153,7 @@ def execute(args: ScriptArgs):
         f"--n-samples-per-prompt {args.n_samples_per_prompt} "
         f"--rollout-max-context-len {args.rollout_max_context_len} "
         f"--rollout-max-response-len {args.rollout_max_response_len} "
+        f"--rollout-max-critical-steps {args.rollout_max_critical_steps} "
         "--rollout-temperature 1 "
         f"--global-batch-size {args.global_batch_size} "
         "--balance-data "
@@ -191,8 +196,7 @@ def execute(args: ScriptArgs):
     )
 
     sglang_args = (
-        f"--rollout-num-gpus-per-engine {args.rollout_num_gpus_per_engine} "
-        "--sglang-mem-fraction-static 0.7 "
+        f"--rollout-num-gpus-per-engine {args.rollout_num_gpus_per_engine} " "--sglang-mem-fraction-static 0.7 "
     )
 
     perf_args = (
@@ -241,30 +245,36 @@ def execute(args: ScriptArgs):
         with open(log_path, "ab") as log_f:
             proc = subprocess.Popen(
                 [
-                    "python3", "-m", "sglang_router.launch_router",
-                    "--host", args.sglang_router_ip,
-                    "--port", str(args.sglang_router_port),
-                    "--prometheus-port", str(args.sglang_router_prometheus_port),
-                    "--log-level", "warn",
+                    "python3",
+                    "-m",
+                    "sglang_router.launch_router",
+                    "--host",
+                    args.sglang_router_ip,
+                    "--port",
+                    str(args.sglang_router_port),
+                    "--prometheus-port",
+                    str(args.sglang_router_prometheus_port),
+                    "--log-level",
+                    "warn",
                 ],
-                stdout=log_f, stderr=subprocess.STDOUT, start_new_session=True,
+                stdout=log_f,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
             )
         # Brief wait for the port to bind so engine /workers POSTs succeed.
         for _ in range(30):
             if proc.poll() is not None:
-                raise RuntimeError(
-                    f"sglang_router exited early (rc={proc.returncode}); see {log_path}"
-                )
+                raise RuntimeError(f"sglang_router exited early (rc={proc.returncode}); see {log_path}")
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 s.settimeout(0.5)
                 if s.connect_ex((args.sglang_router_ip, args.sglang_router_port)) == 0:
-                    print(f"sglang_router pid={proc.pid} listening on "
-                          f"{args.sglang_router_ip}:{args.sglang_router_port}")
+                    print(
+                        f"sglang_router pid={proc.pid} listening on "
+                        f"{args.sglang_router_ip}:{args.sglang_router_port}"
+                    )
                     return
             time.sleep(1)
-        raise RuntimeError(
-            f"sglang_router pid={proc.pid} did not bind {args.sglang_router_port} in time"
-        )
+        raise RuntimeError(f"sglang_router pid={proc.pid} did not bind {args.sglang_router_port} in time")
 
     U.execute_train(
         train_args=train_args,
