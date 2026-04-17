@@ -1,38 +1,28 @@
-"""Dual-tool agent-swarm implementation for PARL v2.
+"""Shared orchestrator tool layer for PARL v2 (env-agnostic).
 
-Orchestrator has two tools:
-- ``create_subagent(name, system_prompt)``: register a named specialist
-  system_prompt in a per-rollout registry. Pure dict write; no inference.
-- ``assign_task(agent, prompt)``: look up ``agent`` in the registry, build a
-  chat payload with that system_prompt + the given prompt, call SGLang, and
-  return the subagent's output text.
+Holds:
+- ``tool_specs``: the two orchestrator tools ``create_subagent`` and
+  ``assign_task`` exposed to SGLang tool-call parsing.
+- ``_create_subagent``: pure registry write; no inference.
+- ``SUBAGENT_OUTPUT_SUFFIX`` + ``extract_subagent_result``: context-sharding
+  contract — every subagent appends this to its system prompt and must wrap
+  its final output in <result>…</result>; orchestrator receives only that
+  block.
 
-Parallelism: the orchestrator is free to emit multiple ``assign_task`` calls
-in one turn. ``generate.py``'s custom parallel wrapper runs them via
-``asyncio.gather``. Registry state, tokenizer, and the subagent SGLang
-router URL are injected as keyword-only args by the wrapper via closure
-binding — ``tool.py`` itself is stateless. The router URL points at the
-"subagent" model when --sglang-config declares it (frozen mode); otherwise
-it falls back to the live router (ablation / shared mode).
-
-See spec: docs/superpowers/specs/2026-04-17-parl-v2-agent-swarm-alignment-design.md
+The actual subagent inference (``assign_task``) is environment-specific and
+lives under ``examples/parl_v2/<env>/assign_task.py::call``. The impl path
+is loaded by ``generate.py`` at startup via ``--assign-task-impl-path``
+(default resolved in ``run_parl_v2.py`` from ``--env``).
 """
 
-import asyncio
 import re
 
-from miles.utils.http_utils import post
-
 MAX_REGISTRY_SIZE = 8
-SOLVER_MAX_NEW_TOKENS = 1024
-SOLVER_TEMPERATURE = 1.0
-SOLVER_CONCURRENCY = 16
 
 # ── Context-sharding: subagent output extraction ──────────────────────
 # Appended to every subagent's system prompt so it always emits a
 # <result>…</result> block.  The extractor returns only that block to
 # the orchestrator, keeping its context bounded.
-
 SUBAGENT_OUTPUT_SUFFIX = (
     "\n\n# Output Format\n"
     "After completing your work, you MUST wrap your final answer or key "
@@ -50,8 +40,6 @@ def extract_subagent_result(body: str) -> str:
     if matches:
         return matches[-1].strip()
     return body
-
-_solver_semaphore: asyncio.Semaphore | None = None
 
 
 tool_specs = [
@@ -108,13 +96,6 @@ tool_specs = [
 ]
 
 
-def _get_semaphore() -> asyncio.Semaphore:
-    global _solver_semaphore
-    if _solver_semaphore is None:
-        _solver_semaphore = asyncio.Semaphore(SOLVER_CONCURRENCY)
-    return _solver_semaphore
-
-
 def _create_subagent(params: dict, *, registry: dict[str, str]) -> str:
     name = params.get("name")
     system_prompt = params.get("system_prompt")
@@ -129,42 +110,3 @@ def _create_subagent(params: dict, *, registry: dict[str, str]) -> str:
         )
     registry[name] = system_prompt
     return f"Registered subagent '{name}'."
-
-
-async def _assign_task_call(
-    params: dict, *, registry: dict[str, str], tokenizer, router_url: str
-) -> tuple[str, bool]:
-    """Return (text, is_valid). ``is_valid`` marks whether the subagent
-    produced a non-empty, non-error response (for r_finish)."""
-    agent = params.get("agent")
-    prompt = params.get("prompt")
-    if not isinstance(agent, str) or not agent.strip():
-        return "Error: 'agent' must be a non-empty string.", False
-    if not isinstance(prompt, str) or not prompt.strip():
-        return "Error: 'prompt' must be a non-empty string.", False
-    if agent not in registry:
-        return f"Error: agent '{agent}' not found. Call create_subagent first.", False
-
-    messages = [
-        {"role": "system", "content": registry[agent] + SUBAGENT_OUTPUT_SUFFIX},
-        {"role": "user", "content": prompt},
-    ]
-    text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-    payload = {
-        "text": text,
-        "sampling_params": {
-            "max_new_tokens": SOLVER_MAX_NEW_TOKENS,
-            "temperature": SOLVER_TEMPERATURE,
-            "top_p": 1.0,
-        },
-    }
-    async with _get_semaphore():
-        try:
-            output = await post(router_url, payload)
-        except Exception as e:
-            return f"__SOLVER_ERROR__: {e}", False
-    body = output.get("text", "") or ""
-    is_valid = bool(body.strip()) and not body.startswith("__SOLVER_ERROR__") and bool(_RESULT_RE.search(body))
-    if is_valid:
-        body = extract_subagent_result(body)
-    return body, is_valid

@@ -33,7 +33,7 @@ export WANDB_BASE_URL=${WANDB_BASE_URL:-http://33.180.4.104}
 export WANDB_MODE=${WANDB_MODE:-offline}
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
-REPO_DIR="$(cd -- "${SCRIPT_DIR}/../.." &>/dev/null && pwd)"
+REPO_DIR="$(cd -- "${SCRIPT_DIR}/../../.." &>/dev/null && pwd)"
 
 DEV_REPO_DIR=${DEV_REPO_DIR:-${REPO_DIR}}
 DATA_ROOT=${DATA_ROOT:-${DEV_REPO_DIR}/DATA}

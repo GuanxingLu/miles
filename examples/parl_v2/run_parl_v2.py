@@ -59,6 +59,9 @@ class ScriptArgs(U.ExecuteTrainConfig):
     hardware: Literal["H100", "GB200", "GB300"] = "H100"
     num_gpus_per_node: int | None = None
     model: Literal["qwen3-4B", "qwen3-0.6B", "qwen3-30B-A3B"] = "qwen3-0.6B"
+    # Selects the environment-specific reward / assign_task implementation.
+    # Each env lives under examples/parl_v2/<env>/ with reward.py + assign_task.py.
+    env: Literal["math", "widesearch"] = "math"
     dev_repo_dir: str = DEFAULT_DEV_REPO_DIR
     save_path: str = ""
     prompt_data: str = ""
@@ -101,8 +104,13 @@ class ScriptArgs(U.ExecuteTrainConfig):
         self.megatron_model_type = self.megatron_model_type or defaults["megatron_model_type"]
         self.tensor_model_parallel_size = self.tensor_model_parallel_size or defaults["tensor_model_parallel_size"]
         self.rollout_num_gpus_per_engine = self.rollout_num_gpus_per_engine or defaults["rollout_num_gpus_per_engine"]
-        self.prompt_data = self.prompt_data or f"{self.dev_repo_dir}/DATA/dapo-math-17k/dapo-math-17k.jsonl"
-        self.eval_prompt_data = self.eval_prompt_data or f"{self.dev_repo_dir}/DATA/aime-2024/aime-2024.jsonl"
+        if self.env == "math":
+            self.prompt_data = self.prompt_data or f"{self.dev_repo_dir}/DATA/dapo-math-17k/dapo-math-17k.jsonl"
+            self.eval_prompt_data = self.eval_prompt_data or f"{self.dev_repo_dir}/DATA/aime-2024/aime-2024.jsonl"
+        elif self.env == "widesearch":
+            self.prompt_data = self.prompt_data or f"{self.dev_repo_dir}/DATA/wideseek-r1-train/hybrid_20k.miles.jsonl"
+            # widesearch eval launchers pass multi-set --eval-prompt-data via --extra-args;
+            # leave this empty by default so run_parl_v2 skips its single-set expansion.
         self.rollout_max_critical_steps = self.rollout_max_critical_steps or (2 * self.generate_max_turns)
         if not self.save_path:
             self.save_path = f"{self.dev_repo_dir}/saves/{os.path.basename(self.hf_checkpoint)}-parl-v2/{self.run_id}"
@@ -113,7 +121,7 @@ def _get_wandb_args(args: ScriptArgs) -> str:
     return (
         "--use-wandb "
         f"--wandb-project {WANDB_PROJECT} "
-        f"--wandb-group {args.model}-parl-v2-math "
+        f"--wandb-group {args.model}-parl-v2-{args.env} "
         f"--wandb-key {WANDB_API_KEY} "
     )
 
@@ -145,8 +153,9 @@ def execute(args: ScriptArgs):
         "--generate-tool-specs-path examples.parl_v2.tool.tool_specs "
         "--generate-tool-call-parser qwen25 "
         f"--generate-max-turns {args.generate_max_turns} "
+        f"--assign-task-impl-path examples.parl_v2.{args.env}.assign_task.call "
         "--log-multi-turn "
-        "--custom-rm-path examples.parl_v2.reward.reward_func "
+        f"--custom-rm-path examples.parl_v2.{args.env}.reward.reward_func "
         "--custom-rollout-log-function-path examples.parl_v2.rollout_log.log_rollout_data "
         "--custom-eval-rollout-log-function-path examples.parl_v2.rollout_log.log_eval_rollout_data "
         # --group-rm hands the full rollout group to reward_func, which is
@@ -176,10 +185,13 @@ def execute(args: ScriptArgs):
 
     eval_args = ""
     if args.mode != "debug_minimal":
+        # math's legacy single-set eval; widesearch passes its own multi-set
+        # --eval-prompt-data via --extra-args (and leaves eval_prompt_data empty).
+        eval_prompt_flag = f"--eval-prompt-data aime {args.eval_prompt_data} " if args.eval_prompt_data else ""
         eval_args = (
             "--eval-interval 20 "
             # "--skip-eval-before-train "
-            f"--eval-prompt-data aime {args.eval_prompt_data} "
+            f"{eval_prompt_flag}"
             "--n-samples-per-eval-prompt 4 "
             f"--eval-max-response-len {args.rollout_max_response_len} "
             f"--eval-max-context-len {args.rollout_max_context_len} "

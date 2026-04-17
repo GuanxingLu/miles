@@ -42,7 +42,7 @@ from miles.utils.misc import load_function
 from miles.utils.types import Sample
 
 from .prompts import ORCHESTRATOR_SYSTEM_PROMPT
-from .tool import _assign_task_call, _create_subagent
+from .tool import _create_subagent
 
 logger = logging.getLogger(__name__)
 _logged_endpoint = False
@@ -82,6 +82,7 @@ async def _execute_tool_calls_parallel(
     registry: dict[str, str],
     tokenizer,
     router_url: str,
+    assign_task_impl,
 ) -> tuple[list[dict], dict]:
     """Two-phase execution: all ``create_subagent`` serial first, then
     ``assign_task`` in parallel (capped). Returns (tool_messages, per_turn_stats).
@@ -100,15 +101,20 @@ async def _execute_tool_calls_parallel(
 
     async def run_assign(i: int):
         _, params, _ = normalized[i]
-        text, is_valid = await _assign_task_call(params, registry=registry, tokenizer=tokenizer, router_url=router_url)
-        return i, text, is_valid
+        text, is_valid, sub_steps = await assign_task_impl(
+            params, registry=registry, tokenizer=tokenizer, router_url=router_url
+        )
+        return i, text, is_valid, sub_steps
 
     assign_outputs = await asyncio.gather(*[run_assign(i) for i in allowed])
     n_valid = 0
-    for i, text, is_valid in assign_outputs:
+    max_sub_steps = 0
+    for i, text, is_valid, sub_steps in assign_outputs:
         results[i] = text
         if is_valid:
             n_valid += 1
+        if sub_steps > max_sub_steps:
+            max_sub_steps = sub_steps
 
     for i in denied:
         results[i] = (
@@ -121,13 +127,14 @@ async def _execute_tool_calls_parallel(
 
     tool_messages = [
         {"role": "tool", "tool_call_id": tool_call_id, "content": result, "name": name}
-        for (name, _, tool_call_id), result in zip(normalized, results)
+        for (name, _, tool_call_id), result in zip(normalized, results, strict=True)
     ]
 
     stats = {
         "n_create": sum(1 for n, _, _ in normalized if n == "create_subagent"),
         "n_assign": len(allowed),
         "n_valid": n_valid,
+        "max_sub_steps": max_sub_steps,
     }
     return tool_messages, stats
 
@@ -153,6 +160,7 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
     url = f"http://{args.sglang_router_ip}:{args.sglang_router_port}/generate"
     tool_specs = load_function(args.generate_tool_specs_path)
     tool_call_parser = create_tool_call_parser(tool_specs, args.generate_tool_call_parser)
+    assign_task_impl = load_function(args.assign_task_impl_path)
 
     max_cs_raw = getattr(args, "rollout_max_critical_steps", None)
     max_cs = int(max_cs_raw) if max_cs_raw is not None else 2 * int(args.generate_max_turns)
@@ -189,7 +197,9 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
         failed = raw_tool_call_count - len(tool_calls)
         if failed > 0:
             sample.metadata["tool_call_parse_failures"] = sample.metadata.get("tool_call_parse_failures", 0) + failed
-            sample.metadata["tool_call_raw_count"] = sample.metadata.get("tool_call_raw_count", 0) + raw_tool_call_count
+            sample.metadata["tool_call_raw_count"] = (
+                sample.metadata.get("tool_call_raw_count", 0) + raw_tool_call_count
+            )
 
         if len(tool_calls) == 0:
             sample.metadata["turns"].append({"n_create": 0, "n_assign": 0, "n_valid": 0, "final": False})
@@ -201,9 +211,14 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
             registry=registry,
             tokenizer=tokenizer,
             router_url=subagent_router_url,
+            assign_task_impl=assign_task_impl,
         )
         sample.metadata["turns"].append({**stats, "final": False})
-        sample.metadata["critical_steps"] += 2 if stats["n_assign"] > 0 else 1
+        # K2.5 critical steps: 1 (orchestrator turn) + max_i(S_sub_i). If no
+        # subagent spawned this turn, just 1. Math's single-shot subagents
+        # contribute S_sub=1 (matching legacy "2 if n_assign>0 else 1");
+        # widesearch's ReAct subagents contribute their real ReAct turn count.
+        sample.metadata["critical_steps"] += 1 + (stats["max_sub_steps"] if stats["n_assign"] > 0 else 0)
 
         update_sample_with_tool_responses(sample, tool_messages, tokenizer=tokenizer)
 
@@ -220,6 +235,17 @@ def _add_arguments(parser: argparse.ArgumentParser):
     parser.add_argument("--generate-tool-call-parser", type=str)
     parser.add_argument("--generate-execute-tool-function-path", type=str)
     parser.add_argument("--generate-multi-samples", action="store_true")
+    parser.add_argument(
+        "--assign-task-impl-path",
+        type=str,
+        default="examples.parl_v2.math.assign_task.call",
+        help=(
+            "Importable path to an async `call(params, *, registry, tokenizer, router_url)` "
+            "function implementing the assign_task subagent inference. Math default is a "
+            "single-turn SGLang call; widesearch replaces this with a multi-turn ReAct "
+            "loop wired to the local RAG server."
+        ),
+    )
     parser.add_argument(
         "--rollout-max-critical-steps",
         type=int,

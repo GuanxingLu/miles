@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# PARL v2 prod run on Qwen3-30B-A3B (H200x16, 2 nodes).
+# PARL v2 prod run on Qwen3-4B (H200x8).
 # Thin wrapper around examples/parl_v2/run_parl_v2.py.
 
 pkill -9 sglang
@@ -23,18 +23,8 @@ echo "HAS_NVLINK: $HAS_NVLINK (detected $NVLINK_COUNT NVLink references)"
 export WANDB_API_KEY=${WANDB_API_KEY:-local-82cbbacfe8e3c0c527da528160bd76a1e85c9fea}
 export WANDB_BASE_URL=${WANDB_BASE_URL:-http://33.180.4.104}
 
-# Multi-node NCCL/Gloo socket interfaces. Default to eth0 (the netdev
-# that carries the 33.180.x.x control plane on this H200 cluster);
-# mlx5_bond_0..7 are the per-GPU RoCE HCAs and are selected via
-# NCCL_IB_HCA in run_parl_v2.py. command_utils.py forwards
-# NCCL_SOCKET_IFNAME + GLOO_SOCKET_IFNAME; run_parl_v2.py forwards
-# TP_SOCKET_IFNAME. Override in env if running on a different cluster.
-export NCCL_SOCKET_IFNAME=${NCCL_SOCKET_IFNAME:-eth0}
-export GLOO_SOCKET_IFNAME=${GLOO_SOCKET_IFNAME:-eth0}
-export TP_SOCKET_IFNAME=${TP_SOCKET_IFNAME:-eth0}
-
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
-REPO_DIR="$(cd -- "${SCRIPT_DIR}/../.." &>/dev/null && pwd)"
+REPO_DIR="$(cd -- "${SCRIPT_DIR}/../../.." &>/dev/null && pwd)"
 
 DEV_REPO_DIR=${DEV_REPO_DIR:-${REPO_DIR}}
 DATA_ROOT=${DATA_ROOT:-${DEV_REPO_DIR}/DATA}
@@ -44,29 +34,25 @@ NUM_GPUS=$(echo "${CUDA_VISIBLE_DEVICES}" | awk -F',' '{print NF}')
 RUN_ID=${RUN_ID:-"run_$(date +%Y%m%d_%H%M%S)"}
 
 MODEL_ARGS=(
-   --model qwen3-30B-A3B
-   --hf-checkpoint "${MODEL_ROOT}/Qwen3-30B-A3B"
-   --ref-load "${MODEL_ROOT}/Qwen3-30B-A3B_torch_dist"
-   --tensor-model-parallel-size 4
-   --rollout-num-gpus-per-engine 4
+   --model qwen3-4B
+   --hf-checkpoint "${MODEL_ROOT}/Qwen3-4B"
+   --ref-load "${MODEL_ROOT}/Qwen3-4B_torch_dist"
 )
 
 RUN_ARGS=(
    --mode "${MODE}"
    --run-id "${RUN_ID}"
    --dev-repo-dir "${DEV_REPO_DIR}"
-   --save-path "${DEV_REPO_DIR}/saves/Qwen3-30B-A3B-parl-v2/${RUN_ID}"
-   --rollout-batch-size 32
-   --global-batch-size 256
+   --save-path "${DEV_REPO_DIR}/saves/Qwen3-4B-parl-v2/${RUN_ID}"
+   --rollout-batch-size 16
+   --global-batch-size 128
    --rollout-max-response-len 8192
 )
 
 PARALLEL_ARGS=(
    --num-gpus-per-node "${NUM_GPUS}"
-   # Bind the pre-launched sglang_router to the head node's LAN IP so worker
-   # nodes can reach it. Default in run_parl_v2.py is 127.0.0.1, which only
-   # works for single-node runs.
-   --sglang-router-ip "${MASTER_ADDR}"
+   --tensor-model-parallel-size 2
+   --rollout-num-gpus-per-engine 2
 )
 
 DATA_ARGS=(
@@ -78,34 +64,11 @@ GENERATE_ARGS=(
    --generate-max-turns 6
 )
 
-# MoE-specific perf args passed through to train.py via --extra-args.
-# These mirror the multi-agent 30B-A3B launcher.
-EXTRA_ARGS=(
-   --sequence-parallel
-   --expert-model-parallel-size 8
-   --expert-tensor-parallel-size 1
-   --recompute-granularity full
-   --recompute-method uniform
-   --recompute-num-layers 1
-   --use-dynamic-batch-size
-   --max-tokens-per-gpu 20480
-   # Multi-node: distributed optimizer already shards optimizer state
-   # across 16 GPUs, and CPU offload's d2h/h2d would cross NUMA on
-   # worker nodes. Disabled per docs/en/examples/qwen3-30B-A3B.md.
-   # --optimizer-cpu-offload
-   # --overlap-cpu-optimizer-d2h-h2d
-   # --use-precision-aware-optimizer
-)
-
 cd "${REPO_DIR}"
 
 RAY_GCS_PORT=${RAY_GCS_PORT:-26379}
 RAY_DASHBOARD_PORT=${RAY_DASHBOARD_PORT:-28265}
 export MASTER_ADDR=${MASTER_ADDR:-"127.0.0.1"}
-# Bind miles' host-IP detection to MASTER_ADDR. Otherwise get_host_info()
-# can fall back to 127.0.0.1 in egress-restricted envs, making the SGLang
-# router unreachable from worker nodes.
-export MILES_HOST_IP=${MILES_HOST_IP:-${MASTER_ADDR}}
 ray start --head --node-ip-address ${MASTER_ADDR} --num-gpus ${NUM_GPUS} \
    --port ${RAY_GCS_PORT} \
    --disable-usage-stats --dashboard-host=0.0.0.0 --dashboard-port=${RAY_DASHBOARD_PORT}
@@ -121,7 +84,7 @@ export MILES_SCRIPT_EXTERNAL_RAY=1
 #                     as ablation control).
 SUBAGENT_MODE=${SUBAGENT_MODE:-frozen}
 if [ "$SUBAGENT_MODE" = "frozen" ]; then
-   SGLANG_EXTRA_ARGS=(--sglang-config examples/parl_v2/sglang_config_30B_A3B_2node.yaml)
+   SGLANG_EXTRA_ARGS=(--sglang-config examples/parl_v2/sglang_config_4B.yaml)
 elif [ "$SUBAGENT_MODE" = "shared" ]; then
    SGLANG_EXTRA_ARGS=()
 else
@@ -135,5 +98,4 @@ python examples/parl_v2/run_parl_v2.py \
    ${PARALLEL_ARGS[@]} \
    ${DATA_ARGS[@]} \
    ${GENERATE_ARGS[@]} \
-   "${SGLANG_EXTRA_ARGS[@]}" \
-   --extra-args "${EXTRA_ARGS[*]}"
+   "${SGLANG_EXTRA_ARGS[@]}"
