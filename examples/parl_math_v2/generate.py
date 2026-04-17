@@ -12,6 +12,9 @@ Extends miles' multi_turn.generate with:
   for single-shot subagents). Running value lives on ``sample.metadata["critical_steps"]``
 - structured per-turn stats for reward attribution:
   ``sample.metadata["turns"] = [{n_create, n_assign, n_valid, final}, ...]``
+- subagent SGLang router URL discovered via miles.get_model_url("subagent")
+  with auto-fallback to the live router when --sglang-config does not
+  declare a "subagent" model (= shared/ablation mode)
 
 Design: docs/superpowers/specs/2026-04-17-parl-v2-agent-swarm-alignment-design.md
 """
@@ -19,6 +22,7 @@ Design: docs/superpowers/specs/2026-04-17-parl-v2-agent-swarm-alignment-design.m
 import argparse
 import asyncio
 import json
+import logging
 import uuid
 from copy import deepcopy
 
@@ -31,16 +35,17 @@ from miles.rollout.generate_utils.generate_endpoint_utils import (
     compute_request_payload,
     update_sample_from_response,
 )
-from miles.rollout.generate_utils.tool_call_utils import (
-    create_tool_call_parser,
-    update_sample_with_tool_responses,
-)
+from miles.rollout.generate_utils.tool_call_utils import create_tool_call_parser, update_sample_with_tool_responses
+from miles.rollout.sglang_rollout import get_model_url
 from miles.utils.http_utils import post
 from miles.utils.misc import load_function
 from miles.utils.types import Sample
 
 from .prompts import ORCHESTRATOR_SYSTEM_PROMPT
 from .tool import _assign_task_call, _create_subagent
+
+logger = logging.getLogger(__name__)
+_logged_endpoint = False
 
 MAX_CONCURRENT_ASSIGN = 8
 
@@ -76,6 +81,7 @@ async def _execute_tool_calls_parallel(
     *,
     registry: dict[str, str],
     tokenizer,
+    router_url: str,
 ) -> tuple[list[dict], dict]:
     """Two-phase execution: all ``create_subagent`` serial first, then
     ``assign_task`` in parallel (capped). Returns (tool_messages, per_turn_stats).
@@ -94,7 +100,7 @@ async def _execute_tool_calls_parallel(
 
     async def run_assign(i: int):
         _, params, _ = normalized[i]
-        text, is_valid = await _assign_task_call(params, registry=registry, tokenizer=tokenizer)
+        text, is_valid = await _assign_task_call(params, registry=registry, tokenizer=tokenizer, router_url=router_url)
         return i, text, is_valid
 
     assign_outputs = await asyncio.gather(*[run_assign(i) for i in allowed])
@@ -106,8 +112,7 @@ async def _execute_tool_calls_parallel(
 
     for i in denied:
         results[i] = (
-            f"Error: too many assign_task calls in this turn "
-            f"(cap={MAX_CONCURRENT_ASSIGN}). Retry in a later turn."
+            f"Error: too many assign_task calls in this turn " f"(cap={MAX_CONCURRENT_ASSIGN}). Retry in a later turn."
         )
 
     for i, (name, _, _) in enumerate(normalized):
@@ -132,6 +137,16 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
     sample = deepcopy(input.sample)
     sample.prompt = _with_system_prompt(sample.prompt)
     tokenizer = input.state.tokenizer
+    subagent_router_url = get_model_url(args, "subagent")
+    live_router_url = f"http://{args.sglang_router_ip}:{args.sglang_router_port}/generate"
+
+    global _logged_endpoint
+    if not _logged_endpoint:
+        mode = "frozen" if subagent_router_url != live_router_url else "shared (ablation)"
+        logger.info(f"[parl_v2] subagent mode: {mode}")
+        logger.info(f"[parl_v2] subagent router: {subagent_router_url}")
+        logger.info(f"[parl_v2] live router:     {live_router_url}")
+        _logged_endpoint = True
     assert not args.partial_rollout, "Partial rollout is not supported"
     assert not args.generate_multi_samples, "generate_multi_samples is not supported in parl_math_v2 custom multi-turn"
 
@@ -175,7 +190,10 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
             break
 
         tool_messages, stats = await _execute_tool_calls_parallel(
-            tool_calls, registry=registry, tokenizer=tokenizer
+            tool_calls,
+            registry=registry,
+            tokenizer=tokenizer,
+            router_url=subagent_router_url,
         )
         sample.metadata["turns"].append({**stats, "final": False})
         sample.metadata["critical_steps"] += 2 if stats["n_assign"] > 0 else 1
