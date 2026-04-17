@@ -305,6 +305,7 @@ def execute(args: ScriptArgs):
             "MILES_EXPERIMENTAL_ROLLOUT_REFACTOR": "1",
             "MILES_SGLANG_ROUTER_IP": args.sglang_router_ip,
             "MILES_SGLANG_ROUTER_PORT": str(args.sglang_router_port),
+            "FLASHINFER_DISABLE_VERSION_CHECK": "1",
         },
     )
 
