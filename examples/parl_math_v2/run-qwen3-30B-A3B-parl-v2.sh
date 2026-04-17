@@ -85,6 +85,10 @@ cd "${REPO_DIR}"
 RAY_GCS_PORT=${RAY_GCS_PORT:-26379}
 RAY_DASHBOARD_PORT=${RAY_DASHBOARD_PORT:-28265}
 export MASTER_ADDR=${MASTER_ADDR:-"127.0.0.1"}
+# Bind miles' host-IP detection to MASTER_ADDR. Otherwise get_host_info()
+# can fall back to 127.0.0.1 in egress-restricted envs, making the SGLang
+# router unreachable from worker nodes.
+export MILES_HOST_IP=${MILES_HOST_IP:-${MASTER_ADDR}}
 ray start --head --node-ip-address ${MASTER_ADDR} --num-gpus ${NUM_GPUS} \
    --port ${RAY_GCS_PORT} \
    --disable-usage-stats --dashboard-host=0.0.0.0 --dashboard-port=${RAY_DASHBOARD_PORT}
