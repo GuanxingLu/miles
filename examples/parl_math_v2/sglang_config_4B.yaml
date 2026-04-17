@@ -6,6 +6,13 @@
 #   - subagent: frozen at args.hf_checkpoint (true hard-frozen),
 #               called by examples.parl_math_v2.tool.assign_task
 #
+# ORDER MATTERS: the FIRST model listed under sglang: becomes the
+# default/live router — miles sets args.sglang_router_ip/port from it
+# in start_rollout_servers (rollout.py:1037-1038), and generate.py /
+# rollout_log.py compute `live_router_url` from those args. Reordering
+# so `subagent` comes first would invert the semantics (orchestrator
+# would hit the frozen engine). Keep actor first.
+#
 # Total num_gpus across both groups MUST equal --rollout-num-gpus
 # (= --actor-num-gpus under --colocate). Each group's num_gpus must
 # be divisible by --rollout-num-gpus-per-engine (=2 for 4B).
@@ -31,6 +38,9 @@ sglang:
         # a CPU-pinned copy of weights across release/resume — the same
         # mechanism miles already enables for LoRA engines (see
         # miles/backends/sglang_utils/sglang_engine.py:657-658). Costs about
-        # one model's worth of pinned host RAM per TP rank (~8 GB for 4B).
+        # one model's worth of pinned host RAM for the whole engine,
+        # sharded across TP ranks (~8 GB total for Qwen3-4B bf16 at TP=2 =
+        # ~4 GB per rank). Check total host RAM before scaling up to bigger
+        # subagents (e.g. Qwen3-32B ≈ 64 GB total / 32 GB per rank at TP=2).
         overrides:
           enable_weights_cpu_backup: true

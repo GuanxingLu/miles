@@ -668,16 +668,17 @@ Expected output (IPs/ports may differ; key is two distinct ports and `subagent m
 ```
 where `port_A != port_B`.
 
-Also confirm two SGLang router endpoints are listening (miles uses `multiprocessing.Process` for the router, not `python3 -m sglang_router.launch_router`, so `pgrep -af sglang_router` is NOT a valid check — it returns empty even when routers are up). Read the two ports from the startup log above and check:
+Also confirm a second SGLang router endpoint is listening. Miles uses `multiprocessing.Process` for its router, not `python3 -m sglang_router.launch_router`, so `pgrep -af sglang_router` is NOT a valid check — it returns empty even when routers are up. Read the two ports from the startup log above and check:
 ```bash
 ss -tlnp | grep -E ":${PORT_A}|:${PORT_B}"
 ```
 Expected: two distinct listening sockets on the two ports printed by the startup log.
 
-Alternatively (preferred — robust under any process name): count `Router launched at` lines in the run output. Expected: 2.
+Alternatively (preferred — robust under any process name): count `Router launched at` lines. Expected: **1** (not 2). The launcher pre-starts the live router via `subprocess.Popen` of `sglang_router.launch_router` (`run_parl_math.py::_launch_router`), so miles' `_start_router` short-circuits for `model_idx=0` and does NOT emit its "Router launched at …" log for the live pool. Only the subagent router, started fresh by miles for `model_idx=1`, emits that line:
 ```bash
 grep -c "Router launched at" /tmp/parl_v2_frozen_smoke.log
 ```
+Expected: `1`.
 
 If `subagent_router_url == live_router_url` in the startup log, frozen mode failed silently — investigate `_resolve_sglang_config` and the SglangConfig YAML before continuing.
 
@@ -724,11 +725,11 @@ Expected (the two URLs should be **identical**):
 [parl_v2] live router:     http://<ip>:<port>/generate
 ```
 
-Confirm only one router was launched (see Step 3 note: don't use `pgrep -af sglang_router`; it doesn't see miles' `multiprocessing.Process` router):
+Confirm miles did NOT launch a second router (see Step 3 note: don't use `pgrep -af sglang_router`). In shared mode there's only the launcher-pre-started live router; miles' `_start_router` short-circuits for the sole (default) model. So no `Router launched at` line should appear:
 ```bash
 grep -c "Router launched at" /tmp/parl_v2_shared_smoke.log
 ```
-Expected: `1`.
+Expected: `0`.
 
 - [ ] **Step 8: Verify W&B `parl/subagent_endpoint_distinct == 0` in shared mode**
 

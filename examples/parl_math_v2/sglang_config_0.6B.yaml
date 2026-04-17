@@ -1,5 +1,6 @@
 # PARL v2 frozen-subagent topology for Qwen3-0.6B (4 GPUs, TP=1).
-# See sglang_config_4B.yaml for design notes.
+# See sglang_config_4B.yaml for design notes (including the
+# load-bearing order constraint: actor must be listed first).
 sglang:
   - name: actor
     update_weights: true
