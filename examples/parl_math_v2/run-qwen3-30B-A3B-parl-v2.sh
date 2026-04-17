@@ -23,16 +23,15 @@ echo "HAS_NVLINK: $HAS_NVLINK (detected $NVLINK_COUNT NVLink references)"
 export WANDB_API_KEY=${WANDB_API_KEY:-local-82cbbacfe8e3c0c527da528160bd76a1e85c9fea}
 export WANDB_BASE_URL=${WANDB_BASE_URL:-http://33.180.4.104}
 
-# Multi-node NCCL/Gloo socket interfaces. On MLP-style clusters the
-# platform exposes MLP_SOCKET_IFNAME; use it as the default when the
-# user hasn't overridden the individual env vars. command_utils.py
-# forwards NCCL_SOCKET_IFNAME + GLOO_SOCKET_IFNAME; run_parl_math.py
-# forwards TP_SOCKET_IFNAME. Without these NCCL can't route cross-node.
-if [ -n "${MLP_SOCKET_IFNAME:-}" ]; then
-   export NCCL_SOCKET_IFNAME=${NCCL_SOCKET_IFNAME:-${MLP_SOCKET_IFNAME}}
-   export GLOO_SOCKET_IFNAME=${GLOO_SOCKET_IFNAME:-${MLP_SOCKET_IFNAME}}
-   export TP_SOCKET_IFNAME=${TP_SOCKET_IFNAME:-${MLP_SOCKET_IFNAME}}
-fi
+# Multi-node NCCL/Gloo socket interfaces. Default to eth0 (the netdev
+# that carries the 33.180.x.x control plane on this H200 cluster);
+# mlx5_bond_0..7 are the per-GPU RoCE HCAs and are selected via
+# NCCL_IB_HCA in run_parl_math.py. command_utils.py forwards
+# NCCL_SOCKET_IFNAME + GLOO_SOCKET_IFNAME; run_parl_math.py forwards
+# TP_SOCKET_IFNAME. Override in env if running on a different cluster.
+export NCCL_SOCKET_IFNAME=${NCCL_SOCKET_IFNAME:-eth0}
+export GLOO_SOCKET_IFNAME=${GLOO_SOCKET_IFNAME:-eth0}
+export TP_SOCKET_IFNAME=${TP_SOCKET_IFNAME:-eth0}
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 REPO_DIR="$(cd -- "${SCRIPT_DIR}/../.." &>/dev/null && pwd)"
