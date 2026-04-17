@@ -89,6 +89,17 @@ export MILES_SCRIPT_EXTERNAL_RAY=1
 SGLANG_ROUTER_IP=${MILES_SGLANG_ROUTER_IP:-127.0.0.1}
 SGLANG_ROUTER_PORT=${MILES_SGLANG_ROUTER_PORT:-18765}
 
+# See run-qwen3-4B-parl-v2.sh for SUBAGENT_MODE semantics.
+SUBAGENT_MODE=${SUBAGENT_MODE:-frozen}
+if [ "$SUBAGENT_MODE" = "frozen" ]; then
+   SGLANG_EXTRA_ARGS=(--sglang-config examples/parl_math_v2/sglang_config_0.6B.yaml)
+elif [ "$SUBAGENT_MODE" = "shared" ]; then
+   SGLANG_EXTRA_ARGS=()
+else
+   echo "ERROR: SUBAGENT_MODE must be 'frozen' or 'shared', got '$SUBAGENT_MODE'" >&2
+   exit 1
+fi
+
 python examples/parl_math_v2/run_parl_math.py \
    ${MODEL_ARGS[@]} \
    ${RUN_ARGS[@]} \
@@ -96,4 +107,5 @@ python examples/parl_math_v2/run_parl_math.py \
    ${DATA_ARGS[@]} \
    ${GENERATE_ARGS[@]} \
    --sglang-router-ip ${SGLANG_ROUTER_IP} \
-   --sglang-router-port ${SGLANG_ROUTER_PORT}
+   --sglang-router-port ${SGLANG_ROUTER_PORT} \
+   "${SGLANG_EXTRA_ARGS[@]}"

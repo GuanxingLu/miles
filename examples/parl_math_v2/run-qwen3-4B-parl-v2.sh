@@ -75,9 +75,27 @@ ray start --head --node-ip-address ${MASTER_ADDR} --num-gpus ${NUM_GPUS} \
 export RAY_ADDRESS="http://127.0.0.1:${RAY_DASHBOARD_PORT}"
 export MILES_SCRIPT_EXTERNAL_RAY=1
 
+# SUBAGENT_MODE selects how examples.parl_math_v2.tool.assign_task is routed:
+#   frozen (default): --sglang-config carves a separate 'subagent' SGLang
+#                     model from the colocate rollout pool, frozen at the
+#                     SFT hf_checkpoint and excluded from RL weight updates.
+#   shared           : skip --sglang-config; subagent shares the live
+#                     policy router (= pre-frozen-engine baseline, used
+#                     as ablation control).
+SUBAGENT_MODE=${SUBAGENT_MODE:-frozen}
+if [ "$SUBAGENT_MODE" = "frozen" ]; then
+   SGLANG_EXTRA_ARGS=(--sglang-config examples/parl_math_v2/sglang_config_4B.yaml)
+elif [ "$SUBAGENT_MODE" = "shared" ]; then
+   SGLANG_EXTRA_ARGS=()
+else
+   echo "ERROR: SUBAGENT_MODE must be 'frozen' or 'shared', got '$SUBAGENT_MODE'" >&2
+   exit 1
+fi
+
 python examples/parl_math_v2/run_parl_math.py \
    ${MODEL_ARGS[@]} \
    ${RUN_ARGS[@]} \
    ${PARALLEL_ARGS[@]} \
    ${DATA_ARGS[@]} \
-   ${GENERATE_ARGS[@]}
+   ${GENERATE_ARGS[@]} \
+   "${SGLANG_EXTRA_ARGS[@]}"
