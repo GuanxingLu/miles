@@ -15,5 +15,7 @@ ORCHESTRATOR_SYSTEM_PROMPT = (
     "# Context Isolation\n"
     "Sub-agents do not share your context; they see only the `system_prompt` set at "
     "creation and the `prompt` passed to `assign_task`. Include the information they "
-    "need to act on in those fields."
+    "need to act on in those fields.\n\n"
+    "When a sub-agent finishes, you receive only its key findings (not its full "
+    "reasoning trace). Base your next steps on these results."
 )

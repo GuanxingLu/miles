@@ -19,6 +19,7 @@ See spec: docs/superpowers/specs/2026-04-17-parl-v2-agent-swarm-alignment-design
 """
 
 import asyncio
+import re
 
 from miles.utils.http_utils import post
 
@@ -26,6 +27,29 @@ MAX_REGISTRY_SIZE = 8
 SOLVER_MAX_NEW_TOKENS = 1024
 SOLVER_TEMPERATURE = 1.0
 SOLVER_CONCURRENCY = 16
+
+# ── Context-sharding: subagent output extraction ──────────────────────
+# Appended to every subagent's system prompt so it always emits a
+# <result>…</result> block.  The extractor returns only that block to
+# the orchestrator, keeping its context bounded.
+
+SUBAGENT_OUTPUT_SUFFIX = (
+    "\n\n# Output Format\n"
+    "After completing your work, you MUST wrap your final answer or key "
+    "findings in a <result>…</result> block at the end of your response. "
+    "The orchestrator will ONLY see the content inside <result>…</result>. "
+    "Put all essential information there — anything outside will be discarded."
+)
+
+_RESULT_RE = re.compile(r"<result>(.*?)</result>", re.DOTALL)
+
+
+def extract_subagent_result(body: str) -> str:
+    """Return the last <result>…</result> content, or the full body as fallback."""
+    matches = _RESULT_RE.findall(body)
+    if matches:
+        return matches[-1].strip()
+    return body
 
 _solver_semaphore: asyncio.Semaphore | None = None
 
@@ -122,7 +146,7 @@ async def _assign_task_call(
         return f"Error: agent '{agent}' not found. Call create_subagent first.", False
 
     messages = [
-        {"role": "system", "content": registry[agent]},
+        {"role": "system", "content": registry[agent] + SUBAGENT_OUTPUT_SUFFIX},
         {"role": "user", "content": prompt},
     ]
     text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
@@ -141,4 +165,6 @@ async def _assign_task_call(
             return f"__SOLVER_ERROR__: {e}", False
     body = output.get("text", "") or ""
     is_valid = bool(body.strip()) and not body.startswith("__SOLVER_ERROR__")
+    if is_valid:
+        body = extract_subagent_result(body)
     return body, is_valid
