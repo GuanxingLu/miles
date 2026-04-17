@@ -178,16 +178,16 @@ async def _assign_task_call(
 
 ## 5. Observability
 
-`rollout_log.py` 加两条 W&B 指标，每 run 上报一次（常量）。在 rollout_log 里读 `args.sglang_model_routers`（rollout 进程已就绪）：
+人类可读的"frozen / shared"标签由节 3 的 startup log 承担（一次性打到 stdout）。这里只补一条**机器可过滤**的数值指标 `parl/subagent_endpoint_distinct`，让 W&B sweep 一眼区分两组 run：
 
 ```python
+# rollout_log.py::log_rollout_data
 sub_url  = get_model_url(args, "subagent")
-live_url = get_model_url(args, "actor")
-wandb.run.summary["parl/subagent_mode"] = "frozen" if sub_url != live_url else "shared"
-wandb.run.summary["parl/subagent_endpoint_distinct"] = int(sub_url != live_url)
+live_url = f"http://{args.sglang_router_ip}:{args.sglang_router_port}/generate"
+log_dict["parl/subagent_endpoint_distinct"] = int(sub_url != live_url)
 ```
 
-frozen 模式应恒为 `1`，shared 恒为 `0`，sweep 比较时一眼区分。
+frozen 模式恒为 `1`，shared 恒为 `0`。走现有 `tracking_utils.log` 通道（数值 step-level），不引入 `wandb.run.summary` 直调依赖，离线 wandb 也能工作。
 
 ## 6. 边界条件
 
