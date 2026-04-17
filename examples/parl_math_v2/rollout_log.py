@@ -37,6 +37,7 @@ import numpy as np
 from miles.utils import tracking_utils
 from miles.utils.iter_utils import group_by
 from miles.utils.metric_utils import compute_rollout_step
+from miles.rollout.sglang_rollout import get_model_url
 
 _REWARD_KEYS = (
     "r_perf",
@@ -167,6 +168,10 @@ def log_rollout_data(rollout_id, args, samples, rollout_extra_metrics, rollout_t
     log_dict = {}
     log_dict |= _compute_reward_component_metrics(samples)
     log_dict |= _compute_multi_turn_metrics(args, samples)
+
+    sub_url = get_model_url(args, "subagent")
+    live_url = f"http://{args.sglang_router_ip}:{args.sglang_router_port}/generate"
+    log_dict["parl/subagent_endpoint_distinct"] = int(sub_url != live_url)
 
     if log_dict:
         step = compute_rollout_step(args, rollout_id)
