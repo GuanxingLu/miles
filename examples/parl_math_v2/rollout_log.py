@@ -34,25 +34,25 @@ from __future__ import annotations
 
 import numpy as np
 
-from miles.rollout.sglang_rollout import get_model_url
 from miles.utils import tracking_utils
 from miles.utils.iter_utils import group_by
 from miles.utils.metric_utils import compute_rollout_step
 
-_REWARD_KEYS = (
+# Keys logged with full 5-stat distribution (mean/std/p50/max/min).
+_REWARD_STAT_KEYS = (
     "r_perf",
     "r_parallel",
     "r_finish",
     "r_box",
     "n_assign",
     "n_create",
-    "n_valid",
     "registry_size",
     "critical_steps",
-    "lambda1",
-    "lambda2",
-    "lambda_box",
 )
+
+# Lambda keys: step-level hyperparams, only mean is meaningful (batch-internal
+# std is ~1e-6), so we log a single scalar instead of 5-stat distribution.
+_REWARD_SCALAR_KEYS = ("lambda1", "lambda2", "lambda_box")
 
 
 def _stats(values, prefix):
@@ -89,9 +89,17 @@ def _per_turn_assign_counts(samples):
 
 def _compute_reward_component_metrics(samples):
     log_dict = {}
-    for key in _REWARD_KEYS:
+    for key in _REWARD_STAT_KEYS:
         log_dict |= _stats(_extract(samples, key), f"reward/{key}")
 
+    # Lambdas are step-level hyperparams — only log scalar mean.
+    for key in _REWARD_SCALAR_KEYS:
+        vals = _extract(samples, key)
+        if vals:
+            log_dict[f"reward/{key}"] = float(np.mean(vals))
+
+    # solver_success_rate = n_valid / n_assign (captures the n_valid info
+    # without duplicating the full 5-stat distribution of n_assign).
     valid = sum(_extract(samples, "n_valid"))
     total = sum(_extract(samples, "n_assign"))
     if total > 0:
@@ -102,11 +110,12 @@ def _compute_reward_component_metrics(samples):
 def _compute_multi_turn_metrics(args, samples):
     log_dict = {}
 
+    # assign_rate: fraction of samples that spawned at least one subagent.
+    # (Full n_assign distribution is already under reward/n_assign/*.)
     n_assign = _extract(samples, "n_assign")
     if n_assign:
         arr = np.asarray(n_assign)
         log_dict["multi_turn/assign_rate"] = float((arr > 0).mean())
-        log_dict |= _stats(n_assign, "multi_turn/n_assign")
 
     # per-turn n_assign distribution (how many subagents spawned per spawn turn).
     per_turn_assigns = _per_turn_assign_counts(samples)
@@ -126,10 +135,7 @@ def _compute_multi_turn_metrics(args, samples):
     if ratios:
         log_dict |= _stats(ratios, "multi_turn/effective_response_ratio")
 
-    # Unique specialists created per rollout (registry_size proxy).
-    registry_sizes = _extract(samples, "registry_size")
-    if registry_sizes:
-        log_dict |= _stats(registry_sizes, "multi_turn/n_unique_agents_used")
+    # (n_unique_agents_used removed — identical to reward/registry_size/*.)
 
     # GRPO within-group std: if this is ~0, dispatch gradients collapse.
     if args.advantage_estimator != "ppo":
@@ -168,10 +174,6 @@ def log_rollout_data(rollout_id, args, samples, rollout_extra_metrics, rollout_t
     log_dict = {}
     log_dict |= _compute_reward_component_metrics(samples)
     log_dict |= _compute_multi_turn_metrics(args, samples)
-
-    sub_url = get_model_url(args, "subagent")
-    live_url = f"http://{args.sglang_router_ip}:{args.sglang_router_port}/generate"
-    log_dict["parl/subagent_endpoint_distinct"] = int(sub_url != live_url)
 
     if log_dict:
         step = compute_rollout_step(args, rollout_id)
