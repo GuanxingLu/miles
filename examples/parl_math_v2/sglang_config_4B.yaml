@@ -1,0 +1,25 @@
+# PARL v2 frozen-subagent topology for Qwen3-4B (8 GPUs, TP=2).
+#
+# Splits the colocate rollout pool into two SGLang models sharing the
+# same router cluster:
+#   - actor:    live policy, receives RL weight updates
+#   - subagent: frozen at args.hf_checkpoint (true hard-frozen),
+#               called by examples.parl_math_v2.tool.assign_task
+#
+# Total num_gpus across both groups MUST equal --rollout-num-gpus
+# (= --actor-num-gpus under --colocate). Each group's num_gpus must
+# be divisible by --rollout-num-gpus-per-engine (=2 for 4B).
+sglang:
+  - name: actor
+    update_weights: true
+    server_groups:
+      - worker_type: regular
+        num_gpus: 6        # 3 engines × TP=2
+  - name: subagent
+    # model_path empty -> falls back to args.hf_checkpoint (hard-frozen).
+    # For heterogeneous-size ablation, set an explicit path here
+    # (e.g. /workspace/miles/MODEL/Qwen3-0.6B).
+    update_weights: false
+    server_groups:
+      - worker_type: regular
+        num_gpus: 2        # 1 engine × TP=2

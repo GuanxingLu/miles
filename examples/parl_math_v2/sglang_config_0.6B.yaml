@@ -1,0 +1,13 @@
+# PARL v2 frozen-subagent topology for Qwen3-0.6B (4 GPUs, TP=1).
+# See sglang_config_4B.yaml for design notes.
+sglang:
+  - name: actor
+    update_weights: true
+    server_groups:
+      - worker_type: regular
+        num_gpus: 3        # 3 engines × TP=1
+  - name: subagent
+    update_weights: false
+    server_groups:
+      - worker_type: regular
+        num_gpus: 1        # 1 engine × TP=1
