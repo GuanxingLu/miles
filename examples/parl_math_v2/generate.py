@@ -183,7 +183,14 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
             sample.metadata["critical_steps"] += 1
             break
 
-        _, tool_calls = tool_call_parser.parse_non_stream(output["text"])
+        raw_text = output["text"]
+        raw_tool_call_count = raw_text.count(tool_call_parser.detector.bot_token)
+        _, tool_calls = tool_call_parser.parse_non_stream(raw_text)
+        failed = raw_tool_call_count - len(tool_calls)
+        if failed > 0:
+            sample.metadata["tool_call_parse_failures"] = sample.metadata.get("tool_call_parse_failures", 0) + failed
+            sample.metadata["tool_call_raw_count"] = sample.metadata.get("tool_call_raw_count", 0) + raw_tool_call_count
+
         if len(tool_calls) == 0:
             sample.metadata["turns"].append({"n_create": 0, "n_assign": 0, "n_valid": 0, "final": False})
             sample.metadata["critical_steps"] += 1
