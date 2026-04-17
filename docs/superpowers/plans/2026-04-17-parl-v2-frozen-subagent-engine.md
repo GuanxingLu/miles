@@ -23,7 +23,7 @@
 | `examples/parl_math_v2/rollout_log.py` | Add `parl/subagent_mode` + `parl/subagent_endpoint_distinct` W&B summary keys | **modify** |
 | `examples/parl_math_v2/run-qwen3-4B-parl-v2.sh` | Add `SUBAGENT_MODE` env switch (default `frozen`) | **modify** |
 | `examples/parl_math_v2/run-qwen3-0.6B-parl-v2.sh` | Add `SUBAGENT_MODE` env switch (default `frozen`) | **modify** |
-| `examples/parl_math_v2/run_parl_math.py` | (no change) | — |
+| `examples/parl_math_v2/run_parl_math.py` | Add `sglang_config: str = ""` field + forward to `sglang_args` train string (typer rejects unknown CLI args) | **modify** |
 
 Splitting rationale: each file's responsibility stays narrow. yaml = topology declaration. `tool.py` = stateless tool implementations. `generate.py` = rollout orchestration glue. `rollout_log.py` = metric emission. Launch scripts = run-time configuration. None of these grow uncomfortably.
 

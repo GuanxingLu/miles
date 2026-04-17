@@ -210,7 +210,7 @@ frozen 模式恒为 `1`，shared 恒为 `0`。走现有 `tracking_utils.log` 通
 | `examples/parl_math_v2/generate.py`               | 用 `get_model_url(args, "subagent")` 拿 URL；闭包传给 `_execute_tool_calls_parallel`；首次打一行 log | ~10 行 |
 | `examples/parl_math_v2/tool.py`                   | `_assign_task_call` 加 `router_url` kwarg；删 `_router_url` + env 兜底 | ~5 行（净 -5） |
 | `examples/parl_math_v2/rollout_log.py`            | `parl/subagent_mode` + `parl/subagent_endpoint_distinct` | ~6 行 |
-| `examples/parl_math_v2/run_parl_math.py`          | 无改动 | 0 |
+| `examples/parl_math_v2/run_parl_math.py`          | `ScriptArgs.sglang_config` 字段 + `execute()` 里 forward 到 `sglang_args` train string（typer 不接受未知 CLI arg） | ~6 行 |
 
 总计约 30 行净增（不含 yaml 文件本体）。
 
