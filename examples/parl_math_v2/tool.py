@@ -9,15 +9,16 @@ Orchestrator has two tools:
 
 Parallelism: the orchestrator is free to emit multiple ``assign_task`` calls
 in one turn. ``generate.py``'s custom parallel wrapper runs them via
-``asyncio.gather``. Registry state and the tokenizer are injected as
-keyword-only args by the wrapper via closure binding — ``tool.py`` itself is
-stateless.
+``asyncio.gather``. Registry state, tokenizer, and the subagent SGLang
+router URL are injected as keyword-only args by the wrapper via closure
+binding — ``tool.py`` itself is stateless. The router URL points at the
+"subagent" model when --sglang-config declares it (frozen mode); otherwise
+it falls back to the live router (ablation / shared mode).
 
 See spec: docs/superpowers/specs/2026-04-17-parl-v2-agent-swarm-alignment-design.md
 """
 
 import asyncio
-import os
 
 from miles.utils.http_utils import post
 
@@ -83,16 +84,6 @@ tool_specs = [
 ]
 
 
-def _router_url() -> str:
-    ip = os.environ.get("MILES_SGLANG_ROUTER_IP") or os.environ.get("SGLANG_ROUTER_IP")
-    port = os.environ.get("MILES_SGLANG_ROUTER_PORT") or os.environ.get("SGLANG_ROUTER_PORT")
-    if not ip or not port:
-        raise RuntimeError(
-            "assign_task needs MILES_SGLANG_ROUTER_{IP,PORT} in env. "
-            "Launcher must export these to match --sglang-router-ip/--sglang-router-port."
-        )
-    return f"http://{ip}:{port}/generate"
-
 
 def _get_semaphore() -> asyncio.Semaphore:
     global _solver_semaphore
@@ -117,7 +108,9 @@ def _create_subagent(params: dict, *, registry: dict[str, str]) -> str:
     return f"Registered subagent '{name}'."
 
 
-async def _assign_task_call(params: dict, *, registry: dict[str, str], tokenizer) -> tuple[str, bool]:
+async def _assign_task_call(
+    params: dict, *, registry: dict[str, str], tokenizer, router_url: str
+) -> tuple[str, bool]:
     """Return (text, is_valid). ``is_valid`` marks whether the subagent
     produced a non-empty, non-error response (for r_finish)."""
     agent = params.get("agent")
@@ -144,7 +137,7 @@ async def _assign_task_call(params: dict, *, registry: dict[str, str], tokenizer
     }
     async with _get_semaphore():
         try:
-            output = await post(_router_url(), payload)
+            output = await post(router_url, payload)
         except Exception as e:
             return f"__SOLVER_ERROR__: {e}", False
     body = output.get("text", "") or ""
