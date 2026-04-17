@@ -67,6 +67,17 @@ sglang:
     server_groups:
       - worker_type: regular
         num_gpus: 2        # 1 engine × TP=2
+        # CRITICAL for frozen engines: miles colocate releases weights on
+        # offload, and live engines get them back via IPC after every train
+        # step. The frozen engine is filtered out of the IPC path
+        # (update_weights: false) so its weights would die after the first
+        # offload/resume cycle. enable_weights_cpu_backup makes SGLang keep
+        # a CPU-pinned copy of weights across release/resume — the same
+        # mechanism miles already enables for LoRA engines (see
+        # miles/backends/sglang_utils/sglang_engine.py:657-658). Costs about
+        # one model's worth of pinned host RAM per TP rank (~8 GB for 4B).
+        overrides:
+          enable_weights_cpu_backup: true
 ```
 
 - [ ] **Step 2: Create 0.6B yaml**
@@ -87,6 +98,9 @@ sglang:
     server_groups:
       - worker_type: regular
         num_gpus: 1        # 1 engine × TP=1
+        # See sglang_config_4B.yaml for why this is required on frozen engines.
+        overrides:
+          enable_weights_cpu_backup: true
 ```
 
 - [ ] **Step 3: Verify yamls parse via miles `SglangConfig.from_yaml`**
@@ -103,6 +117,12 @@ for path in ['examples/parl_math_v2/sglang_config_4B.yaml',
     update_flags = {m.name: m.update_weights for m in cfg.models}
     totals = {m.name: m.total_num_gpus for m in cfg.models}
     print(f'{path}: models={names} update_flags={update_flags} totals={totals}')
+    # The enable_weights_cpu_backup override on the subagent group is what keeps
+    # frozen weights alive across offload/resume cycles; assert it's present.
+    sub = next(m for m in cfg.models if m.name == 'subagent')
+    assert sub.server_groups[0].overrides.get('enable_weights_cpu_backup') is True, \
+        f'{path}: subagent group must override enable_weights_cpu_backup=true'
+print('enable_weights_cpu_backup override present on both subagent groups ✓')
 "
 ```
 
@@ -110,6 +130,7 @@ Expected output (exact totals):
 ```
 examples/parl_math_v2/sglang_config_4B.yaml: models=['actor', 'subagent'] update_flags={'actor': True, 'subagent': False} totals={'actor': 6, 'subagent': 2}
 examples/parl_math_v2/sglang_config_0.6B.yaml: models=['actor', 'subagent'] update_flags={'actor': True, 'subagent': False} totals={'actor': 3, 'subagent': 1}
+enable_weights_cpu_backup override present on both subagent groups ✓
 ```
 
 Note: `actor.update_weights` is `True` because the yaml explicitly sets `update_weights: true`. `from_yaml` reads it directly; `resolve()` (invoked later inside `_resolve_sglang_config` at training time) only fills in defaults when the yaml leaves `update_weights` unset.

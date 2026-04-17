@@ -54,9 +54,21 @@ actor:    [0, R)        训练时活，rollout 时 offload
 live:     [0, R-F)      colocate，IPC 接收 weight update
 subagent: [R-F, R)      colocate，update_weights:false，IPC 跳过
 ```
-frozen engine 在训练 step 期间也跟着 offload（SGLang memory_saver 把权重存 CPU pinned mem），训练完 resume；从未收到 IPC 更新 → 跨 offload/resume 周期权重恒定 = 初始 HF checkpoint。
 
-每 step 多一次 frozen engine 的 offload/resume，开销几百 ms 量级，可忽略。
+**关键运行时设置**：frozen engine 在每次训练 step 都会跟 live engine 一起被 `release_memory_occupation` 释放 GPU，但**没有 IPC 路径把权重推回来**。为了让 frozen engine 在 resume 时仍能拿到原始权重，必须在其 yaml 条目里显式开启 SGLang 的 `enable_weights_cpu_backup: true`（见 §1），它让 SGLang 在 release 时把权重 pin 到 CPU、resume 时从 CPU 还原。这与 miles 为 LoRA engines 默认打开的机制（`miles/backends/sglang_utils/sglang_engine.py:657-658`）是同一套。
+
+每 step 额外开销：frozen engine 的 weights copy 到 CPU pinned mem 和拷回 GPU，~几百 ms 量级；+1 份 pinned host RAM（4B ≈ 8GB，按 TP rank 分）。
+
+### 为什么必须 CPU backup（实测）
+
+2026-04-17 4B 跑到 step 21 时 curl 两个 endpoint 对打：
+
+| Endpoint | 输出 | `weight_version` |
+|---|---|---|
+| live (18765) | `" Paris. The capital of Germany is Berlin."` | `"21"` |
+| subagent (4077) | `"!!!!!!!!!"` (token ids 全是 0) | `"default"` |
+
+subagent 从未收到 IPC 更新（`"default"`），且输出是退化的 token-0——SGLang 默认 `enable_weights_cpu_backup=False`，release 时 weights 被真 free，resume 时 GPU 上是未初始化内存，推理落入 argmax 塌到低位 token id。加 `enable_weights_cpu_backup: true` 修复此问题。
 
 ## 1. SGLang 配置 yaml
 
@@ -75,6 +87,8 @@ sglang:
     server_groups:
       - worker_type: regular
         num_gpus: 2                   # 1 个 engine × TP=2
+        overrides:
+          enable_weights_cpu_backup: true   # 见"拓扑"节说明
 ```
 
 `examples/parl_math_v2/sglang_config_0.6B.yaml` —— 4 卡，TP=1：
@@ -90,9 +104,13 @@ sglang:
     server_groups:
       - worker_type: regular
         num_gpus: 1                   # 1 个 engine × TP=1
+        overrides:
+          enable_weights_cpu_backup: true
 ```
 
-总和（actor + subagent）= `--rollout-num-gpus`，否则 `_resolve_sglang_config:1103` assert 失败。每个 group 的 `num_gpus` 必须能被 `rollout_num_gpus_per_engine`（4B=2, 0.6B=1）整除。
+- 总和（actor + subagent）= `--rollout-num-gpus`，否则 `_resolve_sglang_config:1103` assert 失败
+- 每个 group 的 `num_gpus` 必须能被 `rollout_num_gpus_per_engine`（4B=2, 0.6B=1）整除
+- subagent group **必须**带 `overrides.enable_weights_cpu_backup: true`，否则 frozen engine 在第 1 次 train step 之后退化（见"拓扑"节实测结果）
 
 ## 2. Launch 脚本
 
@@ -248,3 +266,26 @@ frozen 模式恒为 `1`，shared 恒为 `0`。走现有 `tracking_utils.log` 通
 | Wide-Deep Search 合成 prompt | 当前用 dapo-math-17k | ❌ 数据工程，独立设计 |
 | Token-level gradient masking | 用 PPO clip | ❌ 独立设计 |
 | MuonClip 优化器 | 用 Adam | ❌ 独立设计 |
+
+## 10. 考虑过但未采用的方案：actor < rollout 拓扑
+
+**未做。** 留在这里是为了防止未来踩同一个坑。
+
+**方案描述**：让 frozen engine 住在 actor GPU 范围**之外**（`[actor_num_gpus, rollout_num_gpus)`），利用 `miles/ray/rollout.py:1050` 的 per-group offload 判断 `needs_offload = group_abs_start < megatron_num_gpus` —— 这样 frozen group 永远不被 offload，权重从不被 release，不需要 CPU backup。
+
+**需要改动**：
+- `miles/utils/arguments.py:1990–1995`：原本 colocate 下硬把 `rollout_num_gpus` override 成等于 `actor_num_gpus`，要改成允许 `rollout > actor`
+- `miles/ray/placement_group.py:95–100`：colocate 下 PG 大小从 `actor` 改成 `max(actor, rollout)`
+- `run_parl_math.py`：加 `actor_num_gpus_per_node` / `rollout_num_gpus` 字段并 forward
+- Launch script：frozen 分支里 pin actor 到 R-F 张卡
+
+**为什么不做**：
+- 需要 2 处 miles core 改动，污染面更大
+- Actor 训练吞吐 -25%（4B 从 8 卡缩到 6 卡），需要永久付这个税
+- `enable_weights_cpu_backup: true` 方案只改 yaml 1 行，actor 保持 8 卡满吞吐，且用的是 miles 为 LoRA 已经验证过的同一套 SGLang 机制，胜率更高
+
+**什么时候可能反过来选这个**：
+- Qwen3-4B bf16 在 CPU pinned mem 占 ~8GB；如果未来做更大模型（比如 70B MoE），CPU backup 成本高到装不下
+- 或 frozen engine 需要 per-step 毫秒级 resume 延迟的场景（CPU→GPU 拷贝不可忽略）
+
+此时再切 actor<rollout 方案。实现细节已经被验证可行（相关 commit `2d7068963` / `73ba0176d` 已 revert，代码曾经在 branch 上跑通过 parse 和 AST 校验），未来启用时可作为参考。

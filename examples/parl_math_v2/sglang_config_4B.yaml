@@ -23,3 +23,14 @@ sglang:
     server_groups:
       - worker_type: regular
         num_gpus: 2        # 1 engine × TP=2
+        # CRITICAL for frozen engines: miles colocate releases weights on
+        # offload, and live engines get them back via IPC after every train
+        # step. The frozen engine is filtered out of the IPC path
+        # (update_weights: false) so its weights would die after the first
+        # offload/resume cycle. enable_weights_cpu_backup makes SGLang keep
+        # a CPU-pinned copy of weights across release/resume — the same
+        # mechanism miles already enables for LoRA engines (see
+        # miles/backends/sglang_utils/sglang_engine.py:657-658). Costs about
+        # one model's worth of pinned host RAM per TP rank (~8 GB for 4B).
+        overrides:
+          enable_weights_cpu_backup: true

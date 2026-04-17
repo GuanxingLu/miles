@@ -11,3 +11,6 @@ sglang:
     server_groups:
       - worker_type: regular
         num_gpus: 1        # 1 engine × TP=1
+        # See sglang_config_4B.yaml for why this is required on frozen engines.
+        overrides:
+          enable_weights_cpu_backup: true
