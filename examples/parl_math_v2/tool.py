@@ -164,7 +164,7 @@ async def _assign_task_call(
         except Exception as e:
             return f"__SOLVER_ERROR__: {e}", False
     body = output.get("text", "") or ""
-    is_valid = bool(body.strip()) and not body.startswith("__SOLVER_ERROR__")
+    is_valid = bool(body.strip()) and not body.startswith("__SOLVER_ERROR__") and bool(_RESULT_RE.search(body))
     if is_valid:
         body = extract_subagent_result(body)
     return body, is_valid
