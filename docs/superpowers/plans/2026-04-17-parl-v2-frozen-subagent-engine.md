@@ -108,11 +108,11 @@ for path in ['examples/parl_math_v2/sglang_config_4B.yaml',
 
 Expected output (exact totals):
 ```
-examples/parl_math_v2/sglang_config_4B.yaml: models=['actor', 'subagent'] update_flags={'actor': None, 'subagent': False} totals={'actor': 6, 'subagent': 2}
-examples/parl_math_v2/sglang_config_0.6B.yaml: models=['actor', 'subagent'] update_flags={'actor': None, 'subagent': False} totals={'actor': 3, 'subagent': 1}
+examples/parl_math_v2/sglang_config_4B.yaml: models=['actor', 'subagent'] update_flags={'actor': True, 'subagent': False} totals={'actor': 6, 'subagent': 2}
+examples/parl_math_v2/sglang_config_0.6B.yaml: models=['actor', 'subagent'] update_flags={'actor': True, 'subagent': False} totals={'actor': 3, 'subagent': 1}
 ```
 
-Note: `actor.update_weights` shows `None` because `from_yaml` doesn't run `resolve()` (which fills it in as `True` based on hf_checkpoint at training time). That's expected — `resolve()` is invoked later inside `_resolve_sglang_config`.
+Note: `actor.update_weights` is `True` because the yaml explicitly sets `update_weights: true`. `from_yaml` reads it directly; `resolve()` (invoked later inside `_resolve_sglang_config` at training time) only fills in defaults when the yaml leaves `update_weights` unset.
 
 - [ ] **Step 4: Commit**
 
