@@ -93,7 +93,15 @@ def create_placement_groups(args):
         num_gpus = args.rollout_num_gpus
         rollout_offset = 0
     elif args.colocate:
-        num_gpus = args.actor_num_nodes * args.actor_num_gpus_per_node
+        # Colocate normally means rollout shares actor GPUs. When the caller declares
+        # more rollout GPUs than actor (see arguments.py: explicitly allowed when user
+        # sets --rollout-num-gpus > actor*nodes), the extra bundles host engine groups
+        # that live outside the actor range — these groups are not offloaded and never
+        # receive IPC weight updates (e.g. PARL v2 frozen subagent).
+        num_gpus = max(
+            args.actor_num_nodes * args.actor_num_gpus_per_node,
+            getattr(args, "rollout_num_gpus", 0),
+        )
         rollout_offset = 0
         if args.use_critic:
             num_gpus += args.critic_num_nodes * args.critic_num_gpus_per_node

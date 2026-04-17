@@ -79,12 +79,20 @@ export MILES_SCRIPT_EXTERNAL_RAY=1
 #   frozen (default): --sglang-config carves a separate 'subagent' SGLang
 #                     model from the colocate rollout pool, frozen at the
 #                     SFT hf_checkpoint and excluded from RL weight updates.
+#                     Actor uses only 6 of 8 GPUs; the frozen engine lives
+#                     on the remaining 2 GPUs outside actor's range so it
+#                     is never offloaded (otherwise its weights die — no
+#                     IPC update path keeps them alive across train steps).
 #   shared           : skip --sglang-config; subagent shares the live
 #                     policy router (= pre-frozen-engine baseline, used
 #                     as ablation control).
 SUBAGENT_MODE=${SUBAGENT_MODE:-frozen}
 if [ "$SUBAGENT_MODE" = "frozen" ]; then
-   SGLANG_EXTRA_ARGS=(--sglang-config examples/parl_math_v2/sglang_config_4B.yaml)
+   SGLANG_EXTRA_ARGS=(
+      --sglang-config examples/parl_math_v2/sglang_config_4B.yaml
+      --actor-num-gpus-per-node 6
+      --rollout-num-gpus "${NUM_GPUS}"
+   )
 elif [ "$SUBAGENT_MODE" = "shared" ]; then
    SGLANG_EXTRA_ARGS=()
 else
