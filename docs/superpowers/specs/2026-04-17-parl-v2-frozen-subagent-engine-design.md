@@ -46,17 +46,28 @@ K2.5 PARL Agent Swarm 的核心解耦：Orchestrator **可训练**、Subagent **
 
 ## 拓扑
 
-colocate 模式、总 GPU 不变：
-```
-total = actor_num_gpus = rollout_num_gpus = R
+**关键约束**：frozen engine **必须在 actor GPU 范围之外**，否则训练 step 的 offload 会把它的权重 free 掉、后续 onload 无从恢复（SGLang memory_saver 不会把权重 cache 到 CPU——release 就是真的 free；live engine 靠 IPC 把权重推回来，frozen engine 没有这条路径）。
 
-actor:    [0, R)        训练时活，rollout 时 offload
-live:     [0, R-F)      colocate，IPC 接收 weight update
-subagent: [R-F, R)      colocate，update_weights:false，IPC 跳过
-```
-frozen engine 在训练 step 期间也跟着 offload（SGLang memory_saver 把权重存 CPU pinned mem），训练完 resume；从未收到 IPC 更新 → 跨 offload/resume 周期权重恒定 = 初始 HF checkpoint。
+实测（2026-04-17 4B 跑法）：
+- 初始 subagent engine 输出正常，但第 1 次 offload/onload 之后 `weight_version="default"` + 输出 `[0,0,0,...]` 全是 token 0 → 权重退化成空内存
+- 引入 actor<rollout 拆分后（见下）症状消失
 
-每 step 多一次 frozen engine 的 offload/resume，开销几百 ms 量级，可忽略。
+因此 colocate 下 **actor_num_gpus < rollout_num_gpus**（miles 做了两行 core 改动允许这个拓扑）：
+```
+total = rollout_num_gpus = R
+actor_num_gpus        = R - F      (< R)
+
+actor:    [0, R-F)      训练时活，rollout 时 offload
+live:     [0, R-F)      colocate 在 actor 范围内，offload，IPC 接收 weight update
+subagent: [R-F, R)      独占 actor 范围之外，**不 offload**，enable_memory_saver=False
+```
+
+代价：actor 训练只能用 R-F 张卡，不是 R 张。在 4B 里 actor 从 8 降到 6（单 step 吞吐 ~-25%）。这是 colocate + frozen subagent 的**架构性必交税**——那 F 张卡要一直给 frozen engine 压着，actor 抢不到。
+
+**miles core 改动**（2 处必须）：
+1. `miles/utils/arguments.py:1990-2008`：原来 colocate 下硬写 `rollout_num_gpus = actor_num_gpus`，现在允许 `rollout > actor`（只有 `rollout < actor` 时才 clamp）
+2. `miles/ray/placement_group.py:95-104`：colocate 下 PG 大小改成 `max(actor, rollout)`
+3. 已有的 `miles/ray/rollout.py:1050` per-group offload 判断 `group_abs_start < megatron_num_gpus` 正好覆盖新拓扑：frozen group 在 `[R-F, R)`，`group_abs_start=R-F ≥ megatron_num_gpus=R-F` → `needs_offload=False` ✓；`rollout.py:1052-1053` 同时设 `enable_memory_saver=False`
 
 ## 1. SGLang 配置 yaml
 
@@ -210,7 +221,9 @@ frozen 模式恒为 `1`，shared 恒为 `0`。走现有 `tracking_utils.log` 通
 | `examples/parl_math_v2/generate.py`               | 用 `get_model_url(args, "subagent")` 拿 URL；闭包传给 `_execute_tool_calls_parallel`；首次打一行 log | ~10 行 |
 | `examples/parl_math_v2/tool.py`                   | `_assign_task_call` 加 `router_url` kwarg；删 `_router_url` + env 兜底 | ~5 行（净 -5） |
 | `examples/parl_math_v2/rollout_log.py`            | `parl/subagent_mode` + `parl/subagent_endpoint_distinct` | ~6 行 |
-| `examples/parl_math_v2/run_parl_math.py`          | `ScriptArgs.sglang_config` 字段 + `execute()` 里 forward 到 `sglang_args` train string（typer 不接受未知 CLI arg） | ~6 行 |
+| `examples/parl_math_v2/run_parl_math.py`          | `ScriptArgs.sglang_config` / `actor_num_gpus_per_node` / `rollout_num_gpus` 字段 + forward 到 train_args（typer 不接受未知 CLI arg；frozen 模式需要 actor<rollout 拓扑） | ~12 行 |
+| `miles/utils/arguments.py`                        | colocate 下允许 `rollout_num_gpus > actor_num_gpus`（原先硬 override；新拓扑前提） | ~10 行 |
+| `miles/ray/placement_group.py`                    | colocate 下 PG 大小 = `max(actor, rollout)`（原先 = actor） | ~5 行 |
 
 总计约 30 行净增（不含 yaml 文件本体）。
 
