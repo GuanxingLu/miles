@@ -320,9 +320,8 @@ def execute(args: ScriptArgs):
             # no_proxy and NCCL_NVLS_ENABLE are already handled by
             # miles/utils/external_utils/command_utils.py.
             # NCCL_IB_HCA selects the RoCE HCAs (mlx5_bond_0..7 on this
-            # cluster — prefix match picks all 8).
-            # NCCL_DEBUG=INFO is temporary for diagnosing first cross-
-            # node run; remove once the training loop is confirmed.
+            # cluster — prefix match picks all 8). Uncomment NCCL_DEBUG
+            # to re-diagnose cross-node transport if it regresses.
             **{k: os.environ[k] for k in ("TP_SOCKET_IFNAME",) if k in os.environ},
             "NCCL_IB_HCA": "mlx5_bond",
             "NCCL_CUMEM_ENABLE": "0",
@@ -336,7 +335,7 @@ def execute(args: ScriptArgs):
             "NCCL_IB_QPS_PER_CONNECTION": "8",
             "NCCL_P2P_LEVEL": "NVL",
             "NCCL_MIN_CTAS": "4",
-            "NCCL_DEBUG": "INFO",
+            # "NCCL_DEBUG": "INFO",
         },
     )
 
