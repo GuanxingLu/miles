@@ -4,7 +4,7 @@
 
 **Goal:** Spin up a separate, frozen SGLang engine pool for `assign_task` subagent inference in `examples/parl_math_v2/`, so subagent runs on hard-frozen SFT weights while only the orchestrator (main agent) is updated by RL — aligning with K2.5 PARL Agent Swarm.
 
-**Architecture:** Use miles' existing multi-model `--sglang-config` infrastructure to declare two ServerGroups under one router cluster: `actor` (live, `update_weights: true`) and `subagent` (frozen, `update_weights: false`). The frozen engine must live **outside** actor's GPU range in colocate mode (otherwise its weights die after the first offload/onload cycle — miles' colocate offloads every rollout engine in actor range, and the frozen one has no IPC path to restore weights). Therefore: total rollout GPUs = actor GPUs + F frozen GPUs, actor is reduced by F. Requires 2 small miles-core changes (allow `rollout_num_gpus > actor_num_gpus` in colocate; size the PG as `max(actor, rollout)`). `generate.py` calls `miles.rollout.sglang_rollout.get_model_url(args, "subagent")` to route subagent requests; auto-falls-back to the live router when the yaml is absent (ablation mode).
+**Architecture:** Use miles' existing multi-model `--sglang-config` infrastructure to declare two ServerGroups under one router cluster: `actor` (live, `update_weights: true`) and `subagent` (frozen, `update_weights: false`). Both colocate with the training actor on the same GPU pool — total GPU count unchanged. `generate.py` calls `miles.rollout.sglang_rollout.get_model_url(args, "subagent")` to route subagent requests; this auto-falls-back to the live router when the yaml is absent (ablation mode). Zero changes to miles core.
 
 **Tech Stack:** Python 3.12, miles (Megatron + SGLang), Ray, YAML, bash. Test execution is end-to-end smoke (no fast-test surface for parl_math_v2).
 
@@ -21,11 +21,9 @@
 | `examples/parl_math_v2/tool.py` | Take `router_url` as kwarg; drop env-based `_router_url` helper | **modify** |
 | `examples/parl_math_v2/generate.py` | Compute subagent URL via `get_model_url`; thread via closure; first-call log | **modify** |
 | `examples/parl_math_v2/rollout_log.py` | Add `parl/subagent_mode` + `parl/subagent_endpoint_distinct` W&B summary keys | **modify** |
-| `examples/parl_math_v2/run-qwen3-4B-parl-v2.sh` | Add `SUBAGENT_MODE` env switch (default `frozen`); frozen path also pins actor to 6 GPUs so subagent engine lives on 2 GPUs outside actor range | **modify** |
-| `examples/parl_math_v2/run-qwen3-0.6B-parl-v2.sh` | Add `SUBAGENT_MODE` env switch; frozen path pins actor to 3 GPUs | **modify** |
-| `examples/parl_math_v2/run_parl_math.py` | Add `sglang_config` + `actor_num_gpus_per_node` + `rollout_num_gpus` fields; forward them | **modify** |
-| `miles/utils/arguments.py` | Allow `rollout_num_gpus > actor_num_gpus` under `--colocate` (was force-overridden); lets extra rollout GPUs host non-updatable engines outside actor range | **modify (miles core)** |
-| `miles/ray/placement_group.py` | Colocate PG size = `max(actor, rollout)` instead of `= actor`; same bundle range, just grown at the tail for out-of-actor-range rollout groups | **modify (miles core)** |
+| `examples/parl_math_v2/run-qwen3-4B-parl-v2.sh` | Add `SUBAGENT_MODE` env switch (default `frozen`) | **modify** |
+| `examples/parl_math_v2/run-qwen3-0.6B-parl-v2.sh` | Add `SUBAGENT_MODE` env switch (default `frozen`) | **modify** |
+| `examples/parl_math_v2/run_parl_math.py` | Add `sglang_config: str = ""` field + forward to `sglang_args` train string (typer rejects unknown CLI args) | **modify** |
 
 Splitting rationale: each file's responsibility stays narrow. yaml = topology declaration. `tool.py` = stateless tool implementations. `generate.py` = rollout orchestration glue. `rollout_log.py` = metric emission. Launch scripts = run-time configuration. None of these grow uncomfortably.
 
