@@ -12,10 +12,13 @@ pkill -9 sglang
 sleep 3
 ray stop --force
 pkill -9 ray
-pkill -9 python
+# Targeted python kill so we don't clobber the long-running RAG server
+# (examples/agent/tools/search_local_server_qdrant/local_retrieval_server.py).
+# Matches ray workers + miles train.py + parl_v2 launcher processes only.
+pkill -9 -f 'ray::\|train\.py\|parl_v2\|run_parl_v2' || true
 sleep 3
 pkill -9 ray
-pkill -9 python
+pkill -9 -f 'ray::\|train\.py\|parl_v2\|run_parl_v2' || true
 
 set -ex
 

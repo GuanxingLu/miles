@@ -3,8 +3,9 @@
 Assumes the raw datasets are already on disk under ``DATA/`` (user fetched
 from HF separately). Produces per-file ``*.miles.jsonl`` siblings with:
 
-- ``question`` kept verbatim (widesearch-test's ``query`` is renamed to
-  ``question`` so a single ``--input-key question`` flag works everywhere).
+- ``prompt``: the question / query text. Name matches run_parl_v2.py's
+  hardcoded ``--input-key prompt``; widesearch-test's ``query`` and
+  wideseek-r1-train's ``question`` both land here.
 - ``label`` = ``json.dumps({"answer": ..., "unique_columns": ... | None})``.
   The reward's ``_decode_label`` reads this back.
 
@@ -63,7 +64,7 @@ def _convert_file(src: Path, dst: Path, prompt_key: str, has_uc: bool) -> int:
                 "answer": answer if isinstance(answer, str) else json.dumps(answer),
                 "unique_columns": list(unique_columns) if unique_columns else None,
             }
-            out = {"question": prompt, "label": json.dumps(label, ensure_ascii=False)}
+            out = {"prompt": prompt, "label": json.dumps(label, ensure_ascii=False)}
             fout.write(json.dumps(out, ensure_ascii=False) + "\n")
             n += 1
     return n
