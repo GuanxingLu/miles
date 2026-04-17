@@ -42,6 +42,13 @@ _MODEL_DEFAULTS = {
         "tensor_model_parallel_size": 1,
         "rollout_num_gpus_per_engine": 1,
     },
+    "qwen3-30B-A3B": {
+        "hf_checkpoint": "MODEL/Qwen3-30B-A3B",
+        "ref_load": "MODEL/Qwen3-30B-A3B_torch_dist",
+        "megatron_model_type": "qwen3-30B-A3B",
+        "tensor_model_parallel_size": 4,
+        "rollout_num_gpus_per_engine": 4,
+    },
 }
 
 
@@ -51,7 +58,7 @@ class ScriptArgs(U.ExecuteTrainConfig):
     run_id: str = field(default_factory=U.create_run_id)
     hardware: Literal["H100", "GB200", "GB300"] = "H100"
     num_gpus_per_node: int | None = None
-    model: Literal["qwen3-4B", "qwen3-0.6B"] = "qwen3-0.6B"
+    model: Literal["qwen3-4B", "qwen3-0.6B", "qwen3-30B-A3B"] = "qwen3-0.6B"
     dev_repo_dir: str = DEFAULT_DEV_REPO_DIR
     save_path: str = ""
     prompt_data: str = ""
