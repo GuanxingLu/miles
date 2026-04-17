@@ -1,19 +1,16 @@
-# PARL v2 frozen-subagent topology for Qwen3-30B-A3B (16 GPUs, TP=4).
+# PARL v2 frozen-subagent topology for Qwen3-30B-A3B (8 GPUs, TP=4).
 # See sglang_config_4B.yaml for design notes (including the
 # load-bearing order constraint: actor must be listed first).
 #
-# Default layout for 2×8-GPU nodes (16 GPUs total):
-#   actor    : 12 GPUs → 3 engines × TP=4 (live policy, receives RL updates)
-#   subagent :  4 GPUs → 1 engine  × TP=4 (frozen at SFT checkpoint)
-#
-# For single-node 8-GPU runs, override num_gpus to 4+4 (1 actor + 1 subagent)
-# or use SUBAGENT_MODE=shared to skip the frozen engine entirely.
+# Layout for single 8-GPU node:
+#   actor    : 4 GPUs → 1 engine × TP=4 (live policy, receives RL updates)
+#   subagent : 4 GPUs → 1 engine × TP=4 (frozen at SFT checkpoint)
 sglang:
   - name: actor
     update_weights: true
     server_groups:
       - worker_type: regular
-        num_gpus: 12       # 3 engines × TP=4
+        num_gpus: 4        # 1 engine × TP=4
   - name: subagent
     update_weights: false
     server_groups:
