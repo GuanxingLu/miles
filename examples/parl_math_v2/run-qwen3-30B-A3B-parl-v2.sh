@@ -100,7 +100,7 @@ export MILES_SCRIPT_EXTERNAL_RAY=1
 #                     as ablation control).
 SUBAGENT_MODE=${SUBAGENT_MODE:-frozen}
 if [ "$SUBAGENT_MODE" = "frozen" ]; then
-   SGLANG_EXTRA_ARGS=(--sglang-config examples/parl_math_v2/sglang_config_30B_A3B.yaml)
+   SGLANG_EXTRA_ARGS=(--sglang-config examples/parl_math_v2/sglang_config_30B_A3B_2node.yaml)
 elif [ "$SUBAGENT_MODE" = "shared" ]; then
    SGLANG_EXTRA_ARGS=()
 else
