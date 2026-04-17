@@ -148,7 +148,7 @@ async def generate(input: GenerateFnInput) -> GenerateFnOutput:
         logger.info(f"[parl_v2] live router:     {live_router_url}")
         _logged_endpoint = True
     assert not args.partial_rollout, "Partial rollout is not supported"
-    assert not args.generate_multi_samples, "generate_multi_samples is not supported in parl_math_v2 custom multi-turn"
+    assert not args.generate_multi_samples, "generate_multi_samples is not supported in parl_v2 custom multi-turn"
 
     url = f"http://{args.sglang_router_ip}:{args.sglang_router_port}/generate"
     tool_specs = load_function(args.generate_tool_specs_path)

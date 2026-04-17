@@ -1,12 +1,12 @@
 # PARL v2 Critical Steps & Reward Alignment — Design
 
 **Date:** 2026-04-17
-**Target:** `examples/parl_math_v2/`
+**Target:** `examples/parl_v2/`
 **Reference:** `.claude/reference/kimi_k2.5_parl_agent_swarm.md` (K2.5 PARL paper summary, arXiv:2602.02276)
 
 ## 背景
 
-当前 `examples/parl_math_v2/` 的实现与 K2.5 PARL paper 有两处偏离：
+当前 `examples/parl_v2/` 的实现与 K2.5 PARL paper 有两处偏离：
 
 1. **Critical Steps 形态错了**：paper 把 critical steps 作为 episode-length **预算约束**（第 175 行："训练时用 critical steps 而非 total steps 限制 episode 长度"），当前代码把它当成 reward 里的负项 `-λ₃·critical_steps_ratio`。
 2. **r_parallel / r_finish 语义互换**：paper 的 r_parallel 是"实例化奖励，防 serial collapse"，r_finish 是"subagent 完成率"。当前代码把 `valid/total`（完成率）叫 r_parallel，把 `has_boxed`（orchestrator 交卷）叫 r_finish，角色错配。
@@ -78,19 +78,19 @@ critical_steps += final_orch_turn_tokens
 ```
 
 **实现定位（方案 2a）**：不动 miles 通用 rollout。
-- 新建 `examples/parl_math_v2/rollout.py`（拷 `miles/rollout/generate_hub/multi_turn.py` 并在续跑检查处加 critical_steps 逻辑）
+- 新建 `examples/parl_v2/rollout.py`（拷 `miles/rollout/generate_hub/multi_turn.py` 并在续跑检查处加 critical_steps 逻辑）
 - `tool.py` 的 `execute_tool` 把 `max(solver_tokens)` 通过 side-channel（stash 到调用方可读位置，比如 coroutine-local / 放进 tool 响应 metadata）传给 rollout
-- `run_parl_math.py` 加 `--rollout-function-path` 指向 parl 自己的 rollout
+- `run_parl_v2.py` 加 `--rollout-function-path` 指向 parl 自己的 rollout
 
 ## 文件改动
 
 | 文件 | 改动 |
 |---|---|
-| `examples/parl_math_v2/rollout.py` | **新建**：拷 miles `multi_turn.py` + critical_steps 累加 + 双阈值检查 |
-| `examples/parl_math_v2/reward.py` | 重写 reward；删 `_compute_critical_steps`、`COST_PER_CALL`、`LAMBDA3`、`critical_steps_ratio`；`LAMBDA3_INIT` → `LAMBDA_BOX`；改 per-turn 分解 |
-| `examples/parl_math_v2/tool.py` | 保留 solver_tokens 在 footer（供 rollout 读）；增 side-channel 传 `max_solver_tokens` |
-| `examples/parl_math_v2/rollout_log.py` | 新增 `r_box`、`critical_steps` 日志键；删 `critical_steps_ratio`、`lambda3` |
-| `examples/parl_math_v2/run_parl_math.py` | 加 `--rollout-max-critical-steps`、`--rollout-function-path` |
+| `examples/parl_v2/rollout.py` | **新建**：拷 miles `multi_turn.py` + critical_steps 累加 + 双阈值检查 |
+| `examples/parl_v2/reward.py` | 重写 reward；删 `_compute_critical_steps`、`COST_PER_CALL`、`LAMBDA3`、`critical_steps_ratio`；`LAMBDA3_INIT` → `LAMBDA_BOX`；改 per-turn 分解 |
+| `examples/parl_v2/tool.py` | 保留 solver_tokens 在 footer（供 rollout 读）；增 side-channel 传 `max_solver_tokens` |
+| `examples/parl_v2/rollout_log.py` | 新增 `r_box`、`critical_steps` 日志键；删 `critical_steps_ratio`、`lambda3` |
+| `examples/parl_v2/run_parl_v2.py` | 加 `--rollout-max-critical-steps`、`--rollout-function-path` |
 
 ## 不在本次范围
 

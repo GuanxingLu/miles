@@ -1,7 +1,7 @@
 # PARL v2 Agent Swarm Alignment — Design
 
 **Date:** 2026-04-17
-**Target:** `examples/parl_math_v2/`
+**Target:** `examples/parl_v2/`
 **Reference:** `.claude/reference/kimi_k2.5_parl_agent_swarm.md` (K2.5 PARL paper summary, arXiv:2602.02276)
 **Prior design:** `docs/superpowers/specs/2026-04-17-parl-v2-critical-steps-refactor-design.md` (critical_steps as budget + reward re-labeling; already merged)
 
@@ -106,7 +106,7 @@ critical_steps   = Σ phase_cost
 - `create_subagent` 无论多少个，本身不产生 subagent 运行 → 只算 orchestrator 自己那 1 step
 - Orchestrator 本轮 `finish_reason ∈ {"abort", "length"}` 且未 emit tool_call（或 emit 后被截断）→ 按 final 处理，cost=1，跳出主循环
 
-**默认预算：** `rollout_max_critical_steps = 2 * generate_max_turns`（`run_parl_math.py` 的 `__post_init__` 填充）。`generate_max_turns=6` → 默认 `rollout_max_critical_steps=12`。
+**默认预算：** `rollout_max_critical_steps = 2 * generate_max_turns`（`run_parl_v2.py` 的 `__post_init__` 填充）。`generate_max_turns=6` → 默认 `rollout_max_critical_steps=12`。
 
 **终止：** `generate.py` 主循环保持和当前一致的"critical_steps ≥ max_cs → TRUNCATED"。
 
@@ -216,7 +216,7 @@ outputs, then end with the final answer in \boxed{...}.
 
 **保留：** `spawn_rate`（改为 `assign_rate`：至少一个 turn 有 n_assign>0 的 rollout 占比）、`turns_per_rollout`、`effective_response_ratio`、spawn-by-difficulty（语义现为 n_assign-by-difficulty）、group-std 检查（key 从 `n_spawn` 改 `n_assign`）。
 
-## 9. `run_parl_math.py` 改动
+## 9. `run_parl_v2.py` 改动
 
 - `ScriptArgs.__post_init__` 里把 `self.rollout_max_critical_steps = self.rollout_max_critical_steps or self.rollout_max_response_len` 改为 `or (2 * self.generate_max_turns)`
 - 无新 CLI arg
@@ -228,12 +228,12 @@ outputs, then end with the final answer in \boxed{...}.
 
 | 文件 | 改动 |
 |---|---|
-| `examples/parl_math_v2/tool.py` | 重写：`tool_specs` 改双工具；新增 `_assign_task_call`；`execute_tool(name, params, registry)` 加 registry；删除 `_solver_call`, `_format_candidates`, `STATS_FOOTER_*`, `_is_valid_solver_output`（保留 `_router_url`, `_get_semaphore`, 常量） |
-| `examples/parl_math_v2/generate.py` | 每 rollout init registry + closure-bind execute_tool；自写 `_execute_tool_calls_parallel`（create 串行、assign gather、concurrent cap）；每轮记录 `sample.metadata["turns"]`；critical_steps 改 turn 累加；删除 `_SOLVER_TOKENS_RE`, `_max_solver_tokens_from` |
-| `examples/parl_math_v2/reward.py` | 删 `_STATS_FOOTER_RE`, `_read_per_call_stats`, `_count_tool_calls`；新增 metadata 读取 + per-turn 聚合；pure-create turn = 0 credit；`_fill_per_token_advantages` 按 metadata["turns"] 对齐 loss_mask span |
-| `examples/parl_math_v2/rollout_log.py` | `_REWARD_KEYS` 更新；新增 `assign_per_turn`, `n_unique_agents_used` 指标；`n_spawn`→`n_assign`（全部引用） |
-| `examples/parl_math_v2/run_parl_math.py` | `rollout_max_critical_steps` 默认值从 `rollout_max_response_len` 改成 `2 * generate_max_turns` |
-| `examples/parl_math_v2/prompts.py` | 重写 `ORCHESTRATOR_SYSTEM_PROMPT`；删除 `SOLVER_PROMPT_TEMPLATE`（不再用固定模板） |
+| `examples/parl_v2/tool.py` | 重写：`tool_specs` 改双工具；新增 `_assign_task_call`；`execute_tool(name, params, registry)` 加 registry；删除 `_solver_call`, `_format_candidates`, `STATS_FOOTER_*`, `_is_valid_solver_output`（保留 `_router_url`, `_get_semaphore`, 常量） |
+| `examples/parl_v2/generate.py` | 每 rollout init registry + closure-bind execute_tool；自写 `_execute_tool_calls_parallel`（create 串行、assign gather、concurrent cap）；每轮记录 `sample.metadata["turns"]`；critical_steps 改 turn 累加；删除 `_SOLVER_TOKENS_RE`, `_max_solver_tokens_from` |
+| `examples/parl_v2/reward.py` | 删 `_STATS_FOOTER_RE`, `_read_per_call_stats`, `_count_tool_calls`；新增 metadata 读取 + per-turn 聚合；pure-create turn = 0 credit；`_fill_per_token_advantages` 按 metadata["turns"] 对齐 loss_mask span |
+| `examples/parl_v2/rollout_log.py` | `_REWARD_KEYS` 更新；新增 `assign_per_turn`, `n_unique_agents_used` 指标；`n_spawn`→`n_assign`（全部引用） |
+| `examples/parl_v2/run_parl_v2.py` | `rollout_max_critical_steps` 默认值从 `rollout_max_response_len` 改成 `2 * generate_max_turns` |
+| `examples/parl_v2/prompts.py` | 重写 `ORCHESTRATOR_SYSTEM_PROMPT`；删除 `SOLVER_PROMPT_TEMPLATE`（不再用固定模板） |
 
 ## 11. 非本次范围
 

@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Spin up a separate, frozen SGLang engine pool for `assign_task` subagent inference in `examples/parl_math_v2/`, so subagent runs on hard-frozen SFT weights while only the orchestrator (main agent) is updated by RL — aligning with K2.5 PARL Agent Swarm.
+**Goal:** Spin up a separate, frozen SGLang engine pool for `assign_task` subagent inference in `examples/parl_v2/`, so subagent runs on hard-frozen SFT weights while only the orchestrator (main agent) is updated by RL — aligning with K2.5 PARL Agent Swarm.
 
 **Architecture:** Use miles' existing multi-model `--sglang-config` infrastructure to declare two ServerGroups under one router cluster: `actor` (live, `update_weights: true`) and `subagent` (frozen, `update_weights: false`). Both colocate with the training actor on the same GPU pool — total GPU count unchanged. `generate.py` calls `miles.rollout.sglang_rollout.get_model_url(args, "subagent")` to route subagent requests; this auto-falls-back to the live router when the yaml is absent (ablation mode). Zero changes to miles core.
 
-**Tech Stack:** Python 3.12, miles (Megatron + SGLang), Ray, YAML, bash. Test execution is end-to-end smoke (no fast-test surface for parl_math_v2).
+**Tech Stack:** Python 3.12, miles (Megatron + SGLang), Ray, YAML, bash. Test execution is end-to-end smoke (no fast-test surface for parl_v2).
 
 **Reference spec:** `docs/superpowers/specs/2026-04-17-parl-v2-frozen-subagent-engine-design.md`
 
@@ -16,14 +16,14 @@
 
 | File | Responsibility | Action |
 |---|---|---|
-| `examples/parl_math_v2/sglang_config_4B.yaml` | Declare 4B colocate-split topology (actor=6, subagent=2, TP=2) | **create** |
-| `examples/parl_math_v2/sglang_config_0.6B.yaml` | Declare 0.6B colocate-split topology (actor=3, subagent=1, TP=1) | **create** |
-| `examples/parl_math_v2/tool.py` | Take `router_url` as kwarg; drop env-based `_router_url` helper | **modify** |
-| `examples/parl_math_v2/generate.py` | Compute subagent URL via `get_model_url`; thread via closure; first-call log | **modify** |
-| `examples/parl_math_v2/rollout_log.py` | Add `parl/subagent_mode` + `parl/subagent_endpoint_distinct` W&B summary keys | **modify** |
-| `examples/parl_math_v2/run-qwen3-4B-parl-v2.sh` | Add `SUBAGENT_MODE` env switch (default `frozen`) | **modify** |
-| `examples/parl_math_v2/run-qwen3-0.6B-parl-v2.sh` | Add `SUBAGENT_MODE` env switch (default `frozen`) | **modify** |
-| `examples/parl_math_v2/run_parl_math.py` | Add `sglang_config: str = ""` field + forward to `sglang_args` train string (typer rejects unknown CLI args) | **modify** |
+| `examples/parl_v2/sglang_config_4B.yaml` | Declare 4B colocate-split topology (actor=6, subagent=2, TP=2) | **create** |
+| `examples/parl_v2/sglang_config_0.6B.yaml` | Declare 0.6B colocate-split topology (actor=3, subagent=1, TP=1) | **create** |
+| `examples/parl_v2/tool.py` | Take `router_url` as kwarg; drop env-based `_router_url` helper | **modify** |
+| `examples/parl_v2/generate.py` | Compute subagent URL via `get_model_url`; thread via closure; first-call log | **modify** |
+| `examples/parl_v2/rollout_log.py` | Add `parl/subagent_mode` + `parl/subagent_endpoint_distinct` W&B summary keys | **modify** |
+| `examples/parl_v2/run-qwen3-4B-parl-v2.sh` | Add `SUBAGENT_MODE` env switch (default `frozen`) | **modify** |
+| `examples/parl_v2/run-qwen3-0.6B-parl-v2.sh` | Add `SUBAGENT_MODE` env switch (default `frozen`) | **modify** |
+| `examples/parl_v2/run_parl_v2.py` | Add `sglang_config: str = ""` field + forward to `sglang_args` train string (typer rejects unknown CLI args) | **modify** |
 
 Splitting rationale: each file's responsibility stays narrow. yaml = topology declaration. `tool.py` = stateless tool implementations. `generate.py` = rollout orchestration glue. `rollout_log.py` = metric emission. Launch scripts = run-time configuration. None of these grow uncomfortably.
 
@@ -32,14 +32,14 @@ Splitting rationale: each file's responsibility stays narrow. yaml = topology de
 ## Task 1: Create yaml configs for both model sizes
 
 **Files:**
-- Create: `examples/parl_math_v2/sglang_config_4B.yaml`
-- Create: `examples/parl_math_v2/sglang_config_0.6B.yaml`
+- Create: `examples/parl_v2/sglang_config_4B.yaml`
+- Create: `examples/parl_v2/sglang_config_0.6B.yaml`
 
 This is a pure-config change. Verification is "yaml parses + miles' `from_yaml` accepts it"; deferred to the smoke test in Task 6.
 
 - [ ] **Step 1: Create 4B yaml**
 
-Write `examples/parl_math_v2/sglang_config_4B.yaml`:
+Write `examples/parl_v2/sglang_config_4B.yaml`:
 
 ```yaml
 # PARL v2 frozen-subagent topology for Qwen3-4B (8 GPUs, TP=2).
@@ -48,7 +48,7 @@ Write `examples/parl_math_v2/sglang_config_4B.yaml`:
 # same router cluster:
 #   - actor:    live policy, receives RL weight updates
 #   - subagent: frozen at args.hf_checkpoint (true hard-frozen),
-#               called by examples.parl_math_v2.tool.assign_task
+#               called by examples.parl_v2.tool.assign_task
 #
 # Total num_gpus across both groups MUST equal --rollout-num-gpus
 # (= --actor-num-gpus under --colocate). Each group's num_gpus must
@@ -82,7 +82,7 @@ sglang:
 
 - [ ] **Step 2: Create 0.6B yaml**
 
-Write `examples/parl_math_v2/sglang_config_0.6B.yaml`:
+Write `examples/parl_v2/sglang_config_0.6B.yaml`:
 
 ```yaml
 # PARL v2 frozen-subagent topology for Qwen3-0.6B (4 GPUs, TP=1).
@@ -110,8 +110,8 @@ Run:
 ```bash
 cd /ssd0/guanxing/miles && python3 -c "
 from miles.backends.sglang_utils.sglang_config import SglangConfig
-for path in ['examples/parl_math_v2/sglang_config_4B.yaml',
-             'examples/parl_math_v2/sglang_config_0.6B.yaml']:
+for path in ['examples/parl_v2/sglang_config_4B.yaml',
+             'examples/parl_v2/sglang_config_0.6B.yaml']:
     cfg = SglangConfig.from_yaml(path)
     names = [m.name for m in cfg.models]
     update_flags = {m.name: m.update_weights for m in cfg.models}
@@ -128,8 +128,8 @@ print('enable_weights_cpu_backup override present on both subagent groups ✓')
 
 Expected output (exact totals):
 ```
-examples/parl_math_v2/sglang_config_4B.yaml: models=['actor', 'subagent'] update_flags={'actor': True, 'subagent': False} totals={'actor': 6, 'subagent': 2}
-examples/parl_math_v2/sglang_config_0.6B.yaml: models=['actor', 'subagent'] update_flags={'actor': True, 'subagent': False} totals={'actor': 3, 'subagent': 1}
+examples/parl_v2/sglang_config_4B.yaml: models=['actor', 'subagent'] update_flags={'actor': True, 'subagent': False} totals={'actor': 6, 'subagent': 2}
+examples/parl_v2/sglang_config_0.6B.yaml: models=['actor', 'subagent'] update_flags={'actor': True, 'subagent': False} totals={'actor': 3, 'subagent': 1}
 enable_weights_cpu_backup override present on both subagent groups ✓
 ```
 
@@ -138,8 +138,8 @@ Note: `actor.update_weights` is `True` because the yaml explicitly sets `update_
 - [ ] **Step 4: Commit**
 
 ```bash
-git add examples/parl_math_v2/sglang_config_4B.yaml \
-        examples/parl_math_v2/sglang_config_0.6B.yaml
+git add examples/parl_v2/sglang_config_4B.yaml \
+        examples/parl_v2/sglang_config_0.6B.yaml
 git commit -m "$(cat <<'EOF'
 [parl] add frozen-subagent sglang configs for 4B and 0.6B
 
@@ -157,23 +157,23 @@ EOF
 ## Task 2: Refactor `tool.py` to take `router_url` as kwarg
 
 **Files:**
-- Modify: `examples/parl_math_v2/tool.py`
+- Modify: `examples/parl_v2/tool.py`
 
 Goal: drop the env-based `_router_url` helper; `_assign_task_call` now takes `router_url` as a required kwarg, injected by `generate.py`'s closure binding. Keeps `tool.py` stateless w.r.t. routing.
 
 - [ ] **Step 1: Read current state of tool.py**
 
-Read `examples/parl_math_v2/tool.py` to confirm current line numbers. Specifically locate:
+Read `examples/parl_v2/tool.py` to confirm current line numbers. Specifically locate:
 - import of `os` (line 20)
 - `_router_url()` function (lines 86–94)
 - `_assign_task_call(...)` signature (line 120) and call site of `_router_url()` (line 147)
 
 - [ ] **Step 2: Remove `_router_url` and `os` import**
 
-Edit `examples/parl_math_v2/tool.py`:
+Edit `examples/parl_v2/tool.py`:
 
 - Delete the entire `_router_url()` function (lines 86–94 inclusive, including the docstring/blank lines around it).
-- Delete `import os` if no other usage remains in the file (verify by `grep "os\." examples/parl_math_v2/tool.py` — there shouldn't be any other uses after removing `_router_url`).
+- Delete `import os` if no other usage remains in the file (verify by `grep "os\." examples/parl_v2/tool.py` — there shouldn't be any other uses after removing `_router_url`).
 
 - [ ] **Step 3: Update `_assign_task_call` signature and body**
 
@@ -227,7 +227,7 @@ it falls back to the live router (ablation / shared mode).
 
 ```bash
 cd /ssd0/guanxing/miles && python3 -c "
-from examples.parl_math_v2 import tool
+from examples.parl_v2 import tool
 import inspect
 sig = inspect.signature(tool._assign_task_call)
 print('signature:', sig)
@@ -246,7 +246,7 @@ os module imported: False
 - [ ] **Step 6: Commit**
 
 ```bash
-git add examples/parl_math_v2/tool.py
+git add examples/parl_v2/tool.py
 git commit -m "$(cat <<'EOF'
 [parl] tool: take router_url as kwarg, drop env-based discovery
 
@@ -264,13 +264,13 @@ EOF
 ## Task 3: Wire subagent router URL through `generate.py`
 
 **Files:**
-- Modify: `examples/parl_math_v2/generate.py`
+- Modify: `examples/parl_v2/generate.py`
 
 Goal: at the top of each `generate()` call, compute the subagent router URL via `miles.rollout.sglang_rollout.get_model_url(args, "subagent")` (auto-fallback to live router built into the helper). Thread it through `_execute_tool_calls_parallel` to `_assign_task_call`. Add a one-time module-level startup log so we can eyeball "frozen vs shared" at run start.
 
 - [ ] **Step 1: Read current state of generate.py**
 
-Read `examples/parl_math_v2/generate.py`. Confirm:
+Read `examples/parl_v2/generate.py`. Confirm:
 - Imports start at lines 19–40 (look for the existing `from miles.rollout.*` imports)
 - `_execute_tool_calls_parallel` definition at line 74, signature includes `*, registry, tokenizer`
 - `_assign_task_call` is invoked at line 97 with `registry=registry, tokenizer=tokenizer`
@@ -278,7 +278,7 @@ Read `examples/parl_math_v2/generate.py`. Confirm:
 
 - [ ] **Step 2: Add the import + module-level log cache**
 
-In `examples/parl_math_v2/generate.py`, add to the top-level (after the existing `from miles.rollout.*` imports, right before the constant `MAX_CONCURRENT_ASSIGN = 8`):
+In `examples/parl_v2/generate.py`, add to the top-level (after the existing `from miles.rollout.*` imports, right before the constant `MAX_CONCURRENT_ASSIGN = 8`):
 
 ```python
 import logging
@@ -393,7 +393,7 @@ The existing top docstring describes what the module does. Add one more bullet t
 ```bash
 cd /ssd0/guanxing/miles && python3 -c "
 import inspect
-from examples.parl_math_v2 import generate as g
+from examples.parl_v2 import generate as g
 sig_g = inspect.signature(g.generate)
 sig_e = inspect.signature(g._execute_tool_calls_parallel)
 print('generate:', sig_g)
@@ -415,7 +415,7 @@ _logged_endpoint initial: False
 - [ ] **Step 7: Commit**
 
 ```bash
-git add examples/parl_math_v2/generate.py
+git add examples/parl_v2/generate.py
 git commit -m "$(cat <<'EOF'
 [parl] generate: route assign_task to frozen subagent router
 
@@ -437,13 +437,13 @@ EOF
 ## Task 4: Add observability metrics in `rollout_log.py`
 
 **Files:**
-- Modify: `examples/parl_math_v2/rollout_log.py`
+- Modify: `examples/parl_v2/rollout_log.py`
 
 Goal: emit two W&B summary keys (constant per run): `parl/subagent_mode` (string) and `parl/subagent_endpoint_distinct` (0 or 1). Logged every rollout step but they're constants — main consumer is W&B sweep filtering.
 
 - [ ] **Step 1: Read current state of rollout_log.py**
 
-Read `examples/parl_math_v2/rollout_log.py`. Confirm:
+Read `examples/parl_v2/rollout_log.py`. Confirm:
 - `log_rollout_data(rollout_id, args, samples, ...)` lives at line 166
 - The function uses `tracking_utils.log(args, log_dict, step_key="rollout/step")` to emit metrics
 - Existing imports include `from miles.utils import tracking_utils`
@@ -473,7 +473,7 @@ Inside `log_rollout_data`, after the `log_dict |= _compute_multi_turn_metrics(ar
 ```bash
 cd /ssd0/guanxing/miles && python3 -c "
 import inspect
-from examples.parl_math_v2 import rollout_log
+from examples.parl_v2 import rollout_log
 src = inspect.getsource(rollout_log.log_rollout_data)
 assert 'parl/subagent_endpoint_distinct' in src, 'metric not added'
 assert 'get_model_url' in src, 'helper not imported into the function call'
@@ -486,7 +486,7 @@ Expected: `OK: parl/subagent_endpoint_distinct emitted in log_rollout_data`
 - [ ] **Step 5: Commit**
 
 ```bash
-git add examples/parl_math_v2/rollout_log.py
+git add examples/parl_v2/rollout_log.py
 git commit -m "$(cat <<'EOF'
 [parl] rollout_log: emit parl/subagent_endpoint_distinct each step
 
@@ -505,17 +505,17 @@ EOF
 ## Task 5: Update launch scripts to switch yaml on `SUBAGENT_MODE`
 
 **Files:**
-- Modify: `examples/parl_math_v2/run-qwen3-4B-parl-v2.sh`
-- Modify: `examples/parl_math_v2/run-qwen3-0.6B-parl-v2.sh`
+- Modify: `examples/parl_v2/run-qwen3-4B-parl-v2.sh`
+- Modify: `examples/parl_v2/run-qwen3-0.6B-parl-v2.sh`
 
 Goal: each script defaults to frozen (passes `--sglang-config <yaml>`), but `SUBAGENT_MODE=shared bash <script>` skips the yaml so miles falls back to single-model single-pool (= current behavior, used for ablation comparison).
 
 - [ ] **Step 1: Patch the 4B script**
 
-In `examples/parl_math_v2/run-qwen3-4B-parl-v2.sh`, find this block at the end:
+In `examples/parl_v2/run-qwen3-4B-parl-v2.sh`, find this block at the end:
 
 ```bash
-python examples/parl_math_v2/run_parl_math.py \
+python examples/parl_v2/run_parl_v2.py \
    ${MODEL_ARGS[@]} \
    ${RUN_ARGS[@]} \
    ${PARALLEL_ARGS[@]} \
@@ -526,7 +526,7 @@ python examples/parl_math_v2/run_parl_math.py \
 Replace it with:
 
 ```bash
-# SUBAGENT_MODE selects how examples.parl_math_v2.tool.assign_task is routed:
+# SUBAGENT_MODE selects how examples.parl_v2.tool.assign_task is routed:
 #   frozen (default): --sglang-config carves a separate 'subagent' SGLang
 #                     model from the colocate rollout pool, frozen at the
 #                     SFT hf_checkpoint and excluded from RL weight updates.
@@ -535,7 +535,7 @@ Replace it with:
 #                     as ablation control).
 SUBAGENT_MODE=${SUBAGENT_MODE:-frozen}
 if [ "$SUBAGENT_MODE" = "frozen" ]; then
-   SGLANG_EXTRA_ARGS=(--sglang-config examples/parl_math_v2/sglang_config_4B.yaml)
+   SGLANG_EXTRA_ARGS=(--sglang-config examples/parl_v2/sglang_config_4B.yaml)
 elif [ "$SUBAGENT_MODE" = "shared" ]; then
    SGLANG_EXTRA_ARGS=()
 else
@@ -543,7 +543,7 @@ else
    exit 1
 fi
 
-python examples/parl_math_v2/run_parl_math.py \
+python examples/parl_v2/run_parl_v2.py \
    ${MODEL_ARGS[@]} \
    ${RUN_ARGS[@]} \
    ${PARALLEL_ARGS[@]} \
@@ -554,10 +554,10 @@ python examples/parl_math_v2/run_parl_math.py \
 
 - [ ] **Step 2: Patch the 0.6B script**
 
-In `examples/parl_math_v2/run-qwen3-0.6B-parl-v2.sh`, find this block at the end:
+In `examples/parl_v2/run-qwen3-0.6B-parl-v2.sh`, find this block at the end:
 
 ```bash
-python examples/parl_math_v2/run_parl_math.py \
+python examples/parl_v2/run_parl_v2.py \
    ${MODEL_ARGS[@]} \
    ${RUN_ARGS[@]} \
    ${PARALLEL_ARGS[@]} \
@@ -573,7 +573,7 @@ Replace it with:
 # See run-qwen3-4B-parl-v2.sh for SUBAGENT_MODE semantics.
 SUBAGENT_MODE=${SUBAGENT_MODE:-frozen}
 if [ "$SUBAGENT_MODE" = "frozen" ]; then
-   SGLANG_EXTRA_ARGS=(--sglang-config examples/parl_math_v2/sglang_config_0.6B.yaml)
+   SGLANG_EXTRA_ARGS=(--sglang-config examples/parl_v2/sglang_config_0.6B.yaml)
 elif [ "$SUBAGENT_MODE" = "shared" ]; then
    SGLANG_EXTRA_ARGS=()
 else
@@ -581,7 +581,7 @@ else
    exit 1
 fi
 
-python examples/parl_math_v2/run_parl_math.py \
+python examples/parl_v2/run_parl_v2.py \
    ${MODEL_ARGS[@]} \
    ${RUN_ARGS[@]} \
    ${PARALLEL_ARGS[@]} \
@@ -595,8 +595,8 @@ python examples/parl_math_v2/run_parl_math.py \
 - [ ] **Step 3: Bash-syntax-check both scripts**
 
 ```bash
-bash -n /ssd0/guanxing/miles/examples/parl_math_v2/run-qwen3-4B-parl-v2.sh
-bash -n /ssd0/guanxing/miles/examples/parl_math_v2/run-qwen3-0.6B-parl-v2.sh
+bash -n /ssd0/guanxing/miles/examples/parl_v2/run-qwen3-4B-parl-v2.sh
+bash -n /ssd0/guanxing/miles/examples/parl_v2/run-qwen3-0.6B-parl-v2.sh
 echo "exit=$?"
 ```
 
@@ -605,8 +605,8 @@ Expected: no output from `bash -n` and `exit=0`. Any syntax error must be fixed 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add examples/parl_math_v2/run-qwen3-4B-parl-v2.sh \
-        examples/parl_math_v2/run-qwen3-0.6B-parl-v2.sh
+git add examples/parl_v2/run-qwen3-4B-parl-v2.sh \
+        examples/parl_v2/run-qwen3-0.6B-parl-v2.sh
 git commit -m "$(cat <<'EOF'
 [parl] launch scripts: SUBAGENT_MODE switch (default frozen)
 
@@ -647,7 +647,7 @@ In a fresh terminal on the 4-GPU debug box (where the existing 0.6B run works):
 
 ```bash
 cd /ssd0/guanxing/miles
-MODE=debug_minimal SUBAGENT_MODE=frozen bash examples/parl_math_v2/run-qwen3-0.6B-parl-v2.sh 2>&1 | tee /tmp/parl_v2_frozen_smoke.log
+MODE=debug_minimal SUBAGENT_MODE=frozen bash examples/parl_v2/run-qwen3-0.6B-parl-v2.sh 2>&1 | tee /tmp/parl_v2_frozen_smoke.log
 ```
 
 Let it run until you see at least 3 successful rollout iterations (look for `rollout_id=2` or higher in the log) — usually 5–10 minutes after Ray cluster comes up. Then `Ctrl-C`.
@@ -674,7 +674,7 @@ ss -tlnp | grep -E ":${PORT_A}|:${PORT_B}"
 ```
 Expected: two distinct listening sockets on the two ports printed by the startup log.
 
-Alternatively (preferred — robust under any process name): count `Router launched at` lines. Expected: **1** (not 2). The launcher pre-starts the live router via `subprocess.Popen` of `sglang_router.launch_router` (`run_parl_math.py::_launch_router`), so miles' `_start_router` short-circuits for `model_idx=0` and does NOT emit its "Router launched at …" log for the live pool. Only the subagent router, started fresh by miles for `model_idx=1`, emits that line:
+Alternatively (preferred — robust under any process name): count `Router launched at` lines. Expected: **1** (not 2). The launcher pre-starts the live router via `subprocess.Popen` of `sglang_router.launch_router` (`run_parl_v2.py::_launch_router`), so miles' `_start_router` short-circuits for `model_idx=0` and does NOT emit its "Router launched at …" log for the live pool. Only the subagent router, started fresh by miles for `model_idx=1`, emits that line:
 ```bash
 grep -c "Router launched at" /tmp/parl_v2_frozen_smoke.log
 ```
@@ -707,7 +707,7 @@ sleep 3
 
 ```bash
 cd /ssd0/guanxing/miles
-MODE=debug_minimal SUBAGENT_MODE=shared bash examples/parl_math_v2/run-qwen3-0.6B-parl-v2.sh 2>&1 | tee /tmp/parl_v2_shared_smoke.log
+MODE=debug_minimal SUBAGENT_MODE=shared bash examples/parl_v2/run-qwen3-0.6B-parl-v2.sh 2>&1 | tee /tmp/parl_v2_shared_smoke.log
 ```
 
 Again, wait for ≥3 successful rollout iterations, then `Ctrl-C`.

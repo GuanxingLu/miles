@@ -4,9 +4,9 @@ Wraps train.py with the PARL v2 args (orchestrator with `create_subagent` +
 `assign_task` agent-swarm tools). Mirrors examples/retool_v2/run_retool_multi_turn.py —
 the .sh launchers in this folder are thin shells that invoke this script.
 
-NOTE on PYTHONPATH: parl_math_v2 only lives in the dev tree
+NOTE on PYTHONPATH: parl_v2 only lives in the dev tree
 (/workspace/miles/examples/...), not in the baked-in /root/miles. To make
-`import examples.parl_math_v2.*` resolve correctly we pass an absolute
+`import examples.parl_v2.*` resolve correctly we pass an absolute
 train_script under the dev tree — `python3 <abs>/train.py` puts that
 directory at sys.path[0], shadowing both /root/miles and Megatron's own
 `examples` package.
@@ -141,14 +141,14 @@ def execute(args: ScriptArgs):
     )
 
     custom_args = (
-        "--custom-generate-function-path examples.parl_math_v2.generate.generate "
-        "--generate-tool-specs-path examples.parl_math_v2.tool.tool_specs "
+        "--custom-generate-function-path examples.parl_v2.generate.generate "
+        "--generate-tool-specs-path examples.parl_v2.tool.tool_specs "
         "--generate-tool-call-parser qwen25 "
         f"--generate-max-turns {args.generate_max_turns} "
         "--log-multi-turn "
-        "--custom-rm-path examples.parl_math_v2.reward.reward_func "
-        "--custom-rollout-log-function-path examples.parl_math_v2.rollout_log.log_rollout_data "
-        "--custom-eval-rollout-log-function-path examples.parl_math_v2.rollout_log.log_eval_rollout_data "
+        "--custom-rm-path examples.parl_v2.reward.reward_func "
+        "--custom-rollout-log-function-path examples.parl_v2.rollout_log.log_rollout_data "
+        "--custom-eval-rollout-log-function-path examples.parl_v2.rollout_log.log_eval_rollout_data "
         # --group-rm hands the full rollout group to reward_func, which is
         # required so it can group-normalize per-turn rewards and populate
         # sample.per_token_advantages for K2.5-style turn-level credit.
@@ -297,7 +297,7 @@ def execute(args: ScriptArgs):
         num_gpus_per_node=args.num_gpus_per_node,
         megatron_model_type=megatron_model_type,
         # Absolute dev-tree train.py: ensures sys.path[0]=/workspace/miles so
-        # `examples.parl_math_v2.*` imports resolve to the dev copy and not
+        # `examples.parl_v2.*` imports resolve to the dev copy and not
         # the baked-in /root/miles or Megatron's own examples package.
         train_script=f"{args.dev_repo_dir}/train.py",
         before_ray_job_submit=_launch_router,

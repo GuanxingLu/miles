@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # PARL v2 prod run on Qwen3-30B-A3B (H200x16, 2 nodes).
-# Thin wrapper around examples/parl_math_v2/run_parl_math.py.
+# Thin wrapper around examples/parl_v2/run_parl_v2.py.
 
 pkill -9 sglang
 sleep 3
@@ -26,8 +26,8 @@ export WANDB_BASE_URL=${WANDB_BASE_URL:-http://33.180.4.104}
 # Multi-node NCCL/Gloo socket interfaces. Default to eth0 (the netdev
 # that carries the 33.180.x.x control plane on this H200 cluster);
 # mlx5_bond_0..7 are the per-GPU RoCE HCAs and are selected via
-# NCCL_IB_HCA in run_parl_math.py. command_utils.py forwards
-# NCCL_SOCKET_IFNAME + GLOO_SOCKET_IFNAME; run_parl_math.py forwards
+# NCCL_IB_HCA in run_parl_v2.py. command_utils.py forwards
+# NCCL_SOCKET_IFNAME + GLOO_SOCKET_IFNAME; run_parl_v2.py forwards
 # TP_SOCKET_IFNAME. Override in env if running on a different cluster.
 export NCCL_SOCKET_IFNAME=${NCCL_SOCKET_IFNAME:-eth0}
 export GLOO_SOCKET_IFNAME=${GLOO_SOCKET_IFNAME:-eth0}
@@ -64,7 +64,7 @@ RUN_ARGS=(
 PARALLEL_ARGS=(
    --num-gpus-per-node "${NUM_GPUS}"
    # Bind the pre-launched sglang_router to the head node's LAN IP so worker
-   # nodes can reach it. Default in run_parl_math.py is 127.0.0.1, which only
+   # nodes can reach it. Default in run_parl_v2.py is 127.0.0.1, which only
    # works for single-node runs.
    --sglang-router-ip "${MASTER_ADDR}"
 )
@@ -112,7 +112,7 @@ ray start --head --node-ip-address ${MASTER_ADDR} --num-gpus ${NUM_GPUS} \
 export RAY_ADDRESS="http://127.0.0.1:${RAY_DASHBOARD_PORT}"
 export MILES_SCRIPT_EXTERNAL_RAY=1
 
-# SUBAGENT_MODE selects how examples.parl_math_v2.tool.assign_task is routed:
+# SUBAGENT_MODE selects how examples.parl_v2.tool.assign_task is routed:
 #   frozen (default): --sglang-config carves a separate 'subagent' SGLang
 #                     model from the colocate rollout pool, frozen at the
 #                     SFT hf_checkpoint and excluded from RL weight updates.
@@ -121,7 +121,7 @@ export MILES_SCRIPT_EXTERNAL_RAY=1
 #                     as ablation control).
 SUBAGENT_MODE=${SUBAGENT_MODE:-frozen}
 if [ "$SUBAGENT_MODE" = "frozen" ]; then
-   SGLANG_EXTRA_ARGS=(--sglang-config examples/parl_math_v2/sglang_config_30B_A3B_2node.yaml)
+   SGLANG_EXTRA_ARGS=(--sglang-config examples/parl_v2/sglang_config_30B_A3B_2node.yaml)
 elif [ "$SUBAGENT_MODE" = "shared" ]; then
    SGLANG_EXTRA_ARGS=()
 else
@@ -129,7 +129,7 @@ else
    exit 1
 fi
 
-python examples/parl_math_v2/run_parl_math.py \
+python examples/parl_v2/run_parl_v2.py \
    ${MODEL_ARGS[@]} \
    ${RUN_ARGS[@]} \
    ${PARALLEL_ARGS[@]} \
