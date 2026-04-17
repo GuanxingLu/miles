@@ -306,6 +306,11 @@ def execute(args: ScriptArgs):
             "MILES_SGLANG_ROUTER_IP": args.sglang_router_ip,
             "MILES_SGLANG_ROUTER_PORT": str(args.sglang_router_port),
             "FLASHINFER_DISABLE_VERSION_CHECK": "1",
+            # Forward wandb config to worker-node actors. WANDB_API_KEY is
+            # also passed via --wandb-key, but WANDB_BASE_URL has no CLI
+            # equivalent — without forwarding it, actors on remote nodes
+            # default to wandb.ai and time out in egress-restricted envs.
+            **{k: os.environ[k] for k in ("WANDB_BASE_URL", "WANDB_API_KEY") if k in os.environ},
         },
     )
 
