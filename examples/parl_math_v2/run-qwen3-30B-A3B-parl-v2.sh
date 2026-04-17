@@ -53,6 +53,10 @@ RUN_ARGS=(
 
 PARALLEL_ARGS=(
    --num-gpus-per-node "${NUM_GPUS}"
+   # Bind the pre-launched sglang_router to the head node's LAN IP so worker
+   # nodes can reach it. Default in run_parl_math.py is 127.0.0.1, which only
+   # works for single-node runs.
+   --sglang-router-ip "${MASTER_ADDR}"
 )
 
 DATA_ARGS=(
