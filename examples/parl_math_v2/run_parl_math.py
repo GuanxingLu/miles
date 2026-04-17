@@ -80,6 +80,10 @@ class ScriptArgs(U.ExecuteTrainConfig):
     megatron_model_type: str = ""
     tensor_model_parallel_size: int = 0
     rollout_num_gpus_per_engine: int = 0
+    # Optional path to a miles --sglang-config YAML. When set, miles carves
+    # the rollout pool into multiple SGLang models (used for the frozen
+    # subagent topology). Empty -> miles default single-model single-pool.
+    sglang_config: str = ""
     extra_args: str = ""
 
     def __post_init__(self):
@@ -200,6 +204,8 @@ def execute(args: ScriptArgs):
     sglang_args = (
         f"--rollout-num-gpus-per-engine {args.rollout_num_gpus_per_engine} " "--sglang-mem-fraction-static 0.7 "
     )
+    if args.sglang_config:
+        sglang_args += f"--sglang-config {args.sglang_config} "
 
     perf_args = (
         f"--tensor-model-parallel-size {args.tensor_model_parallel_size} "
