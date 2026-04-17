@@ -311,6 +311,28 @@ def execute(args: ScriptArgs):
             # equivalent — without forwarding it, actors on remote nodes
             # default to wandb.ai and time out in egress-restricted envs.
             **{k: os.environ[k] for k in ("WANDB_BASE_URL", "WANDB_API_KEY") if k in os.environ},
+            # Multi-node NCCL/Gloo transport tuning (mirrors
+            # scripts/run-glm4.5-355B-A32B.sh). Without these, the first
+            # cross-node NCCL collective — all_gather_object inside
+            # Megatron's _get_param_groups, right after param count is
+            # printed — fails with ncclRemoteError on Connect on
+            # MLP-style IB clusters. NCCL_SOCKET_IFNAME,
+            # GLOO_SOCKET_IFNAME, MASTER_ADDR, no_proxy and
+            # NCCL_NVLS_ENABLE are already handled by
+            # miles/utils/external_utils/command_utils.py.
+            **{k: os.environ[k] for k in ("TP_SOCKET_IFNAME",) if k in os.environ},
+            "NCCL_CUMEM_ENABLE": "0",
+            "NVTE_BWD_LAYERNORM_SM_MARGIN": "20",
+            "NCCL_IB_TC": "160",
+            "NCCL_PXN_DISABLE": "0",
+            "NCCL_IB_GID_INDEX": "3",
+            "NCCL_NET_GDR_LEVEL": "4",
+            "NCCL_IB_RETRY_CNT": "7",
+            "NCCL_IB_TIMEOUT": "32",
+            "NCCL_IB_QPS_PER_CONNECTION": "8",
+            "NCCL_P2P_LEVEL": "NVL",
+            "TORCH_NCCL_AVOID_RECORD_STREAMS": "1",
+            "NCCL_MIN_CTAS": "4",
         },
     )
 

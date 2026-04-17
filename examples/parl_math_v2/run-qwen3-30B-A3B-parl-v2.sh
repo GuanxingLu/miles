@@ -23,6 +23,17 @@ echo "HAS_NVLINK: $HAS_NVLINK (detected $NVLINK_COUNT NVLink references)"
 export WANDB_API_KEY=${WANDB_API_KEY:-local-82cbbacfe8e3c0c527da528160bd76a1e85c9fea}
 export WANDB_BASE_URL=${WANDB_BASE_URL:-http://33.180.4.104}
 
+# Multi-node NCCL/Gloo socket interfaces. On MLP-style clusters the
+# platform exposes MLP_SOCKET_IFNAME; use it as the default when the
+# user hasn't overridden the individual env vars. command_utils.py
+# forwards NCCL_SOCKET_IFNAME + GLOO_SOCKET_IFNAME; run_parl_math.py
+# forwards TP_SOCKET_IFNAME. Without these NCCL can't route cross-node.
+if [ -n "${MLP_SOCKET_IFNAME:-}" ]; then
+   export NCCL_SOCKET_IFNAME=${NCCL_SOCKET_IFNAME:-${MLP_SOCKET_IFNAME}}
+   export GLOO_SOCKET_IFNAME=${GLOO_SOCKET_IFNAME:-${MLP_SOCKET_IFNAME}}
+   export TP_SOCKET_IFNAME=${TP_SOCKET_IFNAME:-${MLP_SOCKET_IFNAME}}
+fi
+
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 REPO_DIR="$(cd -- "${SCRIPT_DIR}/../.." &>/dev/null && pwd)"
 
@@ -79,9 +90,12 @@ EXTRA_ARGS=(
    --recompute-num-layers 1
    --use-dynamic-batch-size
    --max-tokens-per-gpu 20480
-   --optimizer-cpu-offload
-   --overlap-cpu-optimizer-d2h-h2d
-   --use-precision-aware-optimizer
+   # Multi-node: distributed optimizer already shards optimizer state
+   # across 16 GPUs, and CPU offload's d2h/h2d would cross NUMA on
+   # worker nodes. Disabled per docs/en/examples/qwen3-30B-A3B.md.
+   # --optimizer-cpu-offload
+   # --overlap-cpu-optimizer-d2h-h2d
+   # --use-precision-aware-optimizer
 )
 
 cd "${REPO_DIR}"
