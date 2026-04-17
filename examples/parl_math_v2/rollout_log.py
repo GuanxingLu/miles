@@ -34,10 +34,10 @@ from __future__ import annotations
 
 import numpy as np
 
+from miles.rollout.sglang_rollout import get_model_url
 from miles.utils import tracking_utils
 from miles.utils.iter_utils import group_by
 from miles.utils.metric_utils import compute_rollout_step
-from miles.rollout.sglang_rollout import get_model_url
 
 _REWARD_KEYS = (
     "r_perf",
