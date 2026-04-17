@@ -84,7 +84,6 @@ tool_specs = [
 ]
 
 
-
 def _get_semaphore() -> asyncio.Semaphore:
     global _solver_semaphore
     if _solver_semaphore is None:
