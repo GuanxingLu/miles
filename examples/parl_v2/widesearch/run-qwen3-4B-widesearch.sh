@@ -7,15 +7,22 @@ pkill -9 sglang
 sleep 3
 ray stop --force
 pkill -9 ray
-pkill -9 python
+# Targeted python kill so we don't clobber the long-running RAG server
+# (examples/agent/tools/search_local_server_qdrant/local_retrieval_server.py).
+# Matches ray workers + miles train.py + parl_v2 launcher processes only.
+pkill -9 -f 'ray::\|train\.py\|parl_v2\|run_parl_v2' || true
 sleep 3
 pkill -9 ray
-pkill -9 python
+pkill -9 -f 'ray::\|train\.py\|parl_v2\|run_parl_v2' || true
 
 set -ex
 
 export PYTHONBUFFERED=16
 export CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0,1,2,3,4,5,6,7}
+
+# Strip any inherited proxy vars; httpx picks them up and tries SOCKS on hosts
+# that don't have socksio installed, which kills the RAG client path.
+unset http_proxy https_proxy all_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY
 NVLINK_COUNT=$(nvidia-smi | grep -o "NVLink" | wc -l)
 if [ "$NVLINK_COUNT" -gt 0 ]; then HAS_NVLINK=1; else HAS_NVLINK=0; fi
 echo "HAS_NVLINK: $HAS_NVLINK (detected $NVLINK_COUNT NVLink references)"
