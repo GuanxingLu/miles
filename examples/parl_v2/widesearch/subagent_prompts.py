@@ -13,8 +13,9 @@ subagent's system prompt combines:
    subagent can't skip it).
 
 The tool_specs are what SGLang's tool-call parser sees when it decodes
-the subagent's response; names/parameters are kept close to RLinf's
-wideseek_r1 tools.py so prompts can be reused.
+the subagent's response; names/parameters are kept close to the
+wideseek_r1 tools.py in RLinf (which we vendored the RAG server from)
+so prompts can be reused.
 """
 
 SUBAGENT_REACT_SUFFIX = (

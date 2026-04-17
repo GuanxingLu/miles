@@ -1,7 +1,10 @@
 #!/bin/bash
-# Wrapper that launches RLinf's search_local_server_qdrant/local_retrieval_server.py
-# on the local host, with miles-side paths plugged in. RLinf is not vendored into
-# miles; either clone it alongside (typical: /ssd0/guanxing/RLinf) or set RLINF_DIR.
+# Launches the E5 + Qdrant retrieval server for the widesearch benchmark.
+#
+# The server code lives under ./rag_server/ (vendored from RLinf's
+# examples/agent/tools/search_local_server_qdrant/, Apache-2.0; see the
+# license headers inside each file). miles no longer depends on an external
+# RLinf checkout.
 #
 # Prereqs (one-time):
 #   uv pip install qdrant-client==1.16.2
@@ -12,7 +15,6 @@
 # which proxies /retrieve -> Qdrant + /access -> wiki_webpages.jsonl.
 #
 # Env overrides:
-#   RLINF_DIR   path to the RLinf repo (default /ssd0/guanxing/RLinf)
 #   DATA_ROOT   miles DATA root (default ../../../DATA from this script)
 #   MODEL_ROOT  miles MODEL root (default ../../../MODEL from this script)
 #   PORT        HTTP port to bind (default 8000)
@@ -23,16 +25,14 @@ set -ex
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 REPO_DIR="$(cd -- "${SCRIPT_DIR}/../../.." &>/dev/null && pwd)"
 
-RLINF_DIR=${RLINF_DIR:-/ssd0/guanxing/RLinf}
 DATA_ROOT=${DATA_ROOT:-${REPO_DIR}/DATA}
 MODEL_ROOT=${MODEL_ROOT:-${REPO_DIR}/MODEL}
 PORT=${PORT:-8000}
 QDRANT_URL=${QDRANT_URL:-http://localhost:6333}
 
-SERVER_DIR="${RLINF_DIR}/examples/agent/tools/search_local_server_qdrant"
+SERVER_DIR="${SCRIPT_DIR}/rag_server"
 if [ ! -f "${SERVER_DIR}/local_retrieval_server.py" ]; then
    echo "ERROR: ${SERVER_DIR}/local_retrieval_server.py not found." >&2
-   echo "Set RLINF_DIR to the path of your RLinf checkout." >&2
    exit 1
 fi
 
