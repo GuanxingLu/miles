@@ -1987,26 +1987,14 @@ def miles_validate_args(args):
                 "Colocate mode: defaulting --sglang-disable-piecewise-cuda-graph to avoid NVLS OOM. "
                 "Use --sglang-enforce-piecewise-cuda-graph to override."
             )
-        actor_total_gpus = args.actor_num_gpus_per_node * args.actor_num_nodes
-        if args.use_critic:
-            actor_total_gpus += args.critic_num_gpus_per_node * args.critic_num_nodes
-        if args.rollout_num_gpus < actor_total_gpus:
+        if args.rollout_num_gpus != args.actor_num_gpus_per_node * args.actor_num_nodes:
             logger.info(
-                f"rollout_num_gpus {args.rollout_num_gpus} < actor_total_gpus {actor_total_gpus}, "
-                f"overriding rollout_num_gpus to match actor_num_gpus_per_node * actor_num_nodes."
+                f"rollout_num_gpus {args.rollout_num_gpus} != actor_num_gpus_per_node {args.actor_num_gpus_per_node} "
+                f"* actor_num_nodes {args.actor_num_nodes}, overriding rollout_num_gpus to match actor_num_gpus_per_node * actor_num_nodes."
             )
-            args.rollout_num_gpus = actor_total_gpus
-        elif args.rollout_num_gpus > actor_total_gpus:
-            # User explicitly requested more rollout GPUs than actor uses. Valid for
-            # multi-model --sglang-config configs where some engine groups live outside
-            # the actor range (e.g. frozen subagent in PARL v2 agent-swarm topology).
-            # Those groups are not offloaded (per rollout.py:1050) and never receive IPC
-            # weight updates, so keeping them on dedicated GPUs keeps their weights alive
-            # across training steps.
-            logger.info(
-                f"rollout_num_gpus {args.rollout_num_gpus} > actor_total_gpus {actor_total_gpus} "
-                f"under --colocate; extra rollout GPUs will host engines outside actor range."
-            )
+            args.rollout_num_gpus = args.actor_num_gpus_per_node * args.actor_num_nodes
+            if args.use_critic:
+                args.rollout_num_gpus += args.critic_num_gpus_per_node * args.critic_num_nodes
 
     if args.offload_train is None:
         args.offload_train = False

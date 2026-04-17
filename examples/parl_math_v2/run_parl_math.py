@@ -51,12 +51,6 @@ class ScriptArgs(U.ExecuteTrainConfig):
     run_id: str = field(default_factory=U.create_run_id)
     hardware: Literal["H100", "GB200", "GB300"] = "H100"
     num_gpus_per_node: int | None = None
-    # actor_num_gpus_per_node < num_gpus_per_node is the PARL v2 frozen-subagent
-    # pattern: actor uses a prefix of the GPUs for training, the remainder hosts
-    # always-on engines (e.g. frozen subagent) outside the offload range.
-    # Defaults to num_gpus_per_node (actor covers everything — single-pool).
-    actor_num_gpus_per_node: int | None = None
-    rollout_num_gpus: int | None = None
     model: Literal["qwen3-4B", "qwen3-0.6B"] = "qwen3-0.6B"
     dev_repo_dir: str = DEFAULT_DEV_REPO_DIR
     save_path: str = ""
@@ -94,8 +88,6 @@ class ScriptArgs(U.ExecuteTrainConfig):
 
     def __post_init__(self):
         self.num_gpus_per_node = self.num_gpus_per_node or U.NUM_GPUS_OF_HARDWARE[self.hardware]
-        self.actor_num_gpus_per_node = self.actor_num_gpus_per_node or self.num_gpus_per_node
-        self.rollout_num_gpus = self.rollout_num_gpus or self.num_gpus_per_node
         defaults = _MODEL_DEFAULTS[self.model]
         self.hf_checkpoint = self.hf_checkpoint or f"{self.dev_repo_dir}/{defaults['hf_checkpoint']}"
         self.ref_load = self.ref_load or f"{self.dev_repo_dir}/{defaults['ref_load']}"
@@ -223,9 +215,8 @@ def execute(args: ScriptArgs):
 
     misc_args = (
         f"--actor-num-nodes {args.num_nodes} "
-        f"--actor-num-gpus-per-node {args.actor_num_gpus_per_node} "
+        f"--actor-num-gpus-per-node {args.num_gpus_per_node} "
         f"--num-gpus-per-node {args.num_gpus_per_node} "
-        f"--rollout-num-gpus {args.rollout_num_gpus} "
         "--colocate "
         "--attention-dropout 0.0 "
         "--hidden-dropout 0.0 "

@@ -90,14 +90,9 @@ SGLANG_ROUTER_IP=${MILES_SGLANG_ROUTER_IP:-127.0.0.1}
 SGLANG_ROUTER_PORT=${MILES_SGLANG_ROUTER_PORT:-18765}
 
 # See run-qwen3-4B-parl-v2.sh for SUBAGENT_MODE semantics.
-# Frozen mode: actor uses 3 of 4 GPUs; frozen engine lives on the remaining 1.
 SUBAGENT_MODE=${SUBAGENT_MODE:-frozen}
 if [ "$SUBAGENT_MODE" = "frozen" ]; then
-   SGLANG_EXTRA_ARGS=(
-      --sglang-config examples/parl_math_v2/sglang_config_0.6B.yaml
-      --actor-num-gpus-per-node 3
-      --rollout-num-gpus "${NUM_GPUS}"
-   )
+   SGLANG_EXTRA_ARGS=(--sglang-config examples/parl_math_v2/sglang_config_0.6B.yaml)
 elif [ "$SUBAGENT_MODE" = "shared" ]; then
    SGLANG_EXTRA_ARGS=()
 else
