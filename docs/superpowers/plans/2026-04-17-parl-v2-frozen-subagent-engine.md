@@ -647,13 +647,18 @@ Expected output (IPs/ports may differ; key is two distinct ports and `subagent m
 ```
 where `port_A != port_B`.
 
-Also confirm two SGLang router processes:
+Also confirm two SGLang router endpoints are listening (miles uses `multiprocessing.Process` for the router, not `python3 -m sglang_router.launch_router`, so `pgrep -af sglang_router` is NOT a valid check — it returns empty even when routers are up). Read the two ports from the startup log above and check:
 ```bash
-pgrep -af sglang_router | wc -l
+ss -tlnp | grep -E ":${PORT_A}|:${PORT_B}"
 ```
-Expected: `2`.
+Expected: two distinct listening sockets on the two ports printed by the startup log.
 
-If only 1 router exists, frozen mode failed silently — investigate `_resolve_sglang_config` and the SglangConfig YAML before continuing.
+Alternatively (preferred — robust under any process name): count `Router launched at` lines in the run output. Expected: 2.
+```bash
+grep -c "Router launched at" /tmp/parl_v2_frozen_smoke.log
+```
+
+If `subagent_router_url == live_router_url` in the startup log, frozen mode failed silently — investigate `_resolve_sglang_config` and the SglangConfig YAML before continuing.
 
 - [ ] **Step 4: Verify W&B `parl/subagent_endpoint_distinct == 1` in frozen mode**
 
@@ -698,9 +703,9 @@ Expected (the two URLs should be **identical**):
 [parl_v2] live router:     http://<ip>:<port>/generate
 ```
 
-Confirm only one router process:
+Confirm only one router was launched (see Step 3 note: don't use `pgrep -af sglang_router`; it doesn't see miles' `multiprocessing.Process` router):
 ```bash
-pgrep -af sglang_router | wc -l
+grep -c "Router launched at" /tmp/parl_v2_shared_smoke.log
 ```
 Expected: `1`.
 
