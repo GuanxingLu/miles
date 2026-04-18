@@ -92,6 +92,14 @@ EVAL_EXTRA_ARGS=(
    bamboogle  "${DATA_ROOT}/asearcher-test/Bamboogle/test.miles.jsonl"
 )
 
+# Dynamic batch sizing caps per-rank micro-batch tokens, preventing the
+# logits.clone() spike in calculate_log_probs_and_entropy from OOM'ing
+# when widesearch multi-turn rollouts produce 16K-token sequences.
+PERF_ARGS=(
+   --use-dynamic-batch-size
+   --max-tokens-per-gpu 16384
+)
+
 cd "${REPO_DIR}"
 
 RAY_GCS_PORT=${RAY_GCS_PORT:-26379}
@@ -121,4 +129,4 @@ python examples/parl_v2/run_parl_v2.py \
    ${DATA_ARGS[@]} \
    ${GENERATE_ARGS[@]} \
    "${SGLANG_EXTRA_ARGS[@]}" \
-   --extra-args "${EVAL_EXTRA_ARGS[*]}"
+   --extra-args "${EVAL_EXTRA_ARGS[*]} ${PERF_ARGS[*]}"
