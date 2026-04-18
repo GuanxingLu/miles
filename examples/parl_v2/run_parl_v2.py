@@ -94,6 +94,12 @@ class ScriptArgs(U.ExecuteTrainConfig):
     # the rollout pool into multiple SGLang models (used for the frozen
     # subagent topology). Empty -> miles default single-model single-pool.
     sglang_config: str = ""
+    # Ablation control: strip the PARL v2 orchestrator + subagent layer
+    # (custom generate, tool specs, assign_task, group-rm, critical-steps,
+    # icepop TIS) and run plain single-turn GRPO against rm-type=deepscaler.
+    # All training infra (TP/EP, multi-node NCCL, optimizer, GRPO clips) is
+    # held constant so this is the isolated-variable baseline for parl_v2.
+    single_agent: bool = False
     extra_args: str = ""
 
     def __post_init__(self):
@@ -113,15 +119,17 @@ class ScriptArgs(U.ExecuteTrainConfig):
             # leave this empty by default so run_parl_v2 skips its single-set expansion.
         self.rollout_max_critical_steps = self.rollout_max_critical_steps or (2 * self.generate_max_turns)
         if not self.save_path:
-            self.save_path = f"{self.dev_repo_dir}/saves/{os.path.basename(self.hf_checkpoint)}-parl-v2/{self.run_id}"
+            suffix = "baseline" if self.single_agent else "parl-v2"
+            self.save_path = f"{self.dev_repo_dir}/saves/{os.path.basename(self.hf_checkpoint)}-{suffix}/{self.run_id}"
 
 
 def _get_wandb_args(args: ScriptArgs) -> str:
     WANDB_API_KEY = os.environ.get("WANDB_API_KEY", "")
+    variant = "baseline" if args.single_agent else "parl-v2"
     return (
         "--use-wandb "
         f"--wandb-project {WANDB_PROJECT} "
-        f"--wandb-group {args.model}-parl-v2-{args.env} "
+        f"--wandb-group {args.model}-{variant}-{args.env} "
         f"--wandb-key {WANDB_API_KEY} "
     )
 
@@ -148,40 +156,51 @@ def execute(args: ScriptArgs):
         f"--save-interval {2 if args.mode == 'debug_minimal' else 50} "
     )
 
-    custom_args = (
-        "--custom-generate-function-path examples.parl_v2.generate.generate "
-        "--generate-tool-specs-path examples.parl_v2.tool.tool_specs "
-        "--generate-tool-call-parser qwen25 "
-        f"--generate-max-turns {args.generate_max_turns} "
-        f"--assign-task-impl-path examples.parl_v2.{args.env}.assign_task.call "
-        "--log-multi-turn "
-        f"--custom-rm-path examples.parl_v2.{args.env}.reward.reward_func "
-        "--custom-rollout-log-function-path examples.parl_v2.rollout_log.log_rollout_data "
-        "--custom-eval-rollout-log-function-path examples.parl_v2.rollout_log.log_eval_rollout_data "
-        # --group-rm hands the full rollout group to reward_func, which is
-        # required so it can group-normalize per-turn rewards and populate
-        # sample.per_token_advantages for K2.5-style turn-level credit.
-        "--group-rm "
-    )
+    if args.single_agent:
+        # Baseline: no orchestrator, no tools, no group reward — plain
+        # single-turn GRPO against miles' built-in deepscaler rm. Relies on
+        # --apply-chat-template so miles' default generate wraps the raw
+        # prompt string with the model's chat template (parl_v2 path does
+        # this itself inside examples.parl_v2.generate).
+        custom_args = "--rm-type deepscaler " "--apply-chat-template "
+    else:
+        custom_args = (
+            "--custom-generate-function-path examples.parl_v2.generate.generate "
+            "--generate-tool-specs-path examples.parl_v2.tool.tool_specs "
+            "--generate-tool-call-parser qwen25 "
+            f"--generate-max-turns {args.generate_max_turns} "
+            f"--assign-task-impl-path examples.parl_v2.{args.env}.assign_task.call "
+            "--log-multi-turn "
+            f"--custom-rm-path examples.parl_v2.{args.env}.reward.reward_func "
+            "--custom-rollout-log-function-path examples.parl_v2.rollout_log.log_rollout_data "
+            "--custom-eval-rollout-log-function-path examples.parl_v2.rollout_log.log_eval_rollout_data "
+            # --group-rm hands the full rollout group to reward_func, which is
+            # required so it can group-normalize per-turn rewards and populate
+            # sample.per_token_advantages for K2.5-style turn-level credit.
+            "--group-rm "
+        )
 
     rollout_args = (
         f"--prompt-data {args.prompt_data} "
         "--input-key prompt "
         "--label-key label "
         "--rollout-shuffle "
-        "--reward-key score "
         f"--num-rollout {args.num_rollout} "
         f"--rollout-batch-size {args.rollout_batch_size} "
         f"--n-samples-per-prompt {args.n_samples_per_prompt} "
         f"--rollout-max-context-len {args.rollout_max_context_len} "
         f"--rollout-max-response-len {args.rollout_max_response_len} "
-        f"--rollout-max-critical-steps {args.rollout_max_critical_steps} "
         "--rollout-temperature 1 "
         f"--global-batch-size {args.global_batch_size} "
         "--balance-data "
         f"--sglang-router-ip {args.sglang_router_ip} "
         f"--sglang-router-port {args.sglang_router_port} "
     )
+    if not args.single_agent:
+        # --reward-key selects which field parl_v2.reward.reward_func writes
+        # into sample.reward; --rollout-max-critical-steps is the K2.5
+        # turn-budget cap. Neither applies to the single-agent deepscaler path.
+        rollout_args += "--reward-key score " f"--rollout-max-critical-steps {args.rollout_max_critical_steps} "
 
     eval_args = ""
     if args.mode != "debug_minimal":
@@ -207,9 +226,12 @@ def execute(args: ScriptArgs):
         f"--entropy-coef {args.entropy_coef} "
         "--eps-clip 0.2 "
         "--eps-clip-high 0.28 "
-        "--use-tis "
-        "--custom-tis-function-path miles.backends.training_utils.loss.icepop_function "
     )
+    if not args.single_agent:
+        # icepop TIS is parl_v2's default multi-turn-friendly correction;
+        # baseline runs plain GRPO so the multi-agent vs single-agent
+        # comparison isn't confounded by a second variable.
+        grpo_args += "--use-tis " "--custom-tis-function-path miles.backends.training_utils.loss.icepop_function "
 
     optimizer_args = (
         "--optimizer adam "

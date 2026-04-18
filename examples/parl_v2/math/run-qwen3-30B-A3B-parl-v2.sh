@@ -40,8 +40,22 @@ DEV_REPO_DIR=${DEV_REPO_DIR:-${REPO_DIR}}
 DATA_ROOT=${DATA_ROOT:-${DEV_REPO_DIR}/DATA}
 MODEL_ROOT=${MODEL_ROOT:-${DEV_REPO_DIR}/MODEL}
 MODE=${MODE:-normal}  # debug_minimal | normal
+# SINGLE_AGENT=1 strips the PARL v2 orchestrator + subagent layer and runs
+# plain single-turn GRPO against --rm-type deepscaler. Same multi-node env,
+# same TP/EP, same optimizer — isolated-variable baseline for parl_v2.
+SINGLE_AGENT=${SINGLE_AGENT:-0}
 NUM_GPUS=$(echo "${CUDA_VISIBLE_DEVICES}" | awk -F',' '{print NF}')
 RUN_ID=${RUN_ID:-"run_$(date +%Y%m%d_%H%M%S)"}
+
+if [ "$SINGLE_AGENT" = "1" ]; then
+   SAVE_SUBDIR=Qwen3-30B-A3B-baseline
+   ROLLOUT_MAX_RESPONSE_LEN=16384
+   SINGLE_AGENT_ARGS=(--single-agent)
+else
+   SAVE_SUBDIR=Qwen3-30B-A3B-parl-v2
+   ROLLOUT_MAX_RESPONSE_LEN=8192
+   SINGLE_AGENT_ARGS=()
+fi
 
 MODEL_ARGS=(
    --model qwen3-30B-A3B
@@ -55,10 +69,10 @@ RUN_ARGS=(
    --mode "${MODE}"
    --run-id "${RUN_ID}"
    --dev-repo-dir "${DEV_REPO_DIR}"
-   --save-path "${DEV_REPO_DIR}/saves/Qwen3-30B-A3B-parl-v2/${RUN_ID}"
+   --save-path "${DEV_REPO_DIR}/saves/${SAVE_SUBDIR}/${RUN_ID}"
    --rollout-batch-size 32
    --global-batch-size 256
-   --rollout-max-response-len 8192
+   --rollout-max-response-len "${ROLLOUT_MAX_RESPONSE_LEN}"
 )
 
 PARALLEL_ARGS=(
@@ -119,14 +133,19 @@ export MILES_SCRIPT_EXTERNAL_RAY=1
 #   shared           : skip --sglang-config; subagent shares the live
 #                     policy router (= pre-frozen-engine baseline, used
 #                     as ablation control).
-SUBAGENT_MODE=${SUBAGENT_MODE:-frozen}
-if [ "$SUBAGENT_MODE" = "frozen" ]; then
-   SGLANG_EXTRA_ARGS=(--sglang-config examples/parl_v2/sglang_config_30B_A3B_2node.yaml)
-elif [ "$SUBAGENT_MODE" = "shared" ]; then
+# Ignored when SINGLE_AGENT=1 (no subagents to route).
+if [ "$SINGLE_AGENT" = "1" ]; then
    SGLANG_EXTRA_ARGS=()
 else
-   echo "ERROR: SUBAGENT_MODE must be 'frozen' or 'shared', got '$SUBAGENT_MODE'" >&2
-   exit 1
+   SUBAGENT_MODE=${SUBAGENT_MODE:-frozen}
+   if [ "$SUBAGENT_MODE" = "frozen" ]; then
+      SGLANG_EXTRA_ARGS=(--sglang-config examples/parl_v2/sglang_config_30B_A3B_2node.yaml)
+   elif [ "$SUBAGENT_MODE" = "shared" ]; then
+      SGLANG_EXTRA_ARGS=()
+   else
+      echo "ERROR: SUBAGENT_MODE must be 'frozen' or 'shared', got '$SUBAGENT_MODE'" >&2
+      exit 1
+   fi
 fi
 
 python examples/parl_v2/run_parl_v2.py \
@@ -136,4 +155,5 @@ python examples/parl_v2/run_parl_v2.py \
    ${DATA_ARGS[@]} \
    ${GENERATE_ARGS[@]} \
    "${SGLANG_EXTRA_ARGS[@]}" \
+   "${SINGLE_AGENT_ARGS[@]}" \
    --extra-args "${EXTRA_ARGS[*]}"
