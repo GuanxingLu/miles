@@ -59,7 +59,9 @@ RUN_ARGS=(
    --dev-repo-dir "${DEV_REPO_DIR}"
    --save-path "${DEV_REPO_DIR}/saves/Qwen3-4B-parl-v2-widesearch/${RUN_ID}"
    --rollout-batch-size 64
-   --global-batch-size 128
+   # global-batch-size = rollout_batch_size * n_samples_per_prompt (64*8=512)
+   # => 1 grad step per rollout (matches RLinf n_minibatches=1, fully on-policy).
+   --global-batch-size 512
    --rollout-max-response-len 28672
    --rollout-max-critical-steps 48
    --entropy-coef 0
