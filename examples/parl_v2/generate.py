@@ -62,17 +62,30 @@ def _with_system_prompt(prompt):
 
 
 def _normalize_tool_call(call) -> tuple[str, dict, str]:
-    """Return (name, params, tool_call_id). Mirrors miles' _execute_tool_call."""
+    """Return (name, params, tool_call_id). Mirrors miles' _execute_tool_call.
+
+    ``params`` is always a dict; malformed / non-object arguments (model emits
+    ``"arguments": "<string>"`` or invalid JSON that still slipped past the
+    detector) are coerced to ``{}`` so per-tool isinstance checks produce
+    actionable error strings instead of crashing the whole rollout.
+    """
     if isinstance(call, ChatCompletionMessageToolCall):
         name = call.function.name
-        params = json.loads(call.function.arguments) if call.function.arguments else {}
+        raw = call.function.arguments
         tool_call_id = call.id
     elif isinstance(call, ToolCallItem):
         name = call.name
-        params = json.loads(call.parameters) if call.parameters else {}
+        raw = call.parameters
         tool_call_id = f"call_{uuid.uuid4().hex[:24]}"
     else:
         raise TypeError(f"Unsupported tool call type: {type(call)}")
+
+    try:
+        params = json.loads(raw) if raw else {}
+    except json.JSONDecodeError:
+        params = {}
+    if not isinstance(params, dict):
+        params = {}
     return name, params, tool_call_id
 
 
