@@ -40,21 +40,27 @@ DEV_REPO_DIR=${DEV_REPO_DIR:-${REPO_DIR}}
 DATA_ROOT=${DATA_ROOT:-${DEV_REPO_DIR}/DATA}
 MODEL_ROOT=${MODEL_ROOT:-${DEV_REPO_DIR}/MODEL}
 MODE=${MODE:-normal}  # debug_minimal | normal
-# SINGLE_AGENT=1 strips the PARL v2 orchestrator + subagent layer and runs
-# plain single-turn GRPO against --rm-type deepscaler. Same multi-node env,
-# same TP/EP, same optimizer — isolated-variable baseline for parl_v2.
-SINGLE_AGENT=${SINGLE_AGENT:-0}
+# AGENT_MODE picks the Orchestrator tool surface. See run_parl_v2.py for
+# the full semantics:
+#   swarm        : default — create_subagent + assign_task (full PARL v2).
+#   single-agent : math → strips the PARL v2 layer and runs plain
+#                  single-turn GRPO against --rm-type deepscaler. Same
+#                  multi-node env, same TP/EP, same optimizer —
+#                  isolated-variable baseline for parl_v2/math.
+# swarm-paper is widesearch-only and rejected here by run_parl_v2.py.
+AGENT_MODE=${AGENT_MODE:-swarm}
 NUM_GPUS=$(echo "${CUDA_VISIBLE_DEVICES}" | awk -F',' '{print NF}')
 RUN_ID=${RUN_ID:-"run_$(date +%Y%m%d_%H%M%S)"}
 
-if [ "$SINGLE_AGENT" = "1" ]; then
+if [ "$AGENT_MODE" = "single-agent" ]; then
    SAVE_SUBDIR=Qwen3-30B-A3B-baseline
    ROLLOUT_MAX_RESPONSE_LEN=16384
-   SINGLE_AGENT_ARGS=(--single-agent)
-else
+elif [ "$AGENT_MODE" = "swarm" ]; then
    SAVE_SUBDIR=Qwen3-30B-A3B-parl-v2
    ROLLOUT_MAX_RESPONSE_LEN=8192
-   SINGLE_AGENT_ARGS=()
+else
+   echo "ERROR: AGENT_MODE must be 'swarm' or 'single-agent' for math, got '$AGENT_MODE'" >&2
+   exit 1
 fi
 
 MODEL_ARGS=(
@@ -133,8 +139,8 @@ export MILES_SCRIPT_EXTERNAL_RAY=1
 #   shared           : skip --sglang-config; subagent shares the live
 #                     policy router (= pre-frozen-engine baseline, used
 #                     as ablation control).
-# Ignored when SINGLE_AGENT=1 (no subagents to route).
-if [ "$SINGLE_AGENT" = "1" ]; then
+# Ignored when AGENT_MODE=single-agent (no subagents to route).
+if [ "$AGENT_MODE" = "single-agent" ]; then
    SGLANG_EXTRA_ARGS=()
 else
    SUBAGENT_MODE=${SUBAGENT_MODE:-frozen}
@@ -155,5 +161,5 @@ python examples/parl_v2/run_parl_v2.py \
    ${DATA_ARGS[@]} \
    ${GENERATE_ARGS[@]} \
    "${SGLANG_EXTRA_ARGS[@]}" \
-   "${SINGLE_AGENT_ARGS[@]}" \
+   --agent-mode "${AGENT_MODE}" \
    --extra-args "${EXTRA_ARGS[*]}"

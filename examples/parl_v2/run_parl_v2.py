@@ -94,12 +94,20 @@ class ScriptArgs(U.ExecuteTrainConfig):
     # the rollout pool into multiple SGLang models (used for the frozen
     # subagent topology). Empty -> miles default single-model single-pool.
     sglang_config: str = ""
-    # Ablation control: strip the PARL v2 orchestrator + subagent layer
-    # (custom generate, tool specs, assign_task, group-rm, critical-steps,
-    # icepop TIS) and run plain single-turn GRPO against rm-type=deepscaler.
-    # All training infra (TP/EP, multi-node NCCL, optimizer, GRPO clips) is
-    # held constant so this is the isolated-variable baseline for parl_v2.
-    single_agent: bool = False
+    # Three-way control over the Orchestrator tool surface:
+    #   swarm        : current default — Orchestrator holds only
+    #                  ``create_subagent`` + ``assign_task``. Delegation is
+    #                  architecturally forced.
+    #   swarm-paper  : paper-faithful — Orchestrator additionally holds
+    #                  direct ``search`` / ``access``. Delegation becomes
+    #                  a learned capability, motivated by context sharding.
+    #                  Widesearch-only (math has no direct tools).
+    #   single-agent : widesearch → Orchestrator holds only direct
+    #                  ``search`` / ``access`` (no subagent). Math →
+    #                  strips the entire PARL v2 layer and runs plain
+    #                  single-turn GRPO against rm-type=deepscaler (the
+    #                  isolated-variable baseline for parl_v2/math).
+    agent_mode: Literal["swarm", "swarm-paper", "single-agent"] = "swarm"
     extra_args: str = ""
 
     def __post_init__(self):
@@ -110,6 +118,11 @@ class ScriptArgs(U.ExecuteTrainConfig):
         self.megatron_model_type = self.megatron_model_type or defaults["megatron_model_type"]
         self.tensor_model_parallel_size = self.tensor_model_parallel_size or defaults["tensor_model_parallel_size"]
         self.rollout_num_gpus_per_engine = self.rollout_num_gpus_per_engine or defaults["rollout_num_gpus_per_engine"]
+        if self.env == "math" and self.agent_mode == "swarm-paper":
+            raise ValueError(
+                "agent_mode=swarm-paper is widesearch-only: math has no direct "
+                "Orchestrator-side tools to expose."
+            )
         if self.env == "math":
             self.prompt_data = self.prompt_data or f"{self.dev_repo_dir}/DATA/dapo-math-17k/dapo-math-17k.jsonl"
             self.eval_prompt_data = self.eval_prompt_data or f"{self.dev_repo_dir}/DATA/aime-2024/aime-2024.jsonl"
@@ -119,13 +132,25 @@ class ScriptArgs(U.ExecuteTrainConfig):
             # leave this empty by default so run_parl_v2 skips its single-set expansion.
         self.rollout_max_critical_steps = self.rollout_max_critical_steps or (2 * self.generate_max_turns)
         if not self.save_path:
-            suffix = "baseline" if self.single_agent else "parl-v2"
+            suffix_map = {
+                "swarm": "parl-v2",
+                "swarm-paper": "parl-v2-paper",
+                "single-agent": "baseline",
+            }
+            suffix = suffix_map[self.agent_mode]
             self.save_path = f"{self.dev_repo_dir}/saves/{os.path.basename(self.hf_checkpoint)}-{suffix}/{self.run_id}"
+
+
+_WANDB_VARIANT_BY_MODE = {
+    "swarm": "parl-v2",
+    "swarm-paper": "parl-v2-paper",
+    "single-agent": "baseline",
+}
 
 
 def _get_wandb_args(args: ScriptArgs) -> str:
     WANDB_API_KEY = os.environ.get("WANDB_API_KEY", "")
-    variant = "baseline" if args.single_agent else "parl-v2"
+    variant = _WANDB_VARIANT_BY_MODE[args.agent_mode]
     return (
         "--use-wandb "
         f"--wandb-project {WANDB_PROJECT} "
@@ -145,6 +170,32 @@ def prepare(args: ScriptArgs):
     )
 
 
+_TOOL_SPECS_PATH = {
+    # Swarm-strict is literally examples.parl_v2.tool.tool_specs for both
+    # envs; widesearch swarm-paper / single-agent re-compose via the
+    # widesearch/orchestrator_tools.py module (which also carries the
+    # direct dispatch coroutine).
+    ("math", "swarm"): "examples.parl_v2.tool.tool_specs",
+    ("widesearch", "swarm"): "examples.parl_v2.tool.tool_specs",
+    ("widesearch", "swarm-paper"): "examples.parl_v2.widesearch.orchestrator_tools.tool_specs_swarm_paper",
+    ("widesearch", "single-agent"): "examples.parl_v2.widesearch.orchestrator_tools.tool_specs_single",
+}
+
+_ORCHESTRATOR_PROMPT_PATH = {
+    # swarm mode leaves this empty — generate.py falls back to the
+    # ORCHESTRATOR_SYSTEM_PROMPT constant, preserving the pre-refactor
+    # prompt for swarm-strict launchers byte-identically.
+    "swarm": "",
+    "swarm-paper": "examples.parl_v2.prompts.ORCHESTRATOR_SYSTEM_PROMPT_PAPER",
+    "single-agent": "examples.parl_v2.prompts.ORCHESTRATOR_SYSTEM_PROMPT_SINGLE",
+}
+
+# Env-specific direct-tool dispatchers. Math has none (no direct tools).
+_DIRECT_TOOLS_PATH = {
+    "widesearch": "examples.parl_v2.widesearch.orchestrator_tools.dispatch",
+}
+
+
 def execute(args: ScriptArgs):
     megatron_model_type = args.megatron_model_type
 
@@ -156,7 +207,9 @@ def execute(args: ScriptArgs):
         f"--save-interval {2 if args.mode == 'debug_minimal' else 50} "
     )
 
-    if args.single_agent:
+    is_math_single = args.env == "math" and args.agent_mode == "single-agent"
+
+    if is_math_single:
         # Baseline: no orchestrator, no tools, no group reward — plain
         # single-turn GRPO against miles' built-in deepscaler rm. Relies on
         # --apply-chat-template so miles' default generate wraps the raw
@@ -164,9 +217,10 @@ def execute(args: ScriptArgs):
         # this itself inside examples.parl_v2.generate).
         custom_args = "--rm-type deepscaler " "--apply-chat-template "
     else:
+        tool_specs_path = _TOOL_SPECS_PATH[(args.env, args.agent_mode)]
         custom_args = (
             "--custom-generate-function-path examples.parl_v2.generate.generate "
-            "--generate-tool-specs-path examples.parl_v2.tool.tool_specs "
+            f"--generate-tool-specs-path {tool_specs_path} "
             "--generate-tool-call-parser qwen25 "
             f"--generate-max-turns {args.generate_max_turns} "
             f"--assign-task-impl-path examples.parl_v2.{args.env}.assign_task.call "
@@ -179,6 +233,13 @@ def execute(args: ScriptArgs):
             # sample.per_token_advantages for K2.5-style turn-level credit.
             "--group-rm "
         )
+        prompt_path = _ORCHESTRATOR_PROMPT_PATH[args.agent_mode]
+        if prompt_path:
+            custom_args += f"--orchestrator-prompt-path {prompt_path} "
+        # Direct-tool dispatcher only makes sense when the Orchestrator
+        # actually holds direct tools, i.e., swarm-paper or single-agent.
+        if args.agent_mode in ("swarm-paper", "single-agent") and args.env in _DIRECT_TOOLS_PATH:
+            custom_args += f"--orchestrator-direct-tools-path {_DIRECT_TOOLS_PATH[args.env]} "
 
     rollout_args = (
         f"--prompt-data {args.prompt_data} "
@@ -196,10 +257,12 @@ def execute(args: ScriptArgs):
         f"--sglang-router-ip {args.sglang_router_ip} "
         f"--sglang-router-port {args.sglang_router_port} "
     )
-    if not args.single_agent:
+    if not is_math_single:
         # --reward-key selects which field parl_v2.reward.reward_func writes
         # into sample.reward; --rollout-max-critical-steps is the K2.5
-        # turn-budget cap. Neither applies to the single-agent deepscaler path.
+        # turn-budget cap. Both apply to every mode that goes through the
+        # parl_v2 custom path (including widesearch single-agent) — only
+        # the math deepscaler branch opts out.
         rollout_args += "--reward-key score " f"--rollout-max-critical-steps {args.rollout_max_critical_steps} "
 
     eval_args = ""
@@ -227,10 +290,12 @@ def execute(args: ScriptArgs):
         "--eps-clip 0.2 "
         "--eps-clip-high 0.28 "
     )
-    if not args.single_agent:
-        # icepop TIS is parl_v2's default multi-turn-friendly correction;
-        # baseline runs plain GRPO so the multi-agent vs single-agent
-        # comparison isn't confounded by a second variable.
+    if not is_math_single:
+        # icepop TIS is parl_v2's default multi-turn-friendly correction.
+        # The math deepscaler baseline is single-turn GRPO, so leaving TIS
+        # off there avoids confounding multi-agent vs single-agent with a
+        # second variable. Widesearch single-agent is still multi-turn
+        # (search → access → answer), so it keeps TIS like its swarm peers.
         grpo_args += "--use-tis " "--custom-tis-function-path miles.backends.training_utils.loss.icepop_function "
 
     optimizer_args = (

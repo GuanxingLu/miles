@@ -77,14 +77,46 @@ def _extract(samples, key):
     return out
 
 
-def _per_turn_assign_counts(samples):
-    """Flatten per-turn n_assign across all samples, for distribution stats."""
+def _per_turn_field_counts(samples, field: str):
+    """Flatten per-turn ``field`` across all samples, for distribution stats."""
     out = []
     for s in samples:
         turns = (s.metadata or {}).get("turns") or []
         for t in turns:
-            out.append(float(t.get("n_assign", 0)))
+            out.append(float(t.get(field, 0)))
     return out
+
+
+def _per_turn_assign_counts(samples):
+    return _per_turn_field_counts(samples, "n_assign")
+
+
+def _sample_field_totals(samples, field: str):
+    """Per-sample total of ``field`` summed across that sample's turns."""
+    out = []
+    for s in samples:
+        turns = (s.metadata or {}).get("turns") or []
+        out.append(float(sum(int(t.get(field, 0)) for t in turns)))
+    return out
+
+
+def _delegate_ratios(samples):
+    """Per-sample ``n_assign / (n_assign + n_direct)`` where
+    ``n_direct = n_search + n_access``. Samples with no tool usage of any
+    kind are skipped (no signal). This is the primary serial-collapse
+    diagnostic in swarm-paper mode: if the mean ratio drifts toward 0
+    while r_perf still rises, the Orchestrator has learned to bypass
+    delegation in favor of direct tools.
+    """
+    ratios = []
+    for s in samples:
+        turns = (s.metadata or {}).get("turns") or []
+        n_assign = sum(int(t.get("n_assign", 0)) for t in turns)
+        n_direct = sum(int(t.get("n_search", 0)) + int(t.get("n_access", 0)) for t in turns)
+        denom = n_assign + n_direct
+        if denom > 0:
+            ratios.append(float(n_assign / denom))
+    return ratios
 
 
 def _compute_reward_component_metrics(samples):
@@ -121,6 +153,35 @@ def _compute_multi_turn_metrics(args, samples):
     per_turn_assigns = _per_turn_assign_counts(samples)
     if per_turn_assigns:
         log_dict |= _stats(per_turn_assigns, "multi_turn/assign_per_turn")
+
+    # per-turn n_search / n_access distribution (direct-tool parallelism).
+    # Non-zero only in swarm-paper / single-agent modes (swarm-strict
+    # doesn't expose these tools to the Orchestrator).
+    per_turn_search = _per_turn_field_counts(samples, "n_search")
+    if any(v > 0 for v in per_turn_search):
+        log_dict |= _stats(per_turn_search, "multi_turn/search_per_turn")
+    per_turn_access = _per_turn_field_counts(samples, "n_access")
+    if any(v > 0 for v in per_turn_access):
+        log_dict |= _stats(per_turn_access, "multi_turn/access_per_turn")
+
+    # Per-sample totals — useful to see "how much did this rollout search"
+    # independent of turn count. Only emitted when non-trivial.
+    n_search_total = _sample_field_totals(samples, "n_search")
+    if any(v > 0 for v in n_search_total):
+        log_dict |= _stats(n_search_total, "multi_turn/n_search_total")
+        # direct_tool_rate: fraction of samples that issued any direct tool call.
+        arr = np.asarray(n_search_total) + np.asarray(_sample_field_totals(samples, "n_access"))
+        log_dict["multi_turn/direct_tool_rate"] = float((arr > 0).mean())
+    n_access_total = _sample_field_totals(samples, "n_access")
+    if any(v > 0 for v in n_access_total):
+        log_dict |= _stats(n_access_total, "multi_turn/n_access_total")
+
+    # delegate_ratio — serial-collapse diagnostic for swarm-paper mode.
+    # Only meaningful when at least some direct-tool capability is present
+    # (swarm-strict will always have ratio=1 since n_direct=0).
+    delegate_ratios = _delegate_ratios(samples)
+    if delegate_ratios and any(v > 0 for v in n_search_total + n_access_total):
+        log_dict |= _stats(delegate_ratios, "multi_turn/delegate_ratio")
 
     # turns_per_rollout — total orchestrator turns actually taken.
     turn_counts = [len((s.metadata or {}).get("turns") or []) for s in samples]
