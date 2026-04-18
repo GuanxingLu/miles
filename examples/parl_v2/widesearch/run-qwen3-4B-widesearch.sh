@@ -110,6 +110,9 @@ PERF_ARGS=(
 OPTIM_OVERRIDE_ARGS=(
    --weight-decay 0.01
    --adam-beta2 0.999
+   # Skip entropy in policy loss (entropy-coef is 0 anyway): saves the fp32
+   # peak alloc inside compute_entropy_from_logits. See miles/utils/arguments.py.
+   --disable-entropy-computation
 )
 
 cd "${REPO_DIR}"
