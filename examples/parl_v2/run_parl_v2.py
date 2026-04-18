@@ -313,10 +313,24 @@ def execute(args: ScriptArgs):
     if args.sglang_config:
         sglang_args += f"--sglang-config {args.sglang_config} "
 
+    # Perf defaults mirror examples/retool_v2 and scripts/run-qwen3-4B.sh.
+    # --sequence-parallel halves LayerNorm/Dropout activation memory when TP>1
+    # and is required to keep long agentic rollouts from OOMing during loss
+    # (logits.clone() in ppo_utils.calculate_log_probs_and_entropy). Recompute
+    # flags match every miles 4B RL launcher — omitting them kept all 36 Qwen
+    # layer activations live through backward. Launcher --extra-args can still
+    # override any of these (argparse last-wins), which is how the 30B-A3B
+    # parl_v2 launcher bumps --expert-model-parallel-size to 8.
     perf_args = (
         f"--tensor-model-parallel-size {args.tensor_model_parallel_size} "
+        "--sequence-parallel "
         "--pipeline-model-parallel-size 1 "
         "--context-parallel-size 1 "
+        "--expert-model-parallel-size 1 "
+        "--expert-tensor-parallel-size 1 "
+        "--recompute-granularity full "
+        "--recompute-method uniform "
+        "--recompute-num-layers 1 "
     )
 
     misc_args = (
