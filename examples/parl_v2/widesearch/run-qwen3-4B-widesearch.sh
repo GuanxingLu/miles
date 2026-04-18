@@ -58,10 +58,11 @@ RUN_ARGS=(
    --run-id "${RUN_ID}"
    --dev-repo-dir "${DEV_REPO_DIR}"
    --save-path "${DEV_REPO_DIR}/saves/Qwen3-4B-parl-v2-widesearch/${RUN_ID}"
-   --rollout-batch-size 16
+   --rollout-batch-size 64
    --global-batch-size 128
-   --rollout-max-response-len 16384
+   --rollout-max-response-len 28672
    --rollout-max-critical-steps 48
+   --entropy-coef 0
 )
 
 PARALLEL_ARGS=(
@@ -75,13 +76,13 @@ DATA_ARGS=(
 )
 
 GENERATE_ARGS=(
-   --generate-max-turns 6
+   --generate-max-turns 10
 )
 
 EVAL_EXTRA_ARGS=(
    --eval-interval 20
    --n-samples-per-eval-prompt 4
-   --eval-max-response-len 16384
+   --eval-max-response-len 28672
    --eval-max-context-len 32768
    --eval-top-p 1
    --log-passrate
@@ -93,11 +94,21 @@ EVAL_EXTRA_ARGS=(
 )
 
 # Dynamic batch sizing caps per-rank micro-batch tokens, preventing the
-# logits.clone() spike in calculate_log_probs_and_entropy from OOM'ing
-# when widesearch multi-turn rollouts produce 16K-token sequences.
+# logits.clone() spike in calculate_log_probs_and_entropy from OOM'ing.
+# 32768 = rollout_max_context_len, i.e. one full ctx-capped sequence per
+# micro-batch (needed since response length was raised to 28672 to match
+# RLinf's 32000-4096 effective cap).
 PERF_ARGS=(
    --use-dynamic-batch-size
-   --max-tokens-per-gpu 16384
+   --max-tokens-per-gpu 32768
+)
+
+# Override hardcoded optimizer defaults in run_parl_v2.py (weight_decay=0.1,
+# adam_beta2=0.98). Passed via --extra-args so argparse last-wins picks these
+# up without touching the shared launcher (keeps math runs untouched).
+OPTIM_OVERRIDE_ARGS=(
+   --weight-decay 0.01
+   --adam-beta2 0.999
 )
 
 cd "${REPO_DIR}"
@@ -129,4 +140,4 @@ python examples/parl_v2/run_parl_v2.py \
    ${DATA_ARGS[@]} \
    ${GENERATE_ARGS[@]} \
    "${SGLANG_EXTRA_ARGS[@]}" \
-   --extra-args "${EVAL_EXTRA_ARGS[*]} ${PERF_ARGS[*]}"
+   --extra-args "${EVAL_EXTRA_ARGS[*]} ${PERF_ARGS[*]} ${OPTIM_OVERRIDE_ARGS[*]}"
