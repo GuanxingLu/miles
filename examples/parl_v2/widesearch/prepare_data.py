@@ -6,8 +6,12 @@ from HF separately). Produces per-file ``*.miles.jsonl`` siblings with:
 - ``prompt``: the question / query text. Name matches run_parl_v2.py's
   hardcoded ``--input-key prompt``; widesearch-test's ``query`` and
   wideseek-r1-train's ``question`` both land here.
-- ``label`` = ``json.dumps({"answer": ..., "unique_columns": ... | None})``.
-  The reward's ``_decode_label`` reads this back.
+- ``label`` = ``json.dumps({"answer": ..., "unique_columns": ... | None,
+  "required_columns": ... | None})``. ``required_columns`` is lifted from
+  widesearch-test's ``evaluation.required`` (matches the paper's item-F1
+  column list); absent for QA / train sources, in which case item-F1
+  defaults to the full GT header. The reward's ``_decode_label`` reads
+  this back.
 
 Usage::
 
@@ -60,9 +64,27 @@ def _convert_file(src: Path, dst: Path, prompt_key: str, has_uc: bool) -> int:
                 continue
             answer = row.get("answer", "")
             unique_columns = row.get("unique_columns") if has_uc else None
+            # widesearch-test stashes `{unique_columns, required, eval_pipeline}`
+            # as a JSON string under `evaluation`. `required` is the item-F1
+            # column list the paper evaluates against; wideseek-r1 train rows
+            # don't carry one, in which case item-F1 defaults to the full GT
+            # header (handled downstream).
+            required_columns = None
+            if has_uc:
+                ev = row.get("evaluation")
+                if isinstance(ev, str):
+                    try:
+                        ev = json.loads(ev)
+                    except (ValueError, TypeError):
+                        ev = None
+                if isinstance(ev, dict):
+                    req = ev.get("required")
+                    if isinstance(req, (list, tuple)) and req:
+                        required_columns = [str(c) for c in req]
             label = {
                 "answer": answer if isinstance(answer, str) else json.dumps(answer),
                 "unique_columns": list(unique_columns) if unique_columns else None,
+                "required_columns": required_columns,
             }
             out = {"prompt": prompt, "label": json.dumps(label, ensure_ascii=False)}
             fout.write(json.dumps(out, ensure_ascii=False) + "\n")

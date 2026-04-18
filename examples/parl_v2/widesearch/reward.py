@@ -6,9 +6,10 @@ Same three-component PARL shape as ``math/reward.py``:
 
 differences vs math:
 
-- ``r_perf`` is rule-based: ``row_f1`` on the ``unique_columns`` projection
-  when the label carries them (WideSeek-R1 train / WideSearch eval),
-  falling back to normalized EM on the ASearcher QA benchmarks.
+- ``r_perf`` is rule-based: ``item_f1`` over ``required_columns`` × rows
+  aligned by the ``unique_columns`` row-key when the label carries them
+  (WideSeek-R1 train / WideSearch eval); falls back to normalized EM on the
+  ASearcher QA benchmarks.
 - ``LAMBDA_BOX`` is gone (widesearch answers are markdown tables, not
   ``\\boxed{…}``).
 - ``PARALLEL_CAP`` drops from 16 to 10 to match the WideSeek-R1 paper's
@@ -26,7 +27,7 @@ import numpy as np
 
 from miles.utils.types import Sample
 
-from .reward_utils import em_score, row_f1_from_markdown
+from .reward_utils import em_score, item_f1_from_markdown
 
 LAMBDA1_INIT = 0.3  # r_parallel
 LAMBDA2_INIT = 0.2  # r_finish
@@ -63,34 +64,38 @@ def _turn_spans(loss_mask: list[int]) -> list[tuple[int, int]]:
     return spans
 
 
-def _decode_label(label: str | None) -> tuple[str, list[str] | None]:
-    """Return (answer_text, unique_columns_or_None) from a json-encoded label.
+def _decode_label(label: str | None) -> tuple[str, list[str] | None, list[str] | None]:
+    """Return (answer_text, unique_columns, required_columns) from a label.
 
     prepare_data.py writes every row's label as ``json.dumps({"answer": ...,
-    "unique_columns": ... | None})``. Handle malformed labels defensively:
-    a raw string falls back to (string, None) so EM still works.
+    "unique_columns": ... | None, "required_columns": ... | None})``. The
+    ``required_columns`` field is optional — older ``.miles.jsonl`` files
+    produced before the item-F1 upgrade don't carry it, in which case
+    ``item_f1_from_markdown`` defaults to the full GT header. Malformed
+    labels fall back to ``(string, None, None)`` so EM still works.
     """
     if not label:
-        return "", None
+        return "", None, None
     try:
         obj = json.loads(label)
     except (ValueError, TypeError):
-        return str(label), None
+        return str(label), None, None
     if isinstance(obj, dict):
         answer = obj.get("answer", "") or ""
         uc = obj.get("unique_columns")
-        if isinstance(uc, (list, tuple)) and uc:
-            return str(answer), [str(c) for c in uc]
-        return str(answer), None
-    return str(obj), None
+        rc = obj.get("required_columns")
+        uc_list = [str(c) for c in uc] if isinstance(uc, (list, tuple)) and uc else None
+        rc_list = [str(c) for c in rc] if isinstance(rc, (list, tuple)) and rc else None
+        return str(answer), uc_list, rc_list
+    return str(obj), None, None
 
 
 def _score_one(args, sample: Sample, lam1: float, lam2: float) -> dict:
     response = sample.response or ""
-    answer, unique_columns = _decode_label(sample.label)
+    answer, unique_columns, required_columns = _decode_label(sample.label)
 
     if unique_columns:
-        r_perf = float(row_f1_from_markdown(response, answer, unique_columns))
+        r_perf = float(item_f1_from_markdown(response, answer, unique_columns, required_columns))
     else:
         r_perf = float(em_score(response, answer))
 
