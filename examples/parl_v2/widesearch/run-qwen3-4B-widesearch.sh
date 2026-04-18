@@ -93,14 +93,15 @@ EVAL_EXTRA_ARGS=(
    bamboogle  "${DATA_ROOT}/asearcher-test/Bamboogle/test.miles.jsonl"
 )
 
-# Dynamic batch sizing caps per-rank micro-batch tokens, preventing the
-# logits.clone() spike in calculate_log_probs_and_entropy from OOM'ing.
-# 32768 = rollout_max_context_len, i.e. one full ctx-capped sequence per
-# micro-batch (needed since response length was raised to 28672 to match
-# RLinf's 32000-4096 effective cap).
+# Dynamic batch sizing caps per-rank micro-batch tokens. 20480 is chosen to
+# fit the fp32 entropy spike in compute_entropy_from_logits: on Qwen3-4B +
+# TP=2 the per-rank logits tensor is [N, 75968]; entropy's fp32 upcast
+# needs ~N*75968*4 bytes per allocation, and 32768 OOM'd at 8.91 GiB while
+# only 7.25 GiB was free. 20480 keeps that peak at ~5.8 GiB. Sequences
+# longer than 20480 get split across micro-batches by dynamic batch.
 PERF_ARGS=(
    --use-dynamic-batch-size
-   --max-tokens-per-gpu 32768
+   --max-tokens-per-gpu 20480
 )
 
 # Override hardcoded optimizer defaults in run_parl_v2.py (weight_decay=0.1,
