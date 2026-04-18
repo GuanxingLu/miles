@@ -1,0 +1,197 @@
+#!/bin/bash
+
+# Qwen3-30B-A3B Megatron LoRA RL training script (H200x8 single node).
+# Adapted from examples/lora/run-qwen3-4B-megatron-lora.sh and the user's
+# working examples/multi_agent/run-qwen3-30B-A3B-multi-agent.sh recipe.
+#
+# Launch example:
+#   MODEL_ARGS_ROTARY_BASE=10000000 \
+#   FLASHINFER_DISABLE_VERSION_CHECK=1 \
+#   DATA_ROOT=/robby/share/Robotics/guanxing/miles/DATA \
+#   MODEL_ROOT=/robby/share/Robotics/guanxing/miles/MODEL \
+#   WANDB_BASE_URL=http://33.180.4.104 \
+#   CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 \
+#   bash examples/lora/run-qwen3-30B-A3B-megatron-lora.sh
+
+# for rerun the task
+pkill -9 sglang
+sleep 3
+ray stop --force
+pkill -9 ray
+pkill -9 python
+sleep 3
+pkill -9 ray
+pkill -9 python
+
+set -ex
+
+# will prevent ray from buffering stdout/stderr
+export PYTHONBUFFERED=16
+export CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0,1,2,3,4,5,6,7}
+
+NVLINK_COUNT=$(nvidia-smi topo -m 2>/dev/null | grep -o 'NV[0-9][0-9]*' | wc -l)
+if [ "$NVLINK_COUNT" -gt 0 ]; then
+    HAS_NVLINK=1
+else
+    HAS_NVLINK=0
+fi
+echo "HAS_NVLINK: $HAS_NVLINK (detected $NVLINK_COUNT NVLink references)"
+
+export WANDB_API_KEY=${WANDB_API_KEY:-local-82cbbacfe8e3c0c527da528160bd76a1e85c9fea}
+export WANDB_BASE_URL=${WANDB_BASE_URL:-http://33.180.4.104}
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
+REPO_DIR="$(cd -- "${SCRIPT_DIR}/../.." &>/dev/null && pwd)"
+
+DATA_ROOT=${DATA_ROOT:-/robby/share/Robotics/guanxing/miles/DATA}
+MODEL_ROOT=${MODEL_ROOT:-/robby/share/Robotics/guanxing/miles/MODEL}
+MEGATRON_PATH=${MEGATRON_PATH:-/root/Megatron-LM/}
+RUN_ID=${RUN_ID:-"run_$(date +%Y%m%d_%H%M%S)"}
+
+source "${REPO_DIR}/scripts/models/qwen3-30B-A3B.sh"
+
+# CKPT_ARGS=(
+#    --hf-checkpoint ${MODEL_ROOT}/Qwen3-30B-A3B
+#    --ref-load ${MODEL_ROOT}/Qwen3-30B-A3B_torch_dist
+#    --load ${REPO_DIR}/saves/Qwen3-30B-A3B-lora/${RUN_ID}
+#    --save ${REPO_DIR}/saves/Qwen3-30B-A3B-lora/${RUN_ID}
+#    --save-interval 20
+#    --megatron-to-hf-mode bridge
+# )
+CKPT_ARGS=(
+   --hf-checkpoint ${MODEL_ROOT}/Qwen3-30B-A3B-Instruct-2507
+   --ref-load ${MODEL_ROOT}/Qwen3-30B-A3B-Instruct-2507_torch_dist
+   --load ${REPO_DIR}/saves/Qwen3-30B-A3B-Instruct-2507-lora/${RUN_ID}
+   --save ${REPO_DIR}/saves/Qwen3-30B-A3B-Instruct-2507-lora/${RUN_ID}
+   --save-interval 20
+   --megatron-to-hf-mode bridge
+)
+
+LORA_ARGS=(
+   --lora-rank 32                    # LoRA rank (typical values: 8, 16, 32, 64)
+   --lora-alpha 32                   # LoRA alpha (usually 2x rank)
+   --lora-dropout 0.0                # LoRA dropout (0.0 for RL training)
+   --target-modules "all-linear"
+   --megatron-to-hf-mode bridge
+)
+
+ROLLOUT_ARGS=(
+   --prompt-data ${DATA_ROOT}/dapo-math-17k/dapo-math-17k.jsonl
+   --input-key prompt
+   --label-key label
+   --apply-chat-template
+   --rollout-shuffle
+   --rm-type deepscaler
+   --num-rollout 3000
+   --rollout-batch-size 32
+   --n-samples-per-prompt 8
+   --rollout-max-response-len 8192
+   --rollout-temperature 1
+
+   --global-batch-size 256
+   --balance-data
+)
+
+EVAL_ARGS=(
+   --eval-interval 20
+   --eval-prompt-data aime ${DATA_ROOT}/aime-2024/aime-2024.jsonl
+   --n-samples-per-eval-prompt 16
+   --eval-max-response-len 16384
+   --eval-top-p 1
+   --log-passrate
+)
+
+PERF_ARGS=(
+   --tensor-model-parallel-size 4
+   --sequence-parallel
+   --pipeline-model-parallel-size 1
+   --context-parallel-size 1
+   --expert-model-parallel-size 8
+   --expert-tensor-parallel-size 1
+
+   --recompute-granularity full
+   --recompute-method uniform
+   --recompute-num-layers 1
+
+   # --micro-batch-size 1
+   --use-dynamic-batch-size
+   --max-tokens-per-gpu 20480
+)
+
+GRPO_ARGS=(
+   --advantage-estimator grpo
+   # --use-kl-loss
+   --kl-loss-coef 0.00
+   --kl-loss-type low_var_kl
+   --entropy-coef 0.00
+   --eps-clip 0.2
+   --eps-clip-high 0.28
+)
+
+OPTIMIZER_ARGS=(
+   --optimizer adam
+   --lr 1e-5                         # Higher LR often works better for LoRA
+   --lr-decay-style constant
+   --weight-decay 0.1
+   --adam-beta1 0.9
+   --adam-beta2 0.98
+
+   --optimizer-cpu-offload
+   --overlap-cpu-optimizer-d2h-h2d
+   --use-precision-aware-optimizer
+)
+
+WANDB_ARGS=(
+   --use-wandb
+   --wandb-project miles-lora-megatron
+   --wandb-group qwen3-30B-A3B-lora-test
+   --wandb-key ${WANDB_API_KEY}
+)
+
+SGLANG_ARGS=(
+   --rollout-num-gpus-per-engine 8
+   --sglang-mem-fraction-static 0.7
+   --sglang-cuda-graph-bs 1 2 4 8 $(seq 16 8 256)
+)
+
+MISC_ARGS=(
+   # default dropout in megatron is 0.1
+   --attention-dropout 0.0
+   --hidden-dropout 0.0
+   # should be good for model performance
+   --accumulate-allreduce-grads-in-fp32
+   --attention-softmax-in-fp32
+   # need to comment this when using model with MLA
+   --attention-backend flash
+)
+
+# launch the master node of ray in container
+export MASTER_ADDR=${MASTER_ADDR:-"127.0.0.1"}
+ray start --head --node-ip-address ${MASTER_ADDR} --num-gpus 8 --disable-usage-stats --dashboard-host=0.0.0.0 --dashboard-port=8265
+
+# Build the runtime environment JSON with proper variable substitution
+RUNTIME_ENV_JSON="{
+  \"env_vars\": {
+    \"PYTHONPATH\": \"${MEGATRON_PATH}\",
+    \"CUDA_DEVICE_MAX_CONNECTIONS\": \"1\",
+    \"NCCL_NVLS_ENABLE\": \"${HAS_NVLINK}\"
+  }
+}"
+
+ray job submit --address="http://127.0.0.1:8265" \
+   --runtime-env-json="${RUNTIME_ENV_JSON}" \
+   -- python3 train.py \
+   --actor-num-nodes 1 \
+   --actor-num-gpus-per-node 8 \
+   --colocate \
+   ${MODEL_ARGS[@]} \
+   ${CKPT_ARGS[@]} \
+   ${ROLLOUT_ARGS[@]} \
+   ${OPTIMIZER_ARGS[@]} \
+   ${GRPO_ARGS[@]} \
+   ${WANDB_ARGS[@]} \
+   ${PERF_ARGS[@]} \
+   ${EVAL_ARGS[@]} \
+   ${SGLANG_ARGS[@]} \
+   ${MISC_ARGS[@]} \
+   ${LORA_ARGS[@]}
