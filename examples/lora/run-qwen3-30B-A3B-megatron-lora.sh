@@ -61,7 +61,7 @@ source "${REPO_DIR}/scripts/models/qwen3-30B-A3B.sh"
 CKPT_ARGS=(
    --hf-checkpoint ${MODEL_ROOT}/Qwen3-30B-A3B-Instruct-2507
    --ref-load ${MODEL_ROOT}/Qwen3-30B-A3B-Instruct-2507_torch_dist
-   --load ${REPO_DIR}/saves/Qwen3-30B-A3B-Instruct-2507-lora/${RUN_ID}
+   # --load ${REPO_DIR}/saves/Qwen3-30B-A3B-Instruct-2507-lora/${RUN_ID}
    --save ${REPO_DIR}/saves/Qwen3-30B-A3B-Instruct-2507-lora/${RUN_ID}
    --save-interval 20
    --megatron-to-hf-mode bridge
