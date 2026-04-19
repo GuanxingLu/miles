@@ -1,0 +1,142 @@
+#### Hardware configuration.
+k8s_app_name: robbys3
+k8s_priority: high
+gpu_type: H200
+node_num: 1
+communication_network_card: 'eth0'
+gpu_per_node: 8
+cpu_per_gpu: 12
+memory_per_gpu: 140G
+disk_memory: 200G
+shared_memory: 100G
+
+#### Storage configuration.
+# Mirrors the mounts available in the robbys3 WebIDE: share/robby for the
+# personal scratch space, share/Robotics for the shared repo + data + models,
+# and share/datasets as a fallback if DATA_ROOT ever moves.
+data_stores:
+    store_robby:
+        mount_point: /robby/share/robby
+        store_name: s3-robby-cpfs
+        sub_path: /robby
+    store_robotics:
+        mount_point: /robby/share/Robotics
+        store_name: s3-robby-cpfs
+        sub_path: /Robotics
+
+#### Code repo. robbyctl/remote/launch.py requires repo_url (it derives
+# CODE_PATH = /workspace/bin/<repo_name> and cd's into it before our command
+# runs). We don't actually use this checkout — our command immediately cd's
+# to the CPFS-mounted miles repo — but launch.py crashes if repo_url is None.
+# Points at the team's aistudio_submit repo as a harmless shim.
+repo_url: https://code.alipay.com/ant-research-vilab/aistudio_submit
+branch: robbyb1
+commit_id: 8d1f425fdb6b0efde7c674b7d2725a2af916952f
+
+#### Running configuration.
+# User's miles image. Has Megatron-LM at /root/Megatron-LM, sglang deps, torch
+# 2.9.1, CUDA 12.8, transformers 5.x, and the full training env baked in. The
+# 17550139-20260419225824 tag adds `pip install --ignore-installed pyparsing`
+# to fix the pypai wfbuilder bootstrap hitting the dpkg-managed pyparsing.
+image: acr-sh-ant-registry-vpc.cn-shanghai.cr.aliyuncs.com/aii/aistudio:17550139-20260419225824
+runtime: pytorch
+job_name: widesearch_qwen3_4b
+tag: type=widesearch,basemodel=Qwen3-4B
+
+#### Command.
+# Replicates the WebIDE bring-up: install sglang from the shared checkout,
+# sanity-check data/weights, bring up qdrant + RAG server in tmux, then launch
+# the Qwen3-4B widesearch run. qdrant and the RAG server must stay alive for
+# the duration of the training, so they are detached into tmux sessions.
+command:
+    - |
+        set -e
+        REPO=/robby/share/Robotics/guanxing/miles
+        SGLANG=/robby/share/Robotics/guanxing/sglang
+
+        echo "=== [1/6] Install sglang from shared checkout ==="
+        cd "$SGLANG"
+        # Matches the WebIDE bring-up exactly. Lets pip resolve sglang's own
+        # deps (pybase64, openai>=2.0, etc.) so the explicit install list
+        # below only needs things sglang doesn't declare (qdrant, typer,
+        # sglang-router).
+        pip install -e python/
+
+        echo "=== [2/6] Sanity-check data + models ==="
+        cd "$REPO"
+        ls DATA/wiki-2018-corpus/qdrant \
+           DATA/wiki-2018-corpus/wiki_corpus.jsonl \
+           DATA/wiki-2018-corpus/wiki_webpages.jsonl
+        ls DATA/wideseek-r1-train/hybrid_20k.miles.jsonl
+        ls MODEL/Qwen3-4B MODEL/Qwen3-4B_torch_dist MODEL/e5-base-v2
+
+        echo "=== [3/6] Install qdrant-client (RAG server dep) ==="
+        # miles image already ships typer, click<8.2, sglang-router, Megatron-LM,
+        # pybase64, openai>=2, transformers>=4.49, etc. Only RAG's qdrant-client
+        # is not in the image.
+        pip install qdrant-client==1.16.2
+
+        echo "=== [4/6] Start qdrant (nohup background) ==="
+        chmod +x "$REPO/DATA/wiki-2018-corpus/qdrant/qdrant"
+        mkdir -p /tmp/widesearch-logs
+        cd "$REPO/DATA/wiki-2018-corpus/qdrant"
+        nohup ./qdrant > /tmp/widesearch-logs/qdrant.log 2>&1 &
+        QDRANT_PID=$!
+        echo "qdrant pid=$QDRANT_PID (logs: /tmp/widesearch-logs/qdrant.log)"
+        cd "$REPO"
+
+        echo "=== [5/6] Start RAG server on :8765 (nohup background) ==="
+        nohup env PORT=8765 bash "$REPO/examples/parl_v2/widesearch/launch_rag_server.sh" \
+            > /tmp/widesearch-logs/rag.log 2>&1 &
+        RAG_PID=$!
+        echo "rag pid=$RAG_PID (logs: /tmp/widesearch-logs/rag.log)"
+
+        echo "=== Waiting for RAG server to become ready on :8765 ==="
+        for i in $(seq 1 120); do
+            if curl -sf http://localhost:8765/retrieve -X POST \
+                -H "Content-Type: application/json" \
+                -d '{"queries":["ping"],"topk":1}' >/dev/null 2>&1; then
+                echo "RAG server up after ${i}*5s"
+                break
+            fi
+            echo "waiting for RAG server ($i/120)..."
+            sleep 5
+        done
+
+        echo "=== [6/6] Launch training ==="
+        export MILES_PARL_V2_RAG_SERVER=localhost:8765
+        export DEV_REPO_DIR="$REPO"
+        export FLASHINFER_DISABLE_VERSION_CHECK=1
+        export DATA_ROOT="$REPO/DATA"
+        export MODEL_ROOT="$REPO/MODEL"
+        export WANDB_BASE_URL=http://33.180.4.104
+        export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
+
+        # Preload stdlib math + random via sitecustomize before script runs —
+        # `python examples/parl_v2/run_parl_v2.py` puts examples/parl_v2 on
+        # sys.path[0], which shadows stdlib `math` with the local math/ package
+        # and breaks `random`'s internal `from math import log` import.
+        # sitecustomize.py runs before sys.path[0] gets the script-dir override,
+        # so importing math here caches the stdlib version in sys.modules.
+        mkdir -p /tmp/siteinject
+        cat > /tmp/siteinject/sitecustomize.py <<'SITE'
+        import math  # noqa: F401
+        import random  # noqa: F401
+        SITE
+        export PYTHONPATH="/tmp/siteinject:${PYTHONPATH:-}"
+
+        bash "$REPO/examples/parl_v2/widesearch/run-qwen3-4B-widesearch.sh" || {
+            rc=$?
+            echo "=============================================================="
+            echo "=== Training failed (rc=$rc); dumping diagnostic logs      ==="
+            echo "=============================================================="
+            echo "--- sglang_router.log (last 200 lines) ---"
+            tail -200 "$REPO/logs/sglang_router.log" 2>/dev/null || echo "(missing)"
+            echo "--- qdrant.log (last 50 lines) ---"
+            tail -50 /tmp/widesearch-logs/qdrant.log 2>/dev/null || echo "(missing)"
+            echo "--- rag.log (last 100 lines) ---"
+            tail -100 /tmp/widesearch-logs/rag.log 2>/dev/null || echo "(missing)"
+            echo "--- sglang-router / sglang package versions ---"
+            pip show sglang-router sglang 2>&1 | head -40 || true
+            exit $rc
+        }
