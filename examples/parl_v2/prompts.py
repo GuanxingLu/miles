@@ -6,21 +6,21 @@
 - ``ORCHESTRATOR_SYSTEM_PROMPT_PAPER`` (swarm-paper): paper-faithful —
   Orchestrator gets direct ``search``/``access`` plus the subagent
   tools. No hand-coded heuristic about when to delegate vs call
-  directly; the reward (r_parallel / r_finish / critical_steps budget)
-  is expected to shape that trade-off during training.
+  directly; the reward (r_parallel / r_finish) plus the critical_steps
+  rollout budget is expected to shape that trade-off during training.
 - ``ORCHESTRATOR_SYSTEM_PROMPT_SINGLE`` (single-agent baseline): only
   direct ``search``/``access``, no delegation.
 
 The sub-agent ``<result>…</result>`` output contract and the
 must-tool-use requirement are NOT restated in these Orchestrator
-prompts: ``assign_task.py:117`` already appends
+prompts: ``widesearch/assign_task.py:117`` already appends
 ``SUBAGENT_OUTPUT_SUFFIX`` (``tool.py:26``) and
 ``SUBAGENT_REACT_SUFFIX`` (``widesearch/subagent_prompts.py:21``) to
 every sub-agent system prompt, so the sub-agent already sees them.
 
 swarm-strict and swarm-paper do disclose: (a) the 8-unique-name
 registry cap and the replace-on-reuse semantics (factual claim about
-``tool.py::MAX_REGISTRY_SIZE`` and ``tool.py:111``); (b) the
+``tool.py:20`` and ``tool.py:111``); (b) the
 sub-agent 10-tool-call + ~5000-char-per-access budget (Orchestrator
 needs it for sub-task granularity planning). Keep those numbers in
 sync whenever ``tool.py`` or ``widesearch/assign_task.py`` changes.
