@@ -1,18 +1,31 @@
 """Orchestrator system prompts for the three PARL v2 agent modes.
 
-- ``ORCHESTRATOR_SYSTEM_PROMPT`` (swarm-strict): current default — only
-  ``create_subagent`` / ``assign_task`` available, Orchestrator *must*
-  delegate to touch any data.
+- ``ORCHESTRATOR_SYSTEM_PROMPT`` (swarm-strict): only ``create_subagent`` /
+  ``assign_task`` available, so the Orchestrator must delegate to touch
+  any data. Baseline for isolating delegation behavior.
 - ``ORCHESTRATOR_SYSTEM_PROMPT_PAPER`` (swarm-paper): paper-faithful —
-  Orchestrator gets direct ``search``/``access`` in addition to the
-  subagent tools, and is steered toward delegating when the retrieved
-  evidence would otherwise blow its own context.
-- ``ORCHESTRATOR_SYSTEM_PROMPT_SINGLE`` (single-agent baseline): no
-  delegation — only direct ``search``/``access``.
+  Orchestrator gets direct ``search``/``access`` plus the subagent
+  tools. No hand-coded heuristic about when to delegate vs call
+  directly; the reward (r_parallel / r_finish / critical_steps budget)
+  is expected to shape that trade-off during training.
+- ``ORCHESTRATOR_SYSTEM_PROMPT_SINGLE`` (single-agent baseline): only
+  direct ``search``/``access``, no delegation.
 
-The three strings are kept as independent constants (rather than a single
-template filled from tool_specs) so the behavioral guidance in each can
-be tuned independently. ``run_parl_v2.py`` selects which to load via
+The sub-agent ``<result>…</result>`` output contract and the
+must-tool-use requirement are NOT restated in these Orchestrator
+prompts: ``assign_task.py:117`` already appends
+``SUBAGENT_OUTPUT_SUFFIX`` (``tool.py:26``) and
+``SUBAGENT_REACT_SUFFIX`` (``widesearch/subagent_prompts.py:21``) to
+every sub-agent system prompt, so the sub-agent already sees them.
+
+swarm-strict and swarm-paper do disclose: (a) the 8-unique-name
+registry cap and the replace-on-reuse semantics (factual claim about
+``tool.py::MAX_REGISTRY_SIZE`` and ``tool.py:111``); (b) the
+sub-agent 10-tool-call + ~5000-char-per-access budget (Orchestrator
+needs it for sub-task granularity planning). Keep those numbers in
+sync whenever ``tool.py`` or ``widesearch/assign_task.py`` changes.
+
+``run_parl_v2.py`` selects which constant to load via
 ``--orchestrator-prompt-path`` based on ``--agent-mode``.
 """
 

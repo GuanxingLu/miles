@@ -120,8 +120,7 @@ class ScriptArgs(U.ExecuteTrainConfig):
         self.rollout_num_gpus_per_engine = self.rollout_num_gpus_per_engine or defaults["rollout_num_gpus_per_engine"]
         if self.env == "math" and self.agent_mode == "swarm-paper":
             raise ValueError(
-                "agent_mode=swarm-paper is widesearch-only: math has no direct "
-                "Orchestrator-side tools to expose."
+                "agent_mode=swarm-paper is widesearch-only: math has no direct " "Orchestrator-side tools to expose."
             )
         if self.env == "math":
             self.prompt_data = self.prompt_data or f"{self.dev_repo_dir}/DATA/dapo-math-17k/dapo-math-17k.jsonl"
@@ -183,8 +182,7 @@ _TOOL_SPECS_PATH = {
 
 _ORCHESTRATOR_PROMPT_PATH = {
     # swarm mode leaves this empty — generate.py falls back to the
-    # ORCHESTRATOR_SYSTEM_PROMPT constant, preserving the pre-refactor
-    # prompt for swarm-strict launchers byte-identically.
+    # ORCHESTRATOR_SYSTEM_PROMPT constant at runtime.
     "swarm": "",
     "swarm-paper": "examples.parl_v2.prompts.ORCHESTRATOR_SYSTEM_PROMPT_PAPER",
     "single-agent": "examples.parl_v2.prompts.ORCHESTRATOR_SYSTEM_PROMPT_SINGLE",
