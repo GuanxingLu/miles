@@ -13,8 +13,11 @@ from examples.parl_v2.widesearch.reward_utils import (
     _canonicalize_url,
     _cell_set,
     cell_equal,
+    cover_em_score,
     em_score,
     item_f1_from_markdown,
+    row_f1_from_markdown,
+    token_f1_score,
 )
 
 
@@ -295,3 +298,146 @@ class TestEmScore:
     )
     def test_em_score(self, response, gt, expected):
         assert em_score(response, gt) == expected
+
+
+class TestCoverEmScore:
+    @pytest.mark.parametrize(
+        "response,gt,expected",
+        [
+            # Exact (post-normalization) match still counts as cover.
+            ("\\boxed{Paris}", "Paris", 1.0),
+            ("\\boxed{paris}", "Paris", 1.0),
+            # GT is a substring of a longer prediction — the central win vs strict EM.
+            ("\\boxed{Paris, France}", "Paris", 1.0),
+            ("\\boxed{former president Barack Obama}", "Barack Obama", 1.0),
+            # _normalize_em strips articles, so "the Eiffel Tower" normalizes to
+            # "eiffel tower" and still covers "Eiffel Tower".
+            ("\\boxed{the Eiffel Tower is in Paris}", "Eiffel Tower", 1.0),
+            # Prediction shorter than GT — cover-EM must NOT count this.
+            ("\\boxed{Obama}", "Barack Obama", 0.0),
+            # Token appears but inside a different phrase: normalized substring
+            # "paris" still occurs in "in paris", so cover still matches. That's
+            # the documented behavior of cover-EM; leave it explicit.
+            ("\\boxed{in Paris}", "Paris", 1.0),
+            # No overlap at all.
+            ("\\boxed{London}", "Paris", 0.0),
+            # Alias list: any alias covered → 1.0.
+            ("\\boxed{Paris, France}", ["London", "Paris"], 1.0),
+            ("\\boxed{Madrid}", ["London", "Paris"], 0.0),
+            # Empty prediction / empty GT.
+            ("", "Paris", 0.0),
+            ("\\boxed{Paris}", "", 0.0),
+            # <answer> tag extraction (same code path as em_score).
+            ("<answer>Paris, France</answer>", "Paris", 1.0),
+        ],
+    )
+    def test_cover_em(self, response, gt, expected):
+        assert cover_em_score(response, gt) == expected
+
+
+class TestTokenF1Score:
+    def test_exact_tokens_f1_one(self):
+        assert token_f1_score("\\boxed{Barack Obama}", "Barack Obama") == 1.0
+
+    def test_partial_overlap(self):
+        # pred tokens: {barack, obama, jr}; gt tokens: {barack, obama}
+        # common = {barack, obama} → p=2/3, r=2/2 → f1 = 2 * 2/3 * 1 / (2/3 + 1) = 4/5
+        got = token_f1_score("\\boxed{Barack Obama Jr}", "Barack Obama")
+        assert abs(got - 0.8) < 1e-9
+
+    def test_zero_overlap(self):
+        assert token_f1_score("\\boxed{Madrid}", "Paris") == 0.0
+
+    def test_empty_pred(self):
+        assert token_f1_score("", "Paris") == 0.0
+
+    def test_empty_gt(self):
+        assert token_f1_score("\\boxed{Paris}", "") == 0.0
+
+    def test_articles_stripped(self):
+        # _normalize_em removes "the" → both sides reduce to "eiffel tower".
+        assert token_f1_score("\\boxed{The Eiffel Tower}", "Eiffel Tower") == 1.0
+
+    def test_duplicate_tokens_multiset(self):
+        # pred normalized: "the the eiffel tower" → after article strip: "eiffel tower"
+        # that removes the duplicate before counting — use a non-stopword duplicate.
+        # pred tokens: [ha, ha, ha]; gt tokens: [ha]
+        # common multiset = {ha: 1}; p=1/3, r=1/1 → f1 = 2*(1/3)*1/(1/3+1) = 0.5
+        got = token_f1_score("\\boxed{ha ha ha}", "ha")
+        assert abs(got - 0.5) < 1e-9
+
+    def test_alias_takes_max(self):
+        # First alias: zero overlap. Second alias: exact. Max wins.
+        got = token_f1_score("\\boxed{Barack Obama}", ["Donald Trump", "Barack Obama"])
+        assert got == 1.0
+
+    def test_case_insensitive(self):
+        assert token_f1_score("\\boxed{BARACK OBAMA}", "barack obama") == 1.0
+
+
+def _md_kv_table(rows: list[list[str]]) -> str:
+    """Alias for _md_table, re-used by row-F1 tests for readability."""
+    return _md_table(rows)
+
+
+class TestRowF1:
+    def test_perfect_key_match(self):
+        # Row-F1 only cares about the unique_columns projection, non-key cells
+        # (like Rank here) don't move the score.
+        gt = _md_kv_table(
+            [
+                ["Subject", "University", "Rank"],
+                ["Arts", "Harvard", "1"],
+                ["Arts", "Oxford", "2"],
+            ]
+        )
+        pred = _md_kv_table(
+            [
+                ["Subject", "University", "Rank"],
+                ["Arts", "Harvard", "99"],  # rank wrong but key matches
+                ["Arts", "Oxford", "2"],
+            ]
+        )
+        assert row_f1_from_markdown(pred, gt, ["subject", "university"]) == 1.0
+
+    def test_missing_row(self):
+        gt = _md_kv_table(
+            [
+                ["Subject", "University"],
+                ["Arts", "Harvard"],
+                ["Arts", "Oxford"],
+            ]
+        )
+        pred = _md_kv_table([["Subject", "University"], ["Arts", "Harvard"]])
+        # tp=1, pred_keys=1, gt_keys=2 → p=1, r=0.5 → f1 = 2/3
+        got = row_f1_from_markdown(pred, gt, ["subject", "university"])
+        assert abs(got - 2 / 3) < 1e-9
+
+    def test_extra_row(self):
+        gt = _md_kv_table([["Subject", "University"], ["Arts", "Harvard"]])
+        pred = _md_kv_table(
+            [
+                ["Subject", "University"],
+                ["Arts", "Harvard"],
+                ["Arts", "Yale"],
+            ]
+        )
+        # tp=1, pred_keys=2, gt_keys=1 → p=0.5, r=1 → f1 = 2/3
+        got = row_f1_from_markdown(pred, gt, ["subject", "university"])
+        assert abs(got - 2 / 3) < 1e-9
+
+    def test_no_table_returns_zero(self):
+        pred = "no table here"
+        gt = _md_kv_table([["Subject", "University"], ["Arts", "Harvard"]])
+        assert row_f1_from_markdown(pred, gt, ["subject", "university"]) == 0.0
+
+    def test_empty_unique_columns_returns_zero(self):
+        gt = _md_kv_table([["Subject", "University"], ["Arts", "Harvard"]])
+        pred = _md_kv_table([["Subject", "University"], ["Arts", "Harvard"]])
+        assert row_f1_from_markdown(pred, gt, []) == 0.0
+
+    def test_case_insensitive_key_match(self):
+        gt = _md_kv_table([["Subject", "University"], ["Arts", "Harvard"]])
+        pred = _md_kv_table([["Subject", "University"], ["ARTS", "harvard"]])
+        # _norm_cell lowercases → keys match.
+        assert row_f1_from_markdown(pred, gt, ["subject", "university"]) == 1.0

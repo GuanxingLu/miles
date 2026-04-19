@@ -36,7 +36,12 @@ import numpy as np
 
 from miles.utils import tracking_utils
 from miles.utils.iter_utils import group_by
-from miles.utils.metric_utils import compute_rollout_step
+from miles.utils.metric_utils import compute_at_k_over_metrics, compute_rollout_step
+
+# Metric names that are 0/1 by construction — pass@k (binary gate on `== 1`)
+# is meaningful here. Continuous metrics (item_f1, row_f1, token_f1) only get
+# avg@N / max@N. See examples/parl_v2/widesearch/reward_utils.compute_eval_metrics.
+_BINARY_EVAL_METRICS = frozenset({"em", "cover_em", "is_success"})
 
 # Keys logged with full 5-stat distribution (mean/std/p50/max/min).
 _REWARD_STAT_KEYS = (
@@ -246,6 +251,35 @@ def log_rollout_data(rollout_id, args, samples, rollout_extra_metrics, rollout_t
     return False
 
 
+def _collect_eval_metric_streams(samples) -> dict[str, list[float]]:
+    """Flatten per-sample ``metadata["eval_metrics"]`` into per-metric streams.
+
+    Preserves the input sample order so ``compute_at_k_over_metrics`` can
+    reshape to (num_prompts, n_samples_per_eval_prompt) correctly.
+    """
+    streams: dict[str, list[float]] = {}
+    for s in samples:
+        md = getattr(s, "metadata", None) or {}
+        em = md.get("eval_metrics")
+        if not em:
+            continue
+        for k, v in em.items():
+            streams.setdefault(k, []).append(float(v))
+    return streams
+
+
+def _compute_eval_metric_at_k(args, samples) -> dict[str, float]:
+    """Paper-aligned Avg@N / Max@N / Pass@k per eval sub-metric.
+
+    Expects per-sample dicts in ``metadata["eval_metrics"]`` (populated by
+    ``examples.parl_v2.widesearch.reward.compute_eval_metrics``). Emits
+    ``eval/<key>/<metric>/avg@N`` etc. via the outer log_dict.
+    """
+    streams = _collect_eval_metric_streams(samples)
+    group_size = int(getattr(args, "n_samples_per_eval_prompt", 1) or 1)
+    return compute_at_k_over_metrics(streams, group_size, _BINARY_EVAL_METRICS)
+
+
 def log_eval_rollout_data(rollout_id, args, data, extra_metrics):
     log_dict = {}
     for eval_key, payload in data.items():
@@ -254,6 +288,7 @@ def log_eval_rollout_data(rollout_id, args, data, extra_metrics):
             continue
         log_dict |= {f"eval/{eval_key}/{k}": v for k, v in _compute_reward_component_metrics(samples).items()}
         log_dict |= {f"eval/{eval_key}/{k}": v for k, v in _compute_multi_turn_metrics(args, samples).items()}
+        log_dict |= {f"eval/{eval_key}/{k}": v for k, v in _compute_eval_metric_at_k(args, samples).items()}
 
     if log_dict:
         step = compute_rollout_step(args, rollout_id)

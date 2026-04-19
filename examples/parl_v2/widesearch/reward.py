@@ -27,7 +27,7 @@ import numpy as np
 
 from miles.utils.types import Sample
 
-from .reward_utils import em_score, item_f1_from_markdown
+from .reward_utils import compute_eval_metrics
 
 LAMBDA1_INIT = 0.3  # r_parallel
 LAMBDA2_INIT = 0.2  # r_finish
@@ -94,10 +94,12 @@ def _score_one(args, sample: Sample, lam1: float, lam2: float) -> dict:
     response = sample.response or ""
     answer, unique_columns, required_columns = _decode_label(sample.label)
 
-    if unique_columns:
-        r_perf = float(item_f1_from_markdown(response, answer, unique_columns, required_columns))
-    else:
-        r_perf = float(em_score(response, answer))
+    eval_metrics = compute_eval_metrics(response, answer, unique_columns, required_columns)
+    # r_perf stays on the same metric as before bbe13569's item-F1 upgrade:
+    # item_f1 on widesearch, strict em on QA. The extra cover_em / token_f1 /
+    # row_f1 / is_success live only in metadata for eval reporting — training
+    # signal is unchanged so checkpoints remain compatible.
+    r_perf = eval_metrics["item_f1"] if unique_columns else eval_metrics["em"]
 
     turns = (sample.metadata or {}).get("turns") or []
     n_assign_total = sum(int(t.get("n_assign", 0)) for t in turns)
@@ -128,6 +130,7 @@ def _score_one(args, sample: Sample, lam1: float, lam2: float) -> dict:
     if sample.metadata is None:
         sample.metadata = {}
     sample.metadata["raw_reward"] = r_perf
+    sample.metadata["eval_metrics"] = eval_metrics
 
     return {
         "score": score,

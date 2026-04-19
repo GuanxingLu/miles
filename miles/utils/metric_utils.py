@@ -37,6 +37,65 @@ def compute_pass_rate(
     return log_dict
 
 
+def compute_at_k(
+    flat_values: list[float],
+    group_size: int,
+    num_groups: int | None = None,
+) -> dict[str, float]:
+    """Continuous ``avg@k`` and ``max@k`` aggregations over a flat, group-ordered array.
+
+    Companion to ``compute_pass_rate`` (which binary-gates on ``== 1``). Use
+    when the per-sample metric is continuous and you want the paper-style
+    Avg@N (mean over all k*G samples) and Max@N (mean over per-group maxes).
+
+    Returns an empty dict when ``flat_values`` is empty so callers can
+    unconditionally merge the result.
+    """
+    if not flat_values:
+        return {}
+    if num_groups is None:
+        num_groups = len(flat_values) // group_size
+    assert len(flat_values) == num_groups * group_size, f"{len(flat_values)=} {num_groups=} {group_size=}"
+    vals = np.asarray(flat_values, dtype=np.float64).reshape(num_groups, group_size)
+    return {
+        f"avg@{group_size}": float(vals.mean()),
+        f"max@{group_size}": float(vals.max(axis=1).mean()),
+    }
+
+
+def compute_at_k_over_metrics(
+    metric_streams: dict[str, list[float]],
+    group_size: int,
+    binary_metrics: set[str] | frozenset[str] = frozenset(),
+) -> dict[str, float]:
+    """Aggregate several named per-sample metric streams into paper-style @k stats.
+
+    For every metric in ``metric_streams`` whose length is a multiple of
+    ``group_size`` (i.e. samples arrive group-ordered), emits
+    ``"<metric>/avg@N"`` and ``"<metric>/max@N"``. For metrics also listed in
+    ``binary_metrics``, additionally emits the binary ``pass@{1,2,...,N}``
+    from ``compute_pass_rate`` — useful for metrics like ``em`` / ``cover_em``
+    / ``is_success`` where a 0/1 gate is meaningful.
+
+    Streams with non-divisible length degrade to a plain ``"<metric>/mean"``
+    so the caller's log dict always has something (a partial eval batch
+    should not silently drop metrics).
+    """
+    out: dict[str, float] = {}
+    for metric, values in metric_streams.items():
+        if not values:
+            continue
+        if group_size < 1 or len(values) % group_size != 0:
+            out[f"{metric}/mean"] = float(np.mean(values))
+            continue
+        for k, v in compute_at_k(values, group_size).items():
+            out[f"{metric}/{k}"] = v
+        if metric in binary_metrics:
+            for k, v in compute_pass_rate(values, group_size).items():
+                out[f"{metric}/{k}"] = v
+    return out
+
+
 def _estimate_pass_at_k(num_samples, num_correct, k):
     """
     Estimates pass@k of each problem and returns them in an array.

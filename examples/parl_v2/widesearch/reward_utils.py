@@ -27,6 +27,7 @@ from __future__ import annotations
 import re
 import string
 import unicodedata
+from collections import Counter
 from urllib.parse import urlparse
 
 _TABLE_ROW_RE = re.compile(r"^\s*\|(.+)\|\s*$", re.MULTILINE)
@@ -288,6 +289,74 @@ def item_f1_from_markdown(
     return 2 * precision * recall / (precision + recall)
 
 
+def row_f1_from_markdown(
+    response: str,
+    answer: str,
+    unique_columns: list[str] | tuple[str, ...],
+) -> float:
+    """Paper's "Row F1" metric — set-F1 over the ``unique_columns`` row-key.
+
+    Retained as a side-metric alongside ``item_f1_from_markdown`` so eval
+    reporting can mirror the paper's table 1b (Row F1 Avg@N / Max@N). Row-F1
+    ignores non-key cells entirely, so a prediction that gets the row
+    identities right but fills non-key columns with garbage still scores 1.0.
+    Returns 0.0 on any parse failure.
+    """
+    if not unique_columns:
+        return 0.0
+    uc = [_norm_column(c) for c in unique_columns]
+    gt_tables = _extract_markdown_tables(answer or "")
+    pred_tables = _extract_markdown_tables(response or "")
+    gt = _pick_table_with_columns(gt_tables, uc)
+    pred = _pick_table_with_columns(pred_tables, uc)
+    if gt is None or pred is None:
+        return 0.0
+    gt_keys = {_row_key(r, uc) for r in gt if any(r.get(c) for c in uc)}
+    pred_keys = {_row_key(r, uc) for r in pred if any(r.get(c) for c in uc)}
+    if not gt_keys or not pred_keys:
+        return 0.0
+    tp = len(gt_keys & pred_keys)
+    if tp == 0:
+        return 0.0
+    precision = tp / len(pred_keys)
+    recall = tp / len(gt_keys)
+    return 2 * precision * recall / (precision + recall)
+
+
+def compute_eval_metrics(
+    response: str,
+    answer: str | list[str],
+    unique_columns: list[str] | tuple[str, ...] | None,
+    required_columns: list[str] | tuple[str, ...] | None,
+) -> dict[str, float]:
+    """Paper-aligned per-sample side-metrics, keyed by metric name.
+
+    Returns different metric sets by sample type:
+      - ``unique_columns`` present (WideSeek-R1 train / WideSearch eval):
+        ``{item_f1, row_f1, is_success}``. Mirrors WideSearch table 1b.
+      - ``unique_columns`` absent (ASearcher QA benchmarks): ``{em, cover_em,
+        token_f1}``. Gives the strict / lenient / partial triplet used in
+        the WideSeek-R1 paper's standard QA benchmarks.
+
+    Meant to be stashed in ``sample.metadata["eval_metrics"]`` by reward.py
+    and aggregated downstream by the eval logger into Avg@N / Max@N / Pass@N.
+    """
+    if unique_columns:
+        item_f1 = float(item_f1_from_markdown(response, answer, unique_columns, required_columns))
+        row_f1 = float(row_f1_from_markdown(response, answer, unique_columns))
+        return {
+            "item_f1": item_f1,
+            "row_f1": row_f1,
+            "is_success": float(item_f1 == 1.0),
+        }
+    em = float(em_score(response, answer))
+    return {
+        "em": em,
+        "cover_em": float(cover_em_score(response, answer)),
+        "token_f1": float(token_f1_score(response, answer)),
+    }
+
+
 def _extract_final_answer(response: str) -> str:
     """Pull the model's final answer string out of a response.
 
@@ -326,3 +395,53 @@ def em_score(response: str, answer: str | list[str]) -> float:
     else:
         gts = [_normalize_em(str(answer))]
     return 1.0 if any(g and g == pred for g in gts) else 0.0
+
+
+def cover_em_score(response: str, answer: str | list[str]) -> float:
+    """Cover-EM: 1.0 if any normalized GT alias appears as a substring of pred.
+
+    Matches the Search-R1 / FlashRAG community convention used to score
+    open-domain QA benchmarks (NQ / TriviaQA / HotpotQA / 2Wiki / Bamboogle /
+    MuSiQue / PopQA). More lenient than strict EM — a prediction that wraps
+    the answer in extra context ("former president Barack Obama" vs
+    "Barack Obama") still scores. Prediction shorter than GT never scores.
+    """
+    pred = _normalize_em(_extract_final_answer(response))
+    if not pred:
+        return 0.0
+    gts = answer if isinstance(answer, (list, tuple)) else [answer]
+    for gt in gts:
+        g = _normalize_em(str(gt))
+        if g and g in pred:
+            return 1.0
+    return 0.0
+
+
+def token_f1_score(response: str, answer: str | list[str]) -> float:
+    """SQuAD-style token-level F1 against GT (max over aliases).
+
+    Pred and GT both go through ``_normalize_em`` (lowercase, strip
+    articles / punctuation) before token-splitting on whitespace. Uses
+    multiset intersection so duplicate tokens are counted with their real
+    multiplicities (matches the HuggingFace ``squad`` metric).
+    """
+    pred_toks = _normalize_em(_extract_final_answer(response)).split()
+    if not pred_toks:
+        return 0.0
+    pred_counter = Counter(pred_toks)
+    gts = answer if isinstance(answer, (list, tuple)) else [answer]
+    best = 0.0
+    for gt in gts:
+        gt_toks = _normalize_em(str(gt)).split()
+        if not gt_toks:
+            continue
+        common = pred_counter & Counter(gt_toks)
+        n_common = sum(common.values())
+        if n_common == 0:
+            continue
+        precision = n_common / len(pred_toks)
+        recall = n_common / len(gt_toks)
+        f1 = 2 * precision * recall / (precision + recall)
+        if f1 > best:
+            best = f1
+    return best
