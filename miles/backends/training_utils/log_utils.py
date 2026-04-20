@@ -315,12 +315,17 @@ def log_passrate(rollout_id: int, args: Namespace, rollout_data: RolloutBatch) -
     parallel_state = get_parallel_state()
     if parallel_state.tp.rank == 0 and parallel_state.is_pp_last_stage:
         log_dict = {}
-        for key, val in rollout_data.items():
-            if key != "raw_reward":
-                continue
+        # When rollout emits extra non-primary samples per prompt (e.g. multi-agent),
+        # it tags the final-answer sample with pass_reward; filter to those so that
+        # pass@k sees exactly rollout_batch_size * n_samples_per_prompt entries.
+        if "pass_reward" in rollout_data:
+            flat_rewards = [r for r in rollout_data["pass_reward"] if r is not None]
+        else:
+            flat_rewards = rollout_data.get("raw_reward")
 
+        if flat_rewards is not None:
             log_dict |= compute_pass_rate(
-                flat_rewards=val,
+                flat_rewards=flat_rewards,
                 group_size=args.n_samples_per_prompt,
                 num_groups=args.rollout_batch_size,
             )
