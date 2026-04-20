@@ -942,6 +942,18 @@ def get_miles_extra_args_provider(add_custom_arguments=None):
                 ),
             )
             parser.add_argument(
+                "--disable-entropy-computation",
+                action="store_false",
+                dest="compute_entropy",
+                help=(
+                    "Skip entropy term in the policy loss entirely. Avoids the fp32 "
+                    "~N * (vocab/tp) * 4 bytes peak allocation inside "
+                    "compute_entropy_from_logits (plus its bf16 logits.clone()); "
+                    "useful when entropy-coef is 0 and entropy metric is not needed. "
+                    "When disabled, entropy_loss metric is reported as 0."
+                ),
+            )
+            parser.add_argument(
                 "--get-mismatch-metrics",
                 action="store_true",
                 default=False,
