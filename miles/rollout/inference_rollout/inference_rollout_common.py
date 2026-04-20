@@ -91,8 +91,9 @@ async def generate_and_rm(
         logger.debug(f"{log_prefix} generate_function returned")
 
     # TODO change to `if not args.group_rm: do reward model` for more clarity after the refactor below
-    # for the rm that need the whole group, we will not do the rm here
-    if args.group_rm:
+    # for the rm that need the whole group, we will not do the rm here.
+    # Eval is per-sample (no group aggregation), so fall through to single-sample rm even when group_rm=True.
+    if args.group_rm and not evaluation:
         return sample
 
     # TODO: unify the two branches into one if we decide to use list as output type
@@ -191,8 +192,6 @@ class InferenceRolloutFn:
 
     async def _call_eval(self, input: RolloutFnEvalInput) -> RolloutFnEvalOutput:
         from miles.rollout.inference_rollout.inference_rollout_eval import eval_rollout_single_dataset
-
-        assert not self.state.args.group_rm, "Group RM is not supported for eval rollout"
 
         coros = []
         for dataset_cfg in getattr(self.state.args, "eval_datasets", []) or []:

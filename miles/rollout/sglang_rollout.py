@@ -270,8 +270,9 @@ async def generate_and_rm(
             else:
                 sample = await generate(args, sample, sampling_params)
 
-    # for the rm that need the whole group, we will not do the rm here
-    if args.group_rm:
+    # for the rm that need the whole group, we will not do the rm here.
+    # Eval is per-sample (no group aggregation), so fall through to single-sample rm even when group_rm=True.
+    if args.group_rm and not evaluation:
         return sample
 
     # multi samples
@@ -475,8 +476,6 @@ EVAL_PROMPT_DATASET = {}
 
 
 async def eval_rollout(args: Namespace, rollout_id: int) -> tuple[dict[str, dict[str, list[Any]]], list[list[Sample]]]:
-    assert not args.group_rm, "Group RM is not supported for eval rollout"
-
     coros = []
     for dataset_cfg in getattr(args, "eval_datasets", []) or []:
         coros.append(eval_rollout_single_dataset(args, rollout_id, dataset_cfg))
@@ -497,8 +496,6 @@ async def eval_rollout_single_dataset(
         rollout_id: int, the id of the rollout, used for deterministic data generation
         dataset_cfg: configuration of the dataset
     """
-    assert not args.group_rm, "Group RM is not supported for eval rollout"
-
     global EVAL_PROMPT_DATASET
 
     cache_key = dataset_cfg.cache_key + (args.hf_checkpoint, args.apply_chat_template, args.chat_template_path)
@@ -566,10 +563,11 @@ async def eval_rollout_single_dataset(
     for coro in asyncio.as_completed(tasks):
         sample = await coro
         if do_print:
+            example = sample[0] if isinstance(sample, list) else sample
             logger.info(
                 "eval_rollout_single_dataset example data: "
-                f"{[str(sample.prompt) + sample.response]} "
-                f"reward={sample.reward}"
+                f"{[str(example.prompt) + example.response]} "
+                f"reward={example.reward}"
             )
             do_print = False
         if isinstance(sample, list):
