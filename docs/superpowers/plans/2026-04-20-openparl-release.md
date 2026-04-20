@@ -1352,8 +1352,10 @@ git commit -m "ci: add GitHub Actions fast-tests workflow"
 - [ ] **Step 1: Create remote repo**
 
 ```bash
-gh repo create GuanxingLu/OpenPARL --public --description "Reproduction of Kimi K2.5 PARL Agent Swarm on WideSearch" --source=/Users/a74739/code/OpenPARL --remote=origin
+gh repo create GuanxingLu/OpenPARL --private --description "Reproduction of Kimi K2.5 PARL Agent Swarm on WideSearch" --source=/Users/a74739/code/OpenPARL --remote=origin
 ```
+
+> Created private first. When the blog is ready, flip to public via `gh repo edit GuanxingLu/OpenPARL --visibility public --accept-visibility-change-consequences`.
 
 - [ ] **Step 2: Push**
 
