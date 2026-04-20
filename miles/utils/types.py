@@ -28,6 +28,12 @@ class Sample:
     rollout_routed_experts: numpy.ndarray | None = (
         None  # Routed experts from rollout engine. shape: (num_tokens-1, num_layers, moe_router_topk), dtype=int32
     )
+    # Optional per-response-token advantage override. When set, the GRPO/GSPO advantage
+    # estimator uses this directly and skips broadcasting a scalar reward, enabling
+    # turn-level / segment-level credit assignment (e.g. K2.5 PARL). Length must equal
+    # response_length. Whoever populates this is responsible for any group baseline /
+    # normalization they want — downstream `normalize_advantages` still whitens.
+    per_token_advantages: list[float] | None = None
     remove_sample: bool = False
 
     class Status(Enum):
@@ -170,6 +176,10 @@ class Sample:
             actual = len(self.rollout_routed_experts)
             expect = len(self.tokens) - 1
             assert actual == expect, f"rollout_routed_experts length ({actual}) != len(tokens) - 1 ({expect})"
+        if self.per_token_advantages is not None:
+            assert (
+                len(self.per_token_advantages) == self.response_length
+            ), f"per_token_advantages length ({len(self.per_token_advantages)}) != response_length ({self.response_length})"
 
     def strip_last_output_tokens(self, n: int, tokenizer) -> None:
         """Remove the last *n* output tokens and all associated per-token info."""
@@ -187,6 +197,8 @@ class Sample:
         self.response = tokenizer.decode(self.tokens[-self.response_length :]) if self.response_length > 0 else ""
         if self.rollout_routed_experts is not None:
             self.rollout_routed_experts = self.rollout_routed_experts[:-n]
+        if self.per_token_advantages is not None:
+            self.per_token_advantages = self.per_token_advantages[:-n]
 
     def reset_for_retry(self) -> None:
         """Reset generated outputs so the original prompt can be re-sampled.
@@ -204,6 +216,7 @@ class Sample:
         self.weight_versions = []
         self.rollout_log_probs = None
         self.rollout_routed_experts = None
+        self.per_token_advantages = None
         self.status = Sample.Status.ABORTED
         self.non_generation_time = 0.0
         self.spec_info = Sample.SpecInfo()
