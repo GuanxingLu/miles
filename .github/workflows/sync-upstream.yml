@@ -19,8 +19,8 @@ jobs:
 
       - name: Rebase onto upstream/main
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "Guanxing Lu"
+          git config user.email "747398423@qq.com"
           git remote add upstream https://github.com/radixark/miles.git
           git fetch upstream main
 
